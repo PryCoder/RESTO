@@ -433,7 +433,7 @@ const CustomerAllOrders = () => {
   });
 
   const navigate = useNavigate();
-  const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const VITE_API_URL = import.meta.env.VITE_API_URL;
 
   // Static values
   const buttonSize = 'md';
