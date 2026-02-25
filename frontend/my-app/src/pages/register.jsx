@@ -14,7 +14,7 @@ export default function Register() {
   const navigate = useNavigate();
 
   // API URL from environment or default
-  const API_URL = 'http://localhost:4000';
+  const API_URL = import.meta.VITE_API_URL;
 
   // Card parallax tilt
   const handleCardMouseMove = (e) => {
