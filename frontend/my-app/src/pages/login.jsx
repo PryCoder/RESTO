@@ -11,7 +11,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   const API_URL = import.meta.env.VITE_API_URL; // Corrected from import.meta.VITE_API_URL
-  console.log(API_URL);
+  
   // Card parallax tilt
   const handleCardMouseMove = (e) => {
     const card = cardRef.current;
