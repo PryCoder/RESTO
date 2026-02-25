@@ -1,8 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import LightModeIcon from '@mui/icons-material/LightMode';
-import DarkModeIcon from '@mui/icons-material/DarkMode';
+import { Sun, Moon } from 'lucide-react'; // Import lucide-react icons
 import TimePicker from 'react-time-picker';
 import 'react-time-picker/dist/TimePicker.css';
 import 'react-clock/dist/Clock.css';
@@ -225,7 +224,7 @@ export default function UserProfilePage() {
         fontSize: 26,
         transition: 'background 0.2s, color 0.2s',
       }}>
-        {theme === 'dark' ? <LightModeIcon fontSize="medium" /> : <DarkModeIcon fontSize="medium" />}
+        {theme === 'dark' ? <Sun size={22} /> : <Moon size={22} />}
       </button>
 
       {/* Profile Card */}

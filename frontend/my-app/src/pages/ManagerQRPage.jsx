@@ -23,8 +23,8 @@ export default function ManagerQRPage() {
 
         // Get QR data and user info
         const [qrRes, userRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/auth/generate-qr', { headers }),
-          axios.get('http://localhost:5000/api/auth/me', { headers }),
+          axios.get('http://localhost:4000/api/auth/generate-qr', { headers }),
+          axios.get('http://localhost:4000/api/auth/me', { headers }),
         ]);
 
         setQr(qrRes.data.qrData);

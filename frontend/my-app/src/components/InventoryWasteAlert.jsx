@@ -23,7 +23,7 @@ export default function InventoryWasteAlert({ restaurantId, userRole }) {
       const headers = { Authorization: `Bearer ${token}` };
 
       const response = await axios.get(
-        'http://localhost:5000/api/orders/inventoryalert',
+        'http://localhost:4000/api/orders/inventoryalert',
         { headers }
       );
 

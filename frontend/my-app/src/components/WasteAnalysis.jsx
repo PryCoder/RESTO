@@ -26,7 +26,7 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
       };
 
       const response = await axios.post(
-        'http://localhost:5000/api/orders/wasteanalyze', // Corrected endpoint
+        'http://localhost:4000/api/orders/wasteanalyze', // Corrected endpoint
         {
           voiceInput: "Analyze food waste patterns and provide recommendations",
           weather: "sunny"

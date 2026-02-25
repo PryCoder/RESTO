@@ -1,4 +1,5 @@
 import React, { Suspense, useState, useEffect } from 'react';
+import { ChakraProvider } from '@chakra-ui/react'; // Import ChakraProvider
 const ManagerDashboard = React.lazy(() => import('./pages/managerdashboard'));
 const ManagerQRPage = React.lazy(() => import('./pages/ManagerQRPage'));
 const ManagerUsersPage = React.lazy(() => import('./pages/ManagerUsersPage'));
@@ -16,7 +17,7 @@ import PremiumLoader from './components/PremiumLoader';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import CustomerRegister from './pages/CustomerRegister';
 import CustomerHomePage from './pages/CustomerHomePage';
-import RestaurantDetailsPage from './pages/RestaurantDetails';
+ import RestaurantDetailsPage from './pages/RestaurantDetails'; 
 import CheckoutPage from './pages/checkout';
 import OrderReceiptPage from './components/Receipt';
 import CustomerAllOrders from './components/allOrders';
@@ -51,7 +52,7 @@ function App() {
             <Route path="/dashboard/waiter" element={<WaiterDashboard />} />
             <Route path="/dashboard/kitchen" element={<KitchenDashboard />} />
             <Route path="/restaurants" element={<CustomerHomePage/>} />
-            <Route path="/restaurant/:id" element={<RestaurantDetailsPage/>} />
+             <Route path="/restaurant/:id" element={<RestaurantDetailsPage/>} /> 
             <Route path="/join" element={<JoinPage />} />
             <Route path="/inventory" element={<InventoryManagement />} />
             <Route path="/tables" element={<TableManagement />} />
@@ -59,7 +60,7 @@ function App() {
           </Routes>
         </Router>
       </Suspense>
-    </>
+   </>
   );
 }
 

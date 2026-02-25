@@ -1,6 +1,88 @@
+// pages/RestaurantDetailsPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import {
+  Box,
+  Container,
+  Flex,
+  Text,
+  Heading,
+  Image,
+  Button,
+  IconButton,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  InputRightElement,
+  Select,
+  Badge,
+  Card,
+  CardBody,
+  CardFooter,
+  Stack,
+  HStack,
+  VStack,
+  SimpleGrid,
+  Grid,
+  GridItem,
+  Divider,
+  useBreakpointValue,
+  useDisclosure,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalCloseButton,
+  Drawer,
+  DrawerBody,
+  DrawerHeader,
+  DrawerOverlay,
+  DrawerContent,
+  DrawerCloseButton,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  Tag,
+  Wrap,
+  WrapItem,
+  Spinner,
+  Center,
+  Circle,
+  AspectRatio,
+  Avatar,
+  AvatarGroup,
+  Progress,
+  Skeleton,
+  SkeletonText,
+  SkeletonCircle,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  CloseButton,
+  Tooltip,
+  useToast,
+  Icon,
+  Fade,
+  ScaleFade,
+  Slide,
+  SlideFade,
+  Collapse,
+  useColorModeValue,
+  AbsoluteCenter,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  StatArrow,
+  StatGroup,
+} from '@chakra-ui/react';
+
+// Icons from lucide-react
 import {
   Star,
   MapPin,
@@ -38,6 +120,13 @@ import {
 
 const RestaurantDetailsPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { isOpen: isCartOpen, onOpen: onCartOpen, onClose: onCartClose } = useDisclosure();
+  const { isOpen: isAddressOpen, onOpen: onAddressOpen, onClose: onAddressClose } = useDisclosure();
+  const { isOpen: isDishOpen, onOpen: onDishOpen, onClose: onDishClose } = useDisclosure();
+  const { isOpen: isReviewsOpen, onToggle: onReviewsToggle } = useDisclosure();
+  
   const [restaurant, setRestaurant] = useState(null);
   const [menu, setMenu] = useState([]);
   const [dishes, setDishes] = useState([]);
@@ -45,17 +134,13 @@ const RestaurantDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [cart, setCart] = useState({});
-  const [showCart, setShowCart] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [vegFilter, setVegFilter] = useState('all');
   const [userLocation, setUserLocation] = useState(null);
   const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [showAddressModal, setShowAddressModal] = useState(false);
   const [reviews, setReviews] = useState([]);
-  const [showReviews, setShowReviews] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [selectedDish, setSelectedDish] = useState(null);
-  const [showDishModal, setShowDishModal] = useState(false);
   const [orderType, setOrderType] = useState('delivery');
   const [dishLoading, setDishLoading] = useState(false);
   const [dishError, setDishError] = useState('');
@@ -67,8 +152,24 @@ const RestaurantDetailsPage = () => {
   const [sortBy, setSortBy] = useState('popular');
   const [showFilters, setShowFilters] = useState(false);
   const [useDishesAsMenu, setUseDishesAsMenu] = useState(false);
+
+  // Responsive values
+  const isMobile = useBreakpointValue({ base: true, md: false });
+  const buttonSize = useBreakpointValue({ base: 'sm', md: 'md' });
+  const headingSize = useBreakpointValue({ base: 'xl', md: '2xl' });
+  const containerPadding = useBreakpointValue({ base: 4, md: 6, lg: 8 });
   
-  const navigate = useNavigate();
+  // Color mode values
+  const bgGradient = useColorModeValue(
+    'linear(to-br, gray.50, white, gray.50)',
+    'linear(to-br, gray.900, gray.800, gray.900)'
+  );
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.100', 'gray.700');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const mutedColor = useColorModeValue('gray.600', 'gray.400');
+
+  
   const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
   const token = localStorage.getItem('token');
 
@@ -112,14 +213,20 @@ const RestaurantDetailsPage = () => {
       setDeliveryAddress(user.addresses[0].address);
     }
   }, [id, user]);
-
+// Add this function in your component
+const onCartToggle = () => {
+  if (isCartOpen) {
+    onCartClose();
+  } else {
+    onCartOpen();
+  }
+};
   // API: GET restaurant details
   const fetchRestaurantDetails = async () => {
     try {
       setLoading(true);
       const response = await axios.get(`${VITE_API_URL}/api/restaurants/${id}`);
       
-      // Handle different response structures
       const restaurantData = response.data.data || response.data;
       setRestaurant(restaurantData);
       
@@ -146,20 +253,13 @@ const RestaurantDetailsPage = () => {
         { headers }
       );
       
-      // Handle different response structures
       const dishesData = res.data.data || res.data;
       setDishes(dishesData);
       
-      console.log('Fetched dishes:', dishesData);
-      
-      // For testing: If dishes exist but no restaurant menu, use dishes as menu
-      // This is a temporary fix for your testing
       if (dishesData.length > 0) {
-        // Check if any dish has a category
         const hasValidDishes = dishesData.some(dish => dish.name && dish.price);
         
         if (hasValidDishes) {
-          console.log('Using dishes as menu items');
           setMenu(dishesData);
           setUseDishesAsMenu(true);
         }
@@ -238,12 +338,14 @@ const RestaurantDetailsPage = () => {
     setCart(newCart);
     localStorage.setItem(`cart_${id}`, JSON.stringify(newCart));
     
-    // Show notification
-    const notification = document.createElement('div');
-    notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-xl shadow-lg z-50 animate-slide-in';
-    notification.textContent = '✓ Added to cart';
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 2000);
+    toast({
+      title: 'Added to cart',
+      description: `${item.name} has been added to your cart`,
+      status: 'success',
+      duration: 2000,
+      isClosable: true,
+      position: 'top-right',
+    });
   };
 
   const removeFromCart = (itemId) => {
@@ -293,20 +395,40 @@ const RestaurantDetailsPage = () => {
     if (isFavorite) {
       const newFavorites = favorites.filter(favId => favId !== id);
       localStorage.setItem('favorites', JSON.stringify(newFavorites));
+      toast({
+        title: 'Removed from favorites',
+        status: 'info',
+        duration: 2000,
+      });
     } else {
       favorites.push(id);
       localStorage.setItem('favorites', JSON.stringify(favorites));
+      toast({
+        title: 'Added to favorites',
+        status: 'success',
+        duration: 2000,
+      });
     }
     setIsFavorite(!isFavorite);
   };
 
   const handleCheckout = () => {
     if (Object.keys(cart).length === 0) {
-      alert('Your cart is empty!');
+      toast({
+        title: 'Cart is empty',
+        description: 'Please add items to your cart',
+        status: 'warning',
+        duration: 3000,
+      });
       return;
     }
     if (!user) {
-      alert('Please login to proceed to checkout');
+      toast({
+        title: 'Login required',
+        description: 'Please login to proceed to checkout',
+        status: 'warning',
+        duration: 3000,
+      });
       navigate('/customer-login');
       return;
     }
@@ -325,12 +447,10 @@ const RestaurantDetailsPage = () => {
     if (!items || !Array.isArray(items)) return [];
     
     return items.filter(item => {
-      // Search filter
       if (searchTerm && item.name && !item.name.toLowerCase().includes(searchTerm.toLowerCase())) {
         return false;
       }
       
-      // Veg/Non-veg filter
       if (vegFilter === 'veg' && item.isVeg === false) return false;
       if (vegFilter === 'non-veg' && item.isVeg === true) return false;
       
@@ -343,10 +463,8 @@ const RestaurantDetailsPage = () => {
     });
   };
 
-  // Get menu items - SIMPLIFIED for testing
   const menuItems = menu.length > 0 ? menu : [];
   
-  // Get categories
   const getCategories = () => {
     if (menuItems.length === 0) return ['all'];
     
@@ -370,365 +488,565 @@ const RestaurantDetailsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative">
-            <div className="w-20 h-20 border-4 border-gray-200 border-t-orange-500 rounded-full animate-spin mx-auto mb-4"></div>
-            <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-pink-500/20 rounded-full blur-xl animate-pulse"></div>
-          </div>
-          <p className="text-gray-600 animate-pulse">Loading restaurant details...</p>
-        </div>
-      </div>
+      <Center minH="100vh" bgGradient={bgGradient}>
+        <VStack spacing={4}>
+          <Box position="relative">
+            <Spinner
+              thickness="4px"
+              speed="0.65s"
+              emptyColor="gray.200"
+              color="orange.500"
+              size="xl"
+            />
+            <AbsoluteCenter>
+              <Circle size="12" bg="orange.100" opacity={0.5} />
+            </AbsoluteCenter>
+          </Box>
+          <Text color={mutedColor} className="sfpro-font">
+            Loading restaurant details...
+          </Text>
+        </VStack>
+      </Center>
     );
   }
 
   if (error || !restaurant) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
-          <div className="w-20 h-20 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-            <AlertCircle size={40} className="text-red-500" />
-          </div>
-          <h3 className="text-2xl font-bold text-gray-800 mb-2">Oops! Something went wrong</h3>
-          <p className="text-gray-600 mb-6">{error || 'Restaurant not found'}</p>
-          <button 
-            onClick={() => navigate('/')} 
-            className="px-6 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-xl font-medium hover:shadow-lg transition-all"
-          >
-            Back to Home
-          </button>
-        </div>
-      </div>
+      <Center minH="100vh" bgGradient={bgGradient} p={4}>
+        <Card bg={cardBg} borderRadius="2xl" maxW="md" w="full">
+          <CardBody textAlign="center" p={8}>
+            <Circle size="20" bg="red.100" mx="auto" mb={4}>
+              <Icon as={AlertCircle} boxSize={10} color="red.500" />
+            </Circle>
+            <Heading size="lg" mb={2} className="clash-font">
+              Oops! Something went wrong
+            </Heading>
+            <Text color={mutedColor} mb={6} className="sfpro-font">
+              {error || 'Restaurant not found'}
+            </Text>
+            <Button
+              onClick={() => navigate('/')}
+              bgGradient="linear(to-r, orange.500, pink.500)"
+              color="white"
+              size="lg"
+              _hover={{ shadow: 'lg' }}
+              className="sfpro-font"
+            >
+              Back to Home
+            </Button>
+          </CardBody>
+        </Card>
+      </Center>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 relative pb-32">
+    <Box
+      minH="100vh"
+      w="100%"
+      bgGradient={bgGradient}
+      position="relative"
+      overflow="hidden"
+    >
+      {/* Background decorative elements */}
+      <Box position="fixed" inset={0} overflow="hidden" pointerEvents="none">
+        <Circle
+          size="80"
+          bgGradient="linear(to-br, orange.200, pink.200)"
+          opacity={0.2}
+          filter="blur(60px)"
+          position="absolute"
+          top="-20"
+          right="-20"
+        />
+        <Circle
+          size="80"
+          bgGradient="linear(to-br, blue.200, purple.200)"
+          opacity={0.2}
+          filter="blur(60px)"
+          position="absolute"
+          bottom="-20"
+          left="-20"
+        />
+      </Box>
+
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center justify-between">
-            <button 
+      <Box
+        as="header"
+        position="sticky"
+        top={0}
+        zIndex={40}
+        bg="whiteAlpha.800"
+        backdropFilter="blur(10px)"
+        borderBottomWidth="1px"
+        borderColor={borderColor}
+      >
+        <Container maxW="1920px" px={containerPadding} py={3}>
+          <Flex justify="space-between" align="center">
+            <IconButton
+              aria-label="Go back"
+              icon={<ChevronLeft size={20} />}
+              variant="ghost"
+              borderRadius="xl"
               onClick={() => navigate(-1)}
-              className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
-            >
-              <ChevronLeft size={20} className="text-gray-700" />
-            </button>
+            />
             
-            <div className="flex items-center gap-2">
-              <button 
+            <HStack spacing={2}>
+              <IconButton
+                aria-label="Add to favorites"
+                icon={
+                  <Heart
+                    size={20}
+                    fill={isFavorite ? 'currentColor' : 'none'}
+                  />
+                }
+                variant="ghost"
+                borderRadius="xl"
+                colorScheme={isFavorite ? 'red' : 'gray'}
                 onClick={toggleFavorite}
-                className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
-              >
-                <Heart 
-                  size={20} 
-                  className={isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-700'}
-                />
-              </button>
-              <button className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
-                <Share2 size={20} className="text-gray-700" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+              />
+              <IconButton
+                aria-label="Share"
+                icon={<Share2 size={20} />}
+                variant="ghost"
+                borderRadius="xl"
+              />
+            </HStack>
+          </Flex>
+        </Container>
+      </Box>
 
       {/* Hero Section */}
-      <div className="relative h-64 sm:h-80 md:h-96 overflow-hidden">
-        <img 
-          src={restaurant.image || restaurant.coverImage || `https://source.unsplash.com/1200x400/?restaurant,${restaurant.cuisine?.[0] || 'food'}`} 
+      <Box position="relative" h={{ base: 64, sm: 80, md: 96 }} overflow="hidden">
+        <Image
+          src={restaurant.image || restaurant.coverImage || `https://source.unsplash.com/1200x400/?restaurant,${restaurant.cuisine?.[0] || 'food'}`}
           alt={restaurant.name}
-          className="w-full h-full object-cover"
+          w="100%"
+          h="100%"
+          objectFit="cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+        <Box
+          position="absolute"
+          inset={0}
+          bgGradient="linear(to-t, blackAlpha.700, blackAlpha.300, transparent)"
+        />
         
-        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 md:p-8">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-wrap gap-2 mb-3">
+        <Box
+          position="absolute"
+          bottom={0}
+          left={0}
+          right={0}
+          p={{ base: 4, sm: 6, md: 8 }}
+        >
+          <Container maxW="1920px">
+            <Wrap spacing={2} mb={3}>
               {restaurant.isVeg && (
-                <span className="px-3 py-1 bg-green-500 text-white text-xs font-medium rounded-full">
+                <Tag colorScheme="green" size="sm" borderRadius="full">
                   🌱 Pure Veg
-                </span>
+                </Tag>
               )}
               {restaurant.isPremium && (
-                <span className="px-3 py-1 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-xs font-medium rounded-full">
+                <Tag bgGradient="linear(to-r, amber.500, yellow.500)" color="white" size="sm" borderRadius="full">
                   ⭐ Premium
-                </span>
+                </Tag>
               )}
-              <span className={`px-3 py-1 ${isOpen ? 'bg-green-500' : 'bg-red-500'} text-white text-xs font-medium rounded-full`}>
+              <Tag
+                colorScheme={isOpen ? 'green' : 'red'}
+                size="sm"
+                borderRadius="full"
+              >
                 {isOpen ? 'Open Now' : 'Closed'}
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-2">
+              </Tag>
+            </Wrap>
+            <Heading
+              as="h1"
+              size={headingSize}
+              color="white"
+              mb={2}
+              className="clash-font"
+            >
               {restaurant.name}
-            </h1>
-            <p className="text-sm sm:text-base text-gray-200">
+            </Heading>
+            <Text color="gray.200" className="sfpro-font">
               {Array.isArray(restaurant.cuisine) ? restaurant.cuisine.join(' • ') : restaurant.cuisine || 'Various Cuisines'}
-            </p>
-          </div>
-        </div>
-      </div>
+            </Text>
+          </Container>
+        </Box>
+      </Box>
 
       {/* Restaurant Info Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-10">
-        <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center">
-              <Star size={20} className="text-yellow-500" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Rating</p>
-              <p className="text-sm font-semibold text-gray-800">{restaurant.rating || restaurantRating} ({restaurant.totalReviews || totalReviews}+ ratings)</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-              <Timer size={20} className="text-blue-500" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Delivery Time</p>
-              <p className="text-sm font-semibold text-gray-800">{restaurant.deliveryTime || 25}-40 min</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
-              <IndianRupee size={20} className="text-green-500" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Cost for two</p>
-              <p className="text-sm font-semibold text-gray-800">₹{restaurant.avgPrice || 300}</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-              <Navigation size={20} className="text-purple-500" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Distance</p>
-              <p className="text-sm font-semibold text-gray-800">{distance ? `${distance} km` : 'Available'}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Container maxW="1920px" px={containerPadding} mt={{ base: -8, md: -12 }}>
+        <Card bg={cardBg} borderRadius="2xl" shadow="xl" p={{ base: 4, md: 6 }}>
+          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
+            <HStack spacing={3}>
+              <Circle size="10" bg="yellow.100">
+                <Icon as={Star} boxSize={5} color="yellow.500" />
+              </Circle>
+              <Box>
+                <Text fontSize="xs" color={mutedColor}>Rating</Text>
+                <Text fontSize="sm" fontWeight="semibold" color={textColor}>
+                  {restaurant.rating || restaurantRating} ({restaurant.totalReviews || totalReviews}+)
+                </Text>
+              </Box>
+            </HStack>
+            
+            <HStack spacing={3}>
+              <Circle size="10" bg="blue.100">
+                <Icon as={Timer} boxSize={5} color="blue.500" />
+              </Circle>
+              <Box>
+                <Text fontSize="xs" color={mutedColor}>Delivery Time</Text>
+                <Text fontSize="sm" fontWeight="semibold" color={textColor}>
+                  {restaurant.deliveryTime || 25}-40 min
+                </Text>
+              </Box>
+            </HStack>
+            
+            <HStack spacing={3}>
+              <Circle size="10" bg="green.100">
+                <Icon as={IndianRupee} boxSize={5} color="green.500" />
+              </Circle>
+              <Box>
+                <Text fontSize="xs" color={mutedColor}>Cost for two</Text>
+                <Text fontSize="sm" fontWeight="semibold" color={textColor}>
+                  ₹{restaurant.avgPrice || 300}
+                </Text>
+              </Box>
+            </HStack>
+            
+            <HStack spacing={3}>
+              <Circle size="10" bg="purple.100">
+                <Icon as={Navigation} boxSize={5} color="purple.500" />
+              </Circle>
+              <Box>
+                <Text fontSize="xs" color={mutedColor}>Distance</Text>
+                <Text fontSize="sm" fontWeight="semibold" color={textColor}>
+                  {distance ? `${distance} km` : 'Available'}
+                </Text>
+              </Box>
+            </HStack>
+          </SimpleGrid>
+        </Card>
+      </Container>
 
       {/* Trending Dishes Section */}
       {trendingDishes.length > 0 && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-gradient-to-r from-orange-500 to-pink-500 rounded-2xl shadow-xl p-6 text-white">
-            <div className="flex items-center gap-3 mb-4">
-              <TrendingUp size={24} />
-              <h2 className="text-xl font-bold">Trending Now</h2>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Container maxW="1920px" px={containerPadding} py={8}>
+          <Box
+            bgGradient="linear(to-r, orange.500, pink.500)"
+            borderRadius="2xl"
+            shadow="xl"
+            p={6}
+          >
+            <HStack spacing={3} mb={4}>
+              <Icon as={TrendingUp} boxSize={6} color="white" />
+              <Heading size="lg" color="white" className="clash-font">
+                Trending Now
+              </Heading>
+            </HStack>
+            <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
               {trendingDishes.map((dish, index) => (
-                <div key={index} className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/20">
-                  <div className="flex items-center gap-2 mb-1">
-                    {index === 0 && <Crown size={16} className="text-yellow-300" />}
-                    {index === 1 && <Medal size={16} className="text-gray-300" />}
-                    {index === 2 && <AwardIcon size={16} className="text-amber-600" />}
-                    <span className="font-medium">{dish.name}</span>
-                  </div>
-                  <p className="text-sm opacity-90">{dish.count} orders today</p>
-                </div>
+                <Box
+                  key={index}
+                  bg="whiteAlpha.200"
+                  backdropFilter="blur(8px)"
+                  borderRadius="xl"
+                  p={3}
+                  borderWidth="1px"
+                  borderColor="whiteAlpha.300"
+                >
+                  <HStack spacing={2} mb={1}>
+                    {index === 0 && <Icon as={Crown} boxSize={4} color="yellow.300" />}
+                    {index === 1 && <Icon as={Medal} boxSize={4} color="gray.300" />}
+                    {index === 2 && <Icon as={AwardIcon} boxSize={4} color="amber.600" />}
+                    <Text color="white" fontWeight="medium" className="sfpro-font">
+                      {dish.name}
+                    </Text>
+                  </HStack>
+                  <Text fontSize="sm" color="whiteAlpha.800" className="sfpro-font">
+                    {dish.count} orders today
+                  </Text>
+                </Box>
               ))}
-            </div>
-          </div>
-        </div>
+            </SimpleGrid>
+          </Box>
+        </Container>
       )}
 
       {/* Location and Offers */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div 
-            className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-4 border border-gray-200 cursor-pointer hover:shadow-md transition-all"
-            onClick={() => setShowAddressModal(true)}
+      <Container maxW="1920px" px={containerPadding} py={6}>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          <Box
+            bg={cardBg}
+            borderRadius="xl"
+            p={4}
+            borderWidth="1px"
+            borderColor={borderColor}
+            cursor="pointer"
+            onClick={onAddressOpen}
+            _hover={{ shadow: 'md' }}
+            transition="all 0.2s"
           >
-            <div className="flex items-start gap-3">
-              <MapPin size={20} className="text-orange-500 mt-1" />
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Delivery Address</p>
-                <p className="text-sm text-gray-700">{deliveryAddress || 'Add delivery address'}</p>
+            <HStack spacing={3} align="flex-start">
+              <Icon as={MapPin} boxSize={5} color="orange.500" mt={1} />
+              <Box>
+                <Text fontSize="xs" color={mutedColor} mb={1}>
+                  Delivery Address
+                </Text>
+                <Text fontSize="sm" color={textColor} className="sfpro-font">
+                  {deliveryAddress || 'Add delivery address'}
+                </Text>
                 {!deliveryAddress && (
-                  <p className="text-xs text-orange-500 mt-1">Click to add address</p>
+                  <Text fontSize="xs" color="orange.500" mt={1}>
+                    Click to add address
+                  </Text>
                 )}
-              </div>
-            </div>
-          </div>
+              </Box>
+            </HStack>
+          </Box>
 
-          <div className="bg-gradient-to-br from-orange-50 to-pink-50 rounded-xl p-4 border border-orange-200">
-            <div className="flex items-start gap-3">
-              <Percent size={20} className="text-orange-500 mt-1" />
-              <div className="flex-1">
-                <p className="text-xs text-gray-500 mb-2">Available Offers</p>
-                <div className="flex flex-wrap gap-2">
-                  <span className="px-2 py-1 bg-white text-xs font-medium text-orange-500 rounded-full">50% off up to ₹100</span>
-                  <span className="px-2 py-1 bg-white text-xs font-medium text-orange-500 rounded-full">Free delivery</span>
-                  <span className="px-2 py-1 bg-white text-xs font-medium text-orange-500 rounded-full">20% off on first order</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+          <Box
+            bgGradient="linear(to-r, orange.50, pink.50)"
+            borderRadius="xl"
+            p={4}
+            borderWidth="1px"
+            borderColor="orange.200"
+          >
+            <HStack spacing={3} align="flex-start">
+              <Icon as={Percent} boxSize={5} color="orange.500" mt={1} />
+              <Box flex={1}>
+                <Text fontSize="xs" color={mutedColor} mb={2}>
+                  Available Offers
+                </Text>
+                <Wrap spacing={2}>
+                  <Tag colorScheme="orange" size="sm" borderRadius="full">
+                    50% off up to ₹100
+                  </Tag>
+                  <Tag colorScheme="orange" size="sm" borderRadius="full">
+                    Free delivery
+                  </Tag>
+                  <Tag colorScheme="orange" size="sm" borderRadius="full">
+                    20% off on first order
+                  </Tag>
+                </Wrap>
+              </Box>
+            </HStack>
+          </Box>
+        </SimpleGrid>
+      </Container>
 
       {/* Order Type Selection */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
-        <div className="flex gap-3 bg-gray-100 p-1 rounded-xl w-fit">
-          <button
+      <Container maxW="1920px" px={containerPadding} pb={4}>
+        <HStack
+          spacing={1}
+          bg="gray.100"
+          p={1}
+          borderRadius="xl"
+          w="fit-content"
+        >
+          <Button
             onClick={() => setOrderType('delivery')}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-all ${
-              orderType === 'delivery'
-                ? 'bg-white text-gray-900 shadow-md'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            variant={orderType === 'delivery' ? 'solid' : 'ghost'}
+            colorScheme={orderType === 'delivery' ? 'orange' : 'gray'}
+            borderRadius="lg"
+            leftIcon={<Truck size={16} />}
+            size={buttonSize}
+            className="sfpro-font"
           >
-            <Truck size={16} />
             Delivery
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => setOrderType('pickup')}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-all ${
-              orderType === 'pickup'
-                ? 'bg-white text-gray-900 shadow-md'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            variant={orderType === 'pickup' ? 'solid' : 'ghost'}
+            colorScheme={orderType === 'pickup' ? 'orange' : 'gray'}
+            borderRadius="lg"
+            leftIcon={<Wallet size={16} />}
+            size={buttonSize}
+            className="sfpro-font"
           >
-            <Wallet size={16} />
             Pickup
-          </button>
-        </div>
-      </div>
+          </Button>
+        </HStack>
+      </Container>
 
       {/* Quick Info Chips */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
-        <div className="flex flex-wrap gap-3">
-          <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-sm">
-            <Bike size={16} />
-            <span>Free delivery above ₹199</span>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm">
-            <Shield size={16} />
-            <span>Hygiene certified</span>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-sm">
-            <Award size={16} />
-            <span>Popular in {restaurant.address?.city || 'your area'}</span>
-          </div>
-        </div>
-      </div>
+      <Container maxW="1920px" px={containerPadding} pb={6}>
+        <Wrap spacing={3}>
+          <Tag
+            colorScheme="blue"
+            borderRadius="xl"
+            py={2}
+            px={4}
+            size="lg"
+          >
+            <HStack spacing={2}>
+              <Icon as={Bike} boxSize={4} />
+              <Text className="sfpro-font">Free delivery above ₹199</Text>
+            </HStack>
+          </Tag>
+          <Tag
+            colorScheme="green"
+            borderRadius="xl"
+            py={2}
+            px={4}
+            size="lg"
+          >
+            <HStack spacing={2}>
+              <Icon as={Shield} boxSize={4} />
+              <Text className="sfpro-font">Hygiene certified</Text>
+            </HStack>
+          </Tag>
+          <Tag
+            colorScheme="purple"
+            borderRadius="xl"
+            py={2}
+            px={4}
+            size="lg"
+          >
+            <HStack spacing={2}>
+              <Icon as={Award} boxSize={4} />
+              <Text className="sfpro-font">
+                Popular in {restaurant.address?.city || 'your area'}
+              </Text>
+            </HStack>
+          </Tag>
+        </Wrap>
+      </Container>
 
-      {/* Menu Section with Filters */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+      {/* Menu Section */}
+      <Container maxW="1920px" px={containerPadding} py={6}>
+        <Card bg={cardBg} borderRadius="2xl" shadow="lg" overflow="hidden">
           {/* Menu Header with Filters */}
-          <div className="p-4 sm:p-6 border-b border-gray-200">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
-                  Our Menu
-                  {dishLoading && <span className="ml-2 text-sm font-normal text-gray-400 animate-pulse">(Loading...)</span>}
-                  {useDishesAsMenu && menuItems.length > 0 && (
-                    <span className="ml-2 text-xs font-normal text-green-500 bg-green-50 px-2 py-1 rounded-full">
-                      {menuItems.length} items available
-                    </span>
+          <Box p={{ base: 4, md: 6 }} borderBottomWidth="1px" borderColor={borderColor}>
+            <VStack spacing={4} align="stretch">
+              <Flex
+                direction={{ base: 'column', sm: 'row' }}
+                justify="space-between"
+                align={{ base: 'stretch', sm: 'center' }}
+                gap={4}
+              >
+                <HStack>
+                  <Heading size="lg" color={textColor} className="clash-font">
+                    Our Menu
+                  </Heading>
+                  {dishLoading && (
+                    <Spinner size="sm" color="orange.500" />
                   )}
-                </h2>
+                  {useDishesAsMenu && menuItems.length > 0 && (
+                    <Tag colorScheme="green" size="sm" borderRadius="full">
+                      {menuItems.length} items
+                    </Tag>
+                  )}
+                </HStack>
                 
-                <button
+                <Button
+                  display={{ base: 'flex', md: 'none' }}
+                  leftIcon={<Filter size={16} />}
                   onClick={() => setShowFilters(!showFilters)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors sm:hidden"
+                  size="sm"
                 >
-                  <Filter size={16} />
                   Filters
-                </button>
-              </div>
+                </Button>
+              </Flex>
 
               {/* Search and Filter Bar */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input 
-                    type="text"
+              <Stack direction={{ base: 'column', sm: 'row' }} spacing={3}>
+                <InputGroup flex={1}>
+                  <InputLeftElement>
+                    <Icon as={Search} color="gray.400" />
+                  </InputLeftElement>
+                  <Input
                     placeholder="Search in menu..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 pr-4 py-2 w-full text-sm border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
+                    borderRadius="xl"
+                    className="sfpro-font"
                   />
-                </div>
+                </InputGroup>
                 
-                <div className="hidden sm:flex gap-3">
-                  <div className="relative">
-                    <select 
-                      value={vegFilter} 
+                <HStack spacing={3} display={{ base: 'none', md: 'flex' }}>
+                  <Box position="relative">
+                    <Select
+                      value={vegFilter}
                       onChange={(e) => setVegFilter(e.target.value)}
-                      className="px-4 py-2 w-40 text-sm border border-gray-200 rounded-xl appearance-none focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
+                      w="40"
+                      borderRadius="xl"
+                      className="sfpro-font"
                     >
                       <option value="all">All Items</option>
                       <option value="veg">Veg Only</option>
                       <option value="non-veg">Non-Veg Only</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
+                    </Select>
+                  </Box>
 
-                  <select
+                  <Select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="px-4 py-2 text-sm border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
+                    w="40"
+                    borderRadius="xl"
+                    className="sfpro-font"
                   >
                     <option value="popular">Popular</option>
                     <option value="price-low">Price: Low to High</option>
                     <option value="price-high">Price: High to Low</option>
-                  </select>
-                </div>
-              </div>
+                  </Select>
+                </HStack>
+              </Stack>
 
               {/* Mobile Filters Panel */}
-              {showFilters && (
-                <div className="sm:hidden space-y-3 mt-3 p-4 bg-gray-50 rounded-xl">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Veg/Non-Veg</label>
-                    <select
-                      value={vegFilter}
-                      onChange={(e) => setVegFilter(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl"
-                    >
-                      <option value="all">All Items</option>
-                      <option value="veg">Veg Only</option>
-                      <option value="non-veg">Non-Veg Only</option>
-                    </select>
-                  </div>
+              <Collapse in={showFilters} animateOpacity>
+                <Box mt={3} p={4} bg="gray.50" borderRadius="xl">
+                  <VStack spacing={3}>
+                    <Box w="100%">
+                      <Text fontSize="sm" fontWeight="medium" mb={2} className="sfpro-font">
+                        Veg/Non-Veg
+                      </Text>
+                      <Select
+                        value={vegFilter}
+                        onChange={(e) => setVegFilter(e.target.value)}
+                        borderRadius="lg"
+                        size="sm"
+                      >
+                        <option value="all">All Items</option>
+                        <option value="veg">Veg Only</option>
+                        <option value="non-veg">Non-Veg Only</option>
+                      </Select>
+                    </Box>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl"
-                    >
-                      <option value="popular">Popular</option>
-                      <option value="price-low">Price: Low to High</option>
-                      <option value="price-high">Price: High to Low</option>
-                    </select>
-                  </div>
+                    <Box w="100%">
+                      <Text fontSize="sm" fontWeight="medium" mb={2} className="sfpro-font">
+                        Sort By
+                      </Text>
+                      <Select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        borderRadius="lg"
+                        size="sm"
+                      >
+                        <option value="popular">Popular</option>
+                        <option value="price-low">Price: Low to High</option>
+                        <option value="price-high">Price: High to Low</option>
+                      </Select>
+                    </Box>
 
-                  <button
-                    onClick={() => setShowFilters(false)}
-                    className="w-full px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-xl"
-                  >
-                    Apply Filters
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+                    <Button
+                      w="100%"
+                      colorScheme="orange"
+                      size="sm"
+                      onClick={() => setShowFilters(false)}
+                    >
+                      Apply Filters
+                    </Button>
+                  </VStack>
+                </Box>
+              </Collapse>
+            </VStack>
+          </Box>
 
           {/* Category Tabs */}
           {categories.length > 1 && (
-            <div className="border-b border-gray-200 overflow-x-auto">
-              <div className="flex px-6">
+            <Box borderBottomWidth="1px" borderColor={borderColor} overflowX="auto">
+              <HStack spacing={0} px={6}>
                 {categories.map(category => {
                   const categoryItems = menuItems.filter(item => 
                     category === 'all' ? true : (item.category || 'Uncategorized') === category
@@ -738,39 +1056,51 @@ const RestaurantDetailsPage = () => {
                   if (filteredItems.length === 0 && category !== 'all') return null;
                   
                   return (
-                    <button
+                    <Button
                       key={category}
-                      onClick={() => {
-                        setSelectedCategory(category);
-                      }}
-                      className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors capitalize ${
-                        (selectedCategory === category || (category === 'all' && selectedCategory === 'all'))
-                          ? 'border-orange-500 text-orange-500'
-                          : 'border-transparent text-gray-600 hover:text-gray-900'
-                      }`}
+                      variant="unstyled"
+                      onClick={() => setSelectedCategory(category)}
+                      px={4}
+                      py={3}
+                      borderBottomWidth="2px"
+                      borderColor={selectedCategory === category ? 'orange.500' : 'transparent'}
+                      color={selectedCategory === category ? 'orange.500' : mutedColor}
+                      fontWeight="medium"
+                      fontSize="sm"
+                      whiteSpace="nowrap"
+                      textTransform="capitalize"
+                      className="sfpro-font"
+                      _hover={{ color: textColor }}
                     >
                       {category === 'all' ? 'All Items' : category}
-                    </button>
+                    </Button>
                   );
                 })}
-              </div>
-            </div>
+              </HStack>
+            </Box>
           )}
 
           {/* Menu Items */}
-          <div className="p-4 sm:p-6 max-h-[600px] overflow-y-auto">
+          <Box
+            p={{ base: 4, md: 6 }}
+            maxH="600px"
+            overflowY="auto"
+            className="custom-scrollbar"
+          >
             {dishError && (
-              <div className="text-center py-12 text-red-500">
-                <AlertCircle size={48} className="mx-auto mb-4" />
-                <p>{dishError}</p>
-              </div>
+              <VStack spacing={4} py={12}>
+                <Icon as={AlertCircle} boxSize={12} color="red.500" />
+                <Text color="red.500" className="sfpro-font">{dishError}</Text>
+              </VStack>
             )}
 
             {menuItems.length === 0 && !dishLoading ? (
-              <div className="text-center py-12">
-                <Utensils size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500">No menu items available</p>
-              </div>
+              <VStack spacing={4} py={12}>
+                <Icon as={Utensils} boxSize={12} color="gray.300" />
+                <Text color={mutedColor} className="sfpro-font">
+                  No menu items available
+                </Text>
+              </VStack>
             ) : (
               (selectedCategory === 'all' ? categories.filter(c => c !== 'all') : [selectedCategory]).map(category => {
                 const categoryItems = menuItems.filter(item => 
@@ -781,409 +1111,567 @@ const RestaurantDetailsPage = () => {
                 if (filteredItems.length === 0) return null;
                 
                 return (
-                  <div key={category} className="mb-8 last:mb-0">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 capitalize">{category}</h3>
+                  <Box key={category} mb={8}>
+                    <Heading size="md" mb={4} textTransform="capitalize" className="clash-font">
+                      {category}
+                    </Heading>
                     
-                    <div className="space-y-4">
+                    <VStack spacing={4} align="stretch">
                       {filteredItems.map(item => (
-                        <div key={item._id} className="flex gap-4 p-4 bg-gray-50 rounded-xl hover:shadow-md transition-shadow">
-                          {/* Item Info */}
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <Card
+                          key={item._id}
+                          direction={{ base: 'column', sm: 'row' }}
+                          bg="gray.50"
+                          borderRadius="xl"
+                          overflow="hidden"
+                          _hover={{ shadow: 'md' }}
+                          transition="all 0.2s"
+                        >
+                          <Box flex={1} p={4}>
+                            <Wrap spacing={2} mb={2}>
                               {item.isVeg !== undefined && (
-                                <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                                  item.isVeg 
-                                    ? 'bg-green-100 text-green-700' 
-                                    : 'bg-red-100 text-red-700'
-                                }`}>
+                                <Tag
+                                  size="sm"
+                                  colorScheme={item.isVeg ? 'green' : 'red'}
+                                  borderRadius="full"
+                                >
                                   {item.isVeg ? '🌱 Veg' : '🍗 Non-Veg'}
-                                </span>
+                                </Tag>
                               )}
                               {item.spicy && (
-                                <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full flex items-center gap-1">
-                                  <Flame size={12} />
-                                  Spicy
-                                </span>
+                                <Tag size="sm" colorScheme="red" borderRadius="full">
+                                  <HStack spacing={1}>
+                                    <Flame size={12} />
+                                    <span>Spicy</span>
+                                  </HStack>
+                                </Tag>
                               )}
                               {item.popular && (
-                                <span className="text-xs text-orange-500 bg-orange-50 px-2 py-1 rounded-full flex items-center gap-1">
-                                  <ThumbsUp size={12} />
-                                  Popular
-                                </span>
+                                <Tag size="sm" colorScheme="orange" borderRadius="full">
+                                  <HStack spacing={1}>
+                                    <ThumbsUp size={12} />
+                                    <span>Popular</span>
+                                  </HStack>
+                                </Tag>
                               )}
-                            </div>
+                            </Wrap>
                             
-                            <h4 className="text-lg font-semibold text-gray-800 mb-1">{item.name}</h4>
+                            <Heading size="md" mb={1} color={textColor} className="sfpro-font">
+                              {item.name}
+                            </Heading>
                             {item.description && (
-                              <p className="text-sm text-gray-500 mb-2">{item.description}</p>
+                              <Text fontSize="sm" color={mutedColor} mb={2} className="sfpro-font">
+                                {item.description}
+                              </Text>
                             )}
                             
-                            <div className="flex items-center gap-3 mb-2">
-                              <span className="text-lg font-bold text-gray-800">₹{item.price}</span>
-                            </div>
+                            <HStack spacing={3} mb={2}>
+                              <Text fontSize="lg" fontWeight="bold" color={textColor}>
+                                ₹{item.price}
+                              </Text>
+                            </HStack>
                             
-                            <button 
+                            <Button
+                              variant="link"
+                              colorScheme="orange"
+                              size="sm"
+                              leftIcon={<Info size={14} />}
                               onClick={() => {
                                 setSelectedDish(item);
-                                setShowDishModal(true);
+                                onDishOpen();
                               }}
-                              className="text-sm text-orange-500 hover:text-orange-600 flex items-center gap-1"
+                              className="sfpro-font"
                             >
-                              <Info size={14} />
                               View details
-                            </button>
-                          </div>
+                            </Button>
+                          </Box>
 
-                          {/* Item Image and Add to Cart */}
-                          <div className="relative">
-                            <img 
-                              src={item.image || `https://source.unsplash.com/200x200/?food,${item.name}`} 
-                              alt={item.name}
-                              className="w-24 h-24 rounded-xl object-cover"
-                              onError={(e) => {
-                                e.target.src = 'https://source.unsplash.com/200x200/?food';
-                              }}
-                            />
+                          <Box position="relative" p={4}>
+                            <AspectRatio ratio={1} w={{ base: 'full', sm: 24 }}>
+                              <Image
+                                src={item.image || `https://source.unsplash.com/200x200/?food,${item.name}`}
+                                alt={item.name}
+                                borderRadius="xl"
+                                objectFit="cover"
+                                fallbackSrc="https://via.placeholder.com/200"
+                              />
+                            </AspectRatio>
                             
                             {cart[item._id] ? (
-                              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white rounded-full shadow-lg border border-gray-200">
-                                <button 
+                              <HStack
+                                position="absolute"
+                                bottom={0}
+                                left="50%"
+                                transform="translateX(-50%)"
+                                bg="white"
+                                borderRadius="full"
+                                shadow="lg"
+                                borderWidth="1px"
+                                borderColor="gray.200"
+                                spacing={0}
+                                p={1}
+                              >
+                                <IconButton
+                                  aria-label="Decrease quantity"
+                                  icon={<Minus size={14} />}
+                                  size="xs"
+                                  colorScheme="orange"
+                                  borderRadius="full"
                                   onClick={() => removeFromCart(item._id)}
-                                  className="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 transition-colors"
-                                >
-                                  <Minus size={14} />
-                                </button>
-                                <span className="text-sm font-semibold w-6 text-center">
+                                />
+                                <Text fontSize="sm" fontWeight="semibold" w={8} textAlign="center">
                                   {cart[item._id].quantity}
-                                </span>
-                                <button 
+                                </Text>
+                                <IconButton
+                                  aria-label="Increase quantity"
+                                  icon={<Plus size={14} />}
+                                  size="xs"
+                                  colorScheme="orange"
+                                  borderRadius="full"
                                   onClick={() => addToCart(item)}
-                                  className="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 transition-colors"
-                                >
-                                  <Plus size={14} />
-                                </button>
-                              </div>
+                                />
+                              </HStack>
                             ) : (
-                              <button 
+                              <Button
+                                position="absolute"
+                                bottom={0}
+                                left="50%"
+                                transform="translateX(-50%)"
+                                size="xs"
+                                bgGradient="linear(to-r, orange.500, pink.500)"
+                                color="white"
+                                borderRadius="full"
+                                shadow="lg"
+                                _hover={{ shadow: 'xl' }}
                                 onClick={() => addToCart(item)}
-                                className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-orange-500 to-pink-500 text-white text-sm font-medium px-4 py-1.5 rounded-full shadow-lg hover:shadow-xl transition-all whitespace-nowrap"
+                                className="sfpro-font"
                               >
                                 ADD
-                              </button>
+                              </Button>
                             )}
-                          </div>
-                        </div>
+                          </Box>
+                        </Card>
                       ))}
-                    </div>
-                  </div>
+                    </VStack>
+                  </Box>
                 );
               })
             )}
-          </div>
-        </div>
-      </div>
+          </Box>
+        </Card>
+      </Container>
 
       {/* Reviews Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Customer Reviews</h2>
-            <button 
-              onClick={() => setShowReviews(!showReviews)}
-              className="text-orange-500 hover:text-orange-600 text-sm font-medium"
+      <Container maxW="1920px" px={containerPadding} py={6}>
+        <Card bg={cardBg} borderRadius="2xl" shadow="lg" p={{ base: 4, md: 6 }}>
+          <Flex justify="space-between" align="center" mb={6}>
+            <Heading size="lg" color={textColor} className="clash-font">
+              Customer Reviews
+            </Heading>
+            <Button
+              variant="link"
+              colorScheme="orange"
+              onClick={onReviewsToggle}
+              className="sfpro-font"
             >
-              {showReviews ? 'Show less' : 'View all reviews'}
-            </button>
-          </div>
+              {isReviewsOpen ? 'Show less' : 'View all reviews'}
+            </Button>
+          </Flex>
 
           {/* Rating Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div className="text-center md:text-left">
-              <div className="text-5xl font-bold text-gray-800 mb-2">{restaurant.rating || restaurantRating}</div>
-              <div className="flex justify-center md:justify-start gap-1 mb-2">
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} mb={6}>
+            <Box textAlign={{ base: 'center', md: 'left' }}>
+              <Text fontSize="5xl" fontWeight="bold" color={textColor} className="clash-font">
+                {restaurant.rating || restaurantRating}
+              </Text>
+              <HStack spacing={1} justify={{ base: 'center', md: 'flex-start' }} mb={2}>
                 {[1, 2, 3, 4, 5].map(star => (
-                  <Star 
+                  <Icon
                     key={star}
-                    size={20}
-                    className={star <= Math.floor(restaurant.rating || restaurantRating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}
+                    as={Star}
+                    boxSize={5}
+                    color={star <= Math.floor(restaurant.rating || restaurantRating) ? 'yellow.400' : 'gray.300'}
+                    fill={star <= Math.floor(restaurant.rating || restaurantRating) ? 'yellow.400' : 'none'}
                   />
                 ))}
-              </div>
-              <p className="text-sm text-gray-500">Based on {restaurant.totalReviews || totalReviews} ratings</p>
-            </div>
+              </HStack>
+              <Text fontSize="sm" color={mutedColor} className="sfpro-font">
+                Based on {restaurant.totalReviews || totalReviews} ratings
+              </Text>
+            </Box>
 
-            <div className="space-y-2">
+            <VStack spacing={2} align="stretch">
               {[5, 4, 3, 2, 1].map(rating => (
-                <div key={rating} className="flex items-center gap-2 text-sm">
-                  <span className="w-12 text-gray-600">{rating} star</span>
-                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-orange-400 to-pink-500 rounded-full"
-                      style={{ width: `${Math.random() * 100}%` }}
-                    ></div>
-                  </div>
-                  <span className="w-12 text-gray-500">{Math.floor(Math.random() * 200)}</span>
-                </div>
+                <HStack key={rating} spacing={2} fontSize="sm">
+                  <Text w={12} color={mutedColor} className="sfpro-font">{rating} star</Text>
+                  <Box flex={1} h={2} bg="gray.200" borderRadius="full" overflow="hidden">
+                    <Box
+                      h="full"
+                      bgGradient="linear(to-r, orange.400, pink.500)"
+                      borderRadius="full"
+                      w={`${Math.random() * 100}%`}
+                    />
+                  </Box>
+                  <Text w={12} color={mutedColor} className="sfpro-font">
+                    {Math.floor(Math.random() * 200)}
+                  </Text>
+                </HStack>
               ))}
-            </div>
-          </div>
+            </VStack>
+          </SimpleGrid>
 
           {/* Reviews List */}
-          {showReviews && (
-            <div className="space-y-4">
+          <Collapse in={isReviewsOpen} animateOpacity>
+            <VStack spacing={4} align="stretch">
               {reviews.slice(0, 5).map(review => (
-                <div key={review.id} className="flex gap-4 p-4 bg-gray-50 rounded-xl">
-                  <img 
-                    src={review.avatar} 
-                    alt={review.user} 
-                    className="w-12 h-12 rounded-full object-cover"
+                <Card key={review.id} direction="row" bg="gray.50" borderRadius="xl" p={4}>
+                  <Avatar
+                    src={review.avatar}
+                    name={review.user}
+                    size="md"
+                    mr={4}
                   />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <h4 className="font-semibold text-gray-800">{review.user}</h4>
-                      <div className="flex items-center gap-1">
-                        <Star size={14} className="fill-yellow-400 text-yellow-400" />
-                        <span className="text-sm font-medium">{review.rating}</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-2">{review.date}</p>
-                    <p className="text-sm text-gray-700 mb-2">{review.comment}</p>
+                  <Box flex={1}>
+                    <Flex justify="space-between" align="center" mb={1}>
+                      <Text fontWeight="semibold" color={textColor} className="sfpro-font">
+                        {review.user}
+                      </Text>
+                      <HStack spacing={1}>
+                        <Icon as={Star} boxSize={3} color="yellow.400" fill="yellow.400" />
+                        <Text fontSize="sm" fontWeight="medium" className="sfpro-font">
+                          {review.rating}
+                        </Text>
+                      </HStack>
+                    </Flex>
+                    <Text fontSize="xs" color={mutedColor} mb={2} className="sfpro-font">
+                      {review.date}
+                    </Text>
+                    <Text fontSize="sm" color={textColor} mb={2} className="sfpro-font">
+                      {review.comment}
+                    </Text>
                     {review.images && review.images.length > 0 && (
-                      <div className="flex gap-2 mb-2">
+                      <HStack spacing={2} mb={2}>
                         {review.images.map((img, idx) => (
-                          <img key={idx} src={img} alt="Review" className="w-16 h-16 rounded-lg object-cover" />
+                          <Image
+                            key={idx}
+                            src={img}
+                            alt="Review"
+                            boxSize={16}
+                            borderRadius="lg"
+                            objectFit="cover"
+                          />
                         ))}
-                      </div>
+                      </HStack>
                     )}
-                    <button className="text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1">
-                      <MessageCircle size={12} />
+                    <Button
+                      variant="link"
+                      colorScheme="orange"
+                      size="xs"
+                      leftIcon={<MessageCircle size={12} />}
+                      className="sfpro-font"
+                    >
                       Helpful ({review.likes})
-                    </button>
-                  </div>
-                </div>
+                    </Button>
+                  </Box>
+                </Card>
               ))}
-            </div>
-          )}
-        </div>
-      </div>
+            </VStack>
+          </Collapse>
+        </Card>
+      </Container>
 
       {/* Dish Details Modal */}
-      {showDishModal && selectedDish && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="relative">
-              <img 
-                src={selectedDish.image || `https://source.unsplash.com/400x300/?food,${selectedDish.name}`} 
-                alt={selectedDish.name}
-                className="w-full h-48 object-cover"
-                onError={(e) => {
-                  e.target.src = 'https://source.unsplash.com/400x300/?food';
-                }}
-              />
-              <button 
-                onClick={() => setShowDishModal(false)}
-                className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                {selectedDish.isVeg !== undefined && (
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                    selectedDish.isVeg ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  }`}>
-                    {selectedDish.isVeg ? '🌱 Pure Veg' : '🍗 Non-Veg'}
-                  </span>
+      <Modal isOpen={isDishOpen} onClose={onDishClose} size="md">
+        <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(8px)" />
+        <ModalContent borderRadius="2xl">
+          {selectedDish && (
+            <>
+              <Box position="relative">
+                <Image
+                  src={selectedDish.image || `https://source.unsplash.com/400x300/?food,${selectedDish.name}`}
+                  alt={selectedDish.name}
+                  w="100%"
+                  h={48}
+                  objectFit="cover"
+                  borderTopRadius="2xl"
+                />
+                <IconButton
+                  aria-label="Close"
+                  icon={<X size={16} />}
+                  position="absolute"
+                  top={3}
+                  right={3}
+                  size="sm"
+                  borderRadius="full"
+                  bg="whiteAlpha.900"
+                  _hover={{ bg: 'white' }}
+                  onClick={onDishClose}
+                />
+              </Box>
+              <ModalBody p={6}>
+                <Wrap spacing={2} mb={2}>
+                  {selectedDish.isVeg !== undefined && (
+                    <Tag
+                      colorScheme={selectedDish.isVeg ? 'green' : 'red'}
+                      size="sm"
+                      borderRadius="full"
+                    >
+                      {selectedDish.isVeg ? '🌱 Pure Veg' : '🍗 Non-Veg'}
+                    </Tag>
+                  )}
+                  {selectedDish.spicy && (
+                    <Tag colorScheme="red" size="sm" borderRadius="full">
+                      🌶️ Spicy
+                    </Tag>
+                  )}
+                </Wrap>
+                
+                <Heading size="lg" mb={2} color={textColor} className="clash-font">
+                  {selectedDish.name}
+                </Heading>
+                
+                {selectedDish.description && (
+                  <Text color={mutedColor} mb={4} className="sfpro-font">
+                    {selectedDish.description}
+                  </Text>
                 )}
-                {selectedDish.spicy && (
-                  <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full">🌶️ Spicy</span>
+                
+                {selectedDish.ingredients && selectedDish.ingredients.length > 0 && (
+                  <Box mb={4}>
+                    <Text fontWeight="semibold" mb={2} className="sfpro-font">
+                      Ingredients
+                    </Text>
+                    <Wrap spacing={2}>
+                      {selectedDish.ingredients.map((ing, idx) => (
+                        <Tag key={idx} size="sm" colorScheme="gray" borderRadius="full">
+                          {ing}
+                        </Tag>
+                      ))}
+                    </Wrap>
+                  </Box>
                 )}
-              </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">{selectedDish.name}</h3>
-              {selectedDish.description && (
-                <p className="text-gray-600 mb-4">{selectedDish.description}</p>
-              )}
-              
-              {selectedDish.ingredients && selectedDish.ingredients.length > 0 && (
-                <div className="space-y-3 mb-6">
-                  <h4 className="font-semibold text-gray-700">Ingredients</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedDish.ingredients.map((ing, idx) => (
-                      <span key={idx} className="px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded-full">
-                        {ing}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
 
-              {selectedDish.dietary && selectedDish.dietary.length > 0 && (
-                <div className="space-y-3 mb-6">
-                  <h4 className="font-semibold text-gray-700">Dietary Information</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedDish.dietary.map((diet, idx) => (
-                      <span key={idx} className="px-3 py-1 bg-green-50 text-green-600 text-sm rounded-full">
-                        {diet}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+                {selectedDish.dietary && selectedDish.dietary.length > 0 && (
+                  <Box mb={4}>
+                    <Text fontWeight="semibold" mb={2} className="sfpro-font">
+                      Dietary Information
+                    </Text>
+                    <Wrap spacing={2}>
+                      {selectedDish.dietary.map((diet, idx) => (
+                        <Tag key={idx} colorScheme="green" size="sm" borderRadius="full">
+                          {diet}
+                        </Tag>
+                      ))}
+                    </Wrap>
+                  </Box>
+                )}
 
-              <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                <span className="text-2xl font-bold text-gray-800">₹{selectedDish.price}</span>
-                <button 
-                  onClick={() => {
-                    addToCart(selectedDish);
-                    setShowDishModal(false);
-                  }}
-                  className="px-6 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-medium rounded-xl hover:shadow-lg transition-all"
-                >
-                  Add to Cart
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+                <Flex justify="space-between" align="center" pt={4} borderTopWidth="1px">
+                  <Text fontSize="2xl" fontWeight="bold" color={textColor} className="clash-font">
+                    ₹{selectedDish.price}
+                  </Text>
+                  <Button
+                    bgGradient="linear(to-r, orange.500, pink.500)"
+                    color="white"
+                    onClick={() => {
+                      addToCart(selectedDish);
+                      onDishClose();
+                    }}
+                    className="sfpro-font"
+                  >
+                    Add to Cart
+                  </Button>
+                </Flex>
+              </ModalBody>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
 
       {/* Address Modal */}
-      {showAddressModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-800">Delivery Address</h3>
-                <button 
-                  onClick={() => setShowAddressModal(false)}
-                  className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              
+      <Modal isOpen={isAddressOpen} onClose={onAddressClose} size="md">
+        <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(8px)" />
+        <ModalContent borderRadius="2xl">
+          <ModalHeader className="clash-font">Delivery Address</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <VStack spacing={3} align="stretch">
               {user?.addresses?.map((addr, idx) => (
-                <div 
+                <Card
                   key={idx}
+                  p={4}
+                  borderRadius="xl"
+                  cursor="pointer"
+                  borderWidth="2px"
+                  borderColor={deliveryAddress === addr.address ? 'orange.500' : 'transparent'}
+                  bg={deliveryAddress === addr.address ? 'orange.50' : cardBg}
                   onClick={() => {
                     setDeliveryAddress(addr.address);
-                    setShowAddressModal(false);
+                    onAddressClose();
                   }}
-                  className={`p-4 border rounded-xl mb-3 cursor-pointer transition-all ${
-                    deliveryAddress === addr.address 
-                      ? 'border-orange-500 bg-orange-50' 
-                      : 'border-gray-200 hover:border-orange-300'
-                  }`}
+                  _hover={{ borderColor: 'orange.300' }}
                 >
-                  <div className="flex items-start gap-3">
-                    <MapPin size={18} className="text-gray-400 mt-1" />
-                    <div>
-                      <p className="text-sm text-gray-800">{addr.address}</p>
-                      <p className="text-xs text-gray-500 mt-1">{addr.type || 'Home'}</p>
-                    </div>
-                  </div>
-                </div>
+                  <HStack spacing={3} align="flex-start">
+                    <Icon as={MapPin} boxSize={4} color="gray.400" mt={1} />
+                    <Box>
+                      <Text fontSize="sm" color={textColor} className="sfpro-font">
+                        {addr.address}
+                      </Text>
+                      <Text fontSize="xs" color={mutedColor} mt={1} className="sfpro-font">
+                        {addr.type || 'Home'}
+                      </Text>
+                    </Box>
+                  </HStack>
+                </Card>
               ))}
               
-              <button 
+              <Button
+                variant="outline"
+                borderStyle="dashed"
                 onClick={() => {
                   navigate('/profile');
+                  onAddressClose();
                 }}
-                className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-orange-500 hover:text-orange-500 transition-colors"
+                className="sfpro-font"
               >
                 + Add New Address
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              </Button>
+            </VStack>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
       {/* Floating Cart */}
-      {Object.keys(cart).length > 0 && (
-        <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-96 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
-            <div 
-              onClick={() => setShowCart(!showCart)}
-              className="p-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white cursor-pointer flex items-center justify-between"
+      <Collapse in={Object.keys(cart).length > 0} animateOpacity>
+        <Box
+          position="fixed"
+          bottom={4}
+          right={4}
+          left={{ base: 4, sm: 'auto' }}
+          w={{ base: 'auto', sm: 96 }}
+          zIndex={50}
+        >
+          <Card
+            borderRadius="2xl"
+            shadow="2xl"
+            borderWidth="1px"
+            borderColor={borderColor}
+            overflow="hidden"
+          >
+            <Box
+              p={4}
+              bgGradient="linear(to-r, orange.500, pink.500)"
+              color="white"
+              cursor="pointer"
+              onClick={onCartToggle}
             >
-              <div className="flex items-center gap-2">
-                <ShoppingBag size={20} />
-                <span className="font-medium">{getCartItemCount()} items</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">₹{getCartTotal()}</span>
-                {showCart ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-              </div>
-            </div>
+              <Flex justify="space-between" align="center">
+                <HStack spacing={2}>
+                  <Icon as={ShoppingBag} boxSize={5} />
+                  <Text fontWeight="medium" className="sfpro-font">
+                    {getCartItemCount()} items
+                  </Text>
+                </HStack>
+                <HStack spacing={2}>
+                  <Text fontWeight="bold" className="sfpro-font">
+                    ₹{getCartTotal()}
+                  </Text>
+                  <Icon as={isCartOpen ? ChevronDown : ChevronUp} boxSize={5} />
+                </HStack>
+              </Flex>
+            </Box>
 
-            {showCart && (
-              <div className="max-h-96 overflow-y-auto p-4">
-                <div className="space-y-4 mb-4">
+            <Collapse in={isCartOpen} animateOpacity>
+              <Box maxH={96} overflowY="auto" p={4}>
+                <VStack spacing={4} mb={4} align="stretch">
                   {Object.values(cart).map(item => (
-                    <div key={item._id} className="flex gap-3">
-                      <img 
-                        src={item.image || `https://source.unsplash.com/200x200/?food,${item.name}`} 
+                    <HStack key={item._id} spacing={3}>
+                      <Image
+                        src={item.image || `https://source.unsplash.com/200x200/?food,${item.name}`}
                         alt={item.name}
-                        className="w-16 h-16 rounded-xl object-cover"
-                        onError={(e) => {
-                          e.target.src = 'https://source.unsplash.com/200x200/?food';
-                        }}
+                        boxSize={16}
+                        borderRadius="xl"
+                        objectFit="cover"
                       />
-                      <div className="flex-1">
-                        <h4 className="text-sm font-semibold text-gray-800">{item.name}</h4>
-                        <p className="text-xs text-gray-500 mb-2">₹{item.price} x {item.quantity}</p>
+                      <Box flex={1}>
+                        <Text fontSize="sm" fontWeight="semibold" color={textColor} className="sfpro-font">
+                          {item.name}
+                        </Text>
+                        <Text fontSize="xs" color={mutedColor} mb={2} className="sfpro-font">
+                          ₹{item.price} x {item.quantity}
+                        </Text>
                         
-                        <input
-                          type="text"
+                        <Input
                           placeholder="Special instructions..."
                           value={item.specialInstructions}
                           onChange={(e) => updateSpecialInstructions(item._id, e.target.value)}
-                          className="w-full text-xs px-2 py-1 border border-gray-200 rounded-lg mb-2 focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
+                          size="xs"
+                          borderRadius="lg"
+                          mb={2}
+                          className="sfpro-font"
                         />
                         
-                        <div className="flex items-center gap-2">
-                          <button 
+                        <HStack spacing={2}>
+                          <IconButton
+                            aria-label="Decrease quantity"
+                            icon={<Minus size={12} />}
+                            size="xs"
+                            borderRadius="full"
+                            variant="ghost"
                             onClick={() => removeFromCart(item._id)}
-                            className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
-                          >
-                            <Minus size={12} />
-                          </button>
-                          <span className="text-sm font-medium w-6 text-center">{item.quantity}</span>
-                          <button 
+                          />
+                          <Text fontSize="sm" fontWeight="medium" w={6} textAlign="center">
+                            {item.quantity}
+                          </Text>
+                          <IconButton
+                            aria-label="Increase quantity"
+                            icon={<Plus size={12} />}
+                            size="xs"
+                            borderRadius="full"
+                            colorScheme="orange"
                             onClick={() => addToCart(item)}
-                            className="w-6 h-6 rounded-full bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600"
-                          >
-                            <Plus size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                          />
+                        </HStack>
+                      </Box>
+                    </HStack>
                   ))}
-                </div>
+                </VStack>
 
-                <button 
+                <Button
+                  w="full"
+                  bgGradient="linear(to-r, orange.500, pink.500)"
+                  color="white"
                   onClick={handleCheckout}
-                  className="w-full py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-medium rounded-xl hover:shadow-lg transition-all"
+                  className="sfpro-font"
                 >
                   Proceed to Checkout
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+                </Button>
+              </Box>
+            </Collapse>
+          </Card>
+        </Box>
+      </Collapse>
 
-      <style jsx>{`
-        @keyframes slide-in {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        .animate-slide-in {
-          animation: slide-in 0.3s ease-out;
-        }
-      `}</style>
-    </div>
+      {/* Custom Scrollbar Styles */}
+      <Box as="style">
+        {`
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 4px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+          }
+        `}
+      </Box>
+    </Box>
   );
 };
 

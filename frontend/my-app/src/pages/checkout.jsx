@@ -1,6 +1,100 @@
+// pages/CheckoutPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import {
+  Box,
+  Container,
+  Flex,
+  Text,
+  Heading,
+  Image,
+  Button,
+  IconButton,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  InputRightElement,
+  Textarea,
+  Select,
+  Badge,
+  Card,
+  CardBody,
+  CardFooter,
+  Stack,
+  HStack,
+  VStack,
+  SimpleGrid,
+  Grid,
+  GridItem,
+  Divider,
+  useBreakpointValue,
+  useDisclosure,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalCloseButton,
+  Drawer,
+  DrawerBody,
+  DrawerHeader,
+  DrawerOverlay,
+  DrawerContent,
+  DrawerCloseButton,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  Tag,
+  Wrap,
+  WrapItem,
+  Spinner,
+  Center,
+  Circle,
+  AspectRatio,
+  Avatar,
+  AvatarGroup,
+  Progress,
+  Skeleton,
+  SkeletonText,
+  SkeletonCircle,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  CloseButton,
+  Tooltip,
+  useToast,
+  Icon,
+  Fade,
+  ScaleFade,
+  Slide,
+  SlideFade,
+  Collapse,
+  useColorModeValue,
+  AbsoluteCenter,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  StatArrow,
+  StatGroup,
+  Radio,
+  RadioGroup,
+  Checkbox,
+  CheckboxGroup,
+  FormControl,
+  FormLabel,
+  FormErrorMessage,
+  FormHelperText,
+  InputLeftAddon,
+  InputRightAddon,
+  Textarea as ChakraTextarea,
+} from '@chakra-ui/react';
+
+// Icons from lucide-react
 import {
   ShoppingBag,
   MapPin,
@@ -37,6 +131,7 @@ import {
 const CheckoutPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const toast = useToast();
   const { restaurantId, restaurant, cart, total, itemCount } = location.state || {};
 
   const [step, setStep] = useState(1);
@@ -129,6 +224,22 @@ const CheckoutPage = () => {
   const [tax, setTax] = useState(0);
   const [grandTotal, setGrandTotal] = useState(0);
 
+  // Responsive values
+  const isMobile = useBreakpointValue({ base: true, md: false });
+  const buttonSize = useBreakpointValue({ base: 'sm', md: 'md' });
+  const headingSize = useBreakpointValue({ base: 'lg', md: 'xl' });
+  const containerPadding = useBreakpointValue({ base: 4, md: 6, lg: 8 });
+  
+  // Color mode values
+  const bgGradient = useColorModeValue(
+    'linear(to-br, gray.50, white, gray.50)',
+    'linear(to-br, gray.900, gray.800, gray.900)'
+  );
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.100', 'gray.700');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const mutedColor = useColorModeValue('gray.600', 'gray.400');
+
   const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
   const token = localStorage.getItem('token');
 
@@ -169,7 +280,7 @@ const CheckoutPage = () => {
       }
     }
 
-    const taxAmount = subtotal * 0.05; // 5% GST
+    const taxAmount = subtotal * 0.05;
     setTax(taxAmount);
     setDiscount(discountAmount);
     
@@ -185,6 +296,12 @@ const CheckoutPage = () => {
         setAppliedCoupon(coupon);
         setCouponError('');
         setShowCoupons(false);
+        toast({
+          title: 'Coupon applied',
+          description: `${coupon.code} has been applied`,
+          status: 'success',
+          duration: 3000,
+        });
       } else {
         setCouponError(`Minimum order of ₹${coupon.minOrder} required`);
       }
@@ -246,14 +363,25 @@ const CheckoutPage = () => {
       setSuccess(true);
       localStorage.removeItem(`cart_${restaurantId}`);
       
-      // Simulate payment processing
+      toast({
+        title: 'Order placed successfully!',
+        description: 'Your order has been confirmed',
+        status: 'success',
+        duration: 5000,
+      });
+
       setTimeout(() => {
         setStep(4);
       }, 2000);
 
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to place order. Please try again.');
-      console.error('Order error:', err);
+      toast({
+        title: 'Error',
+        description: err.response?.data?.message || 'Failed to place order',
+        status: 'error',
+        duration: 5000,
+      });
     } finally {
       setLoading(false);
     }
@@ -286,695 +414,954 @@ const CheckoutPage = () => {
       phone: user?.phone || '',
       instructions: ''
     });
+
+    toast({
+      title: 'Address saved',
+      status: 'success',
+      duration: 2000,
+    });
   };
 
   const getAddressIcon = (type) => {
     switch(type) {
-      case 'home': return <Home size={18} />;
-      case 'work': return <Briefcase size={18} />;
-      default: return <Building size={18} />;
+      case 'home': return Home;
+      case 'work': return Briefcase;
+      default: return Building;
     }
   };
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
-          <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center animate-bounce">
-            <CheckCircle size={48} className="text-white" />
-          </div>
-          <h2 className="text-3xl font-bold text-gray-800 mb-2">Order Placed! 🎉</h2>
-          <p className="text-gray-600 mb-6">Your order has been confirmed</p>
-          
-          <div className="bg-gray-50 rounded-xl p-4 mb-6 text-left">
-            <p className="text-sm text-gray-500 mb-2">Order ID</p>
-            <p className="text-lg font-mono font-bold text-gray-800">{orderId || 'ORD' + Math.random().toString(36).substr(2, 9).toUpperCase()}</p>
-          </div>
-
-          <div className="space-y-3 mb-6">
-            <div className="flex items-center gap-3 text-sm">
-              <Clock size={16} className="text-gray-400" />
-              <span className="text-gray-600">Estimated delivery: 30-40 minutes</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <Truck size={16} className="text-gray-400" />
-              <span className="text-gray-600">Delivery to: {selectedAddress?.area || 'Your address'}</span>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={() => navigate('/orders')}
-              className="w-full py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-medium rounded-xl hover:shadow-lg transition-all"
+      <Center minH="100vh" bgGradient="linear(to-br, green.50, emerald.50)" p={4}>
+        <Card bg={cardBg} borderRadius="3xl" shadow="2xl" maxW="md" w="full">
+          <CardBody textAlign="center" p={8}>
+            <Circle
+              size="24"
+              bgGradient="linear(to-br, green.400, emerald.500)"
+              mx="auto"
+              mb={6}
+              animation="bounce 1s infinite"
             >
-              Track Order
-            </button>
-            <button
-              onClick={() => navigate('/')}
-              className="w-full py-3 border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-all"
-            >
-              Continue Shopping
-            </button>
-          </div>
-        </div>
-      </div>
+              <Icon as={CheckCircle} boxSize={12} color="white" />
+            </Circle>
+            
+            <Heading size="xl" mb={2} className="clash-font">
+              Order Placed! 🎉
+            </Heading>
+            <Text color={mutedColor} mb={6} className="sfpro-font">
+              Your order has been confirmed
+            </Text>
+            
+            <Box bg="gray.50" borderRadius="xl" p={4} mb={6} textAlign="left">
+              <Text fontSize="sm" color={mutedColor} mb={2} className="sfpro-font">
+                Order ID
+              </Text>
+              <Text fontSize="lg" fontFamily="mono" fontWeight="bold" color={textColor}>
+                {orderId || 'ORD' + Math.random().toString(36).substr(2, 9).toUpperCase()}
+              </Text>
+            </Box>
+
+            <VStack spacing={3} mb={6} align="stretch">
+              <HStack spacing={3}>
+                <Icon as={Clock} boxSize={4} color="gray.400" />
+                <Text color={mutedColor} className="sfpro-font">
+                  Estimated delivery: 30-40 minutes
+                </Text>
+              </HStack>
+              <HStack spacing={3}>
+                <Icon as={Truck} boxSize={4} color="gray.400" />
+                <Text color={mutedColor} className="sfpro-font">
+                  Delivery to: {selectedAddress?.area || 'Your address'}
+                </Text>
+              </HStack>
+            </VStack>
+
+            <VStack spacing={3}>
+              <Button
+                w="full"
+                bgGradient="linear(to-r, orange.500, pink.500)"
+                color="white"
+                size="lg"
+                onClick={() => navigate('/orders')}
+                className="sfpro-font"
+              >
+                Track Order
+              </Button>
+              <Button
+                w="full"
+                variant="outline"
+                size="lg"
+                onClick={() => navigate('/')}
+                className="sfpro-font"
+              >
+                Continue Shopping
+              </Button>
+            </VStack>
+          </CardBody>
+        </Card>
+      </Center>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+    <Box minH="100vh" bgGradient={bgGradient}>
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center gap-3">
-            <button 
+      <Box
+        as="header"
+        position="sticky"
+        top={0}
+        zIndex={40}
+        bg="whiteAlpha.800"
+        backdropFilter="blur(10px)"
+        borderBottomWidth="1px"
+        borderColor={borderColor}
+      >
+        <Container maxW="1920px" px={containerPadding} py={3}>
+          <HStack spacing={3}>
+            <IconButton
+              aria-label="Go back"
+              icon={<ChevronLeft size={20} />}
+              variant="ghost"
+              borderRadius="xl"
               onClick={() => navigate(-1)}
-              className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
-            >
-              <ChevronLeft size={20} className="text-gray-700" />
-            </button>
-            <h1 className="text-xl font-bold text-gray-800">Checkout</h1>
-          </div>
-        </div>
-      </header>
+            />
+            <Heading size="lg" color={textColor} className="clash-font">
+              Checkout
+            </Heading>
+          </HStack>
+        </Container>
+      </Box>
 
       {/* Progress Steps */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center justify-between max-w-2xl mx-auto">
+      <Container maxW="1920px" px={containerPadding} py={6}>
+        <Flex justify="space-between" maxW="2xl" mx="auto">
           {['Cart', 'Address', 'Payment', 'Confirm'].map((label, index) => (
-            <div key={label} className="flex items-center">
-              <div className="flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all
-                  ${step > index + 1 ? 'bg-green-500 text-white' : 
-                    step === index + 1 ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-lg scale-110' : 
-                    'bg-gray-200 text-gray-500'}`}>
-                  {step > index + 1 ? <CheckCircle size={18} /> : index + 1}
-                </div>
-                <span className={`text-xs mt-2 ${step === index + 1 ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+            <HStack key={label} spacing={0}>
+              <VStack spacing={2}>
+                <Circle
+                  size={10}
+                  bg={step > index + 1 ? 'green.500' : step === index + 1 ? 'orange.500' : 'gray.200'}
+                  color={step > index + 1 || step === index + 1 ? 'white' : 'gray.500'}
+                  fontSize="sm"
+                  fontWeight="semibold"
+                  transform={step === index + 1 ? 'scale(1.1)' : 'none'}
+                  transition="all 0.2s"
+                >
+                  {step > index + 1 ? <Icon as={CheckCircle} size={18} /> : index + 1}
+                </Circle>
+                <Text
+                  fontSize="xs"
+                  color={step === index + 1 ? textColor : mutedColor}
+                  fontWeight={step === index + 1 ? 'medium' : 'normal'}
+                  className="sfpro-font"
+                >
                   {label}
-                </span>
-              </div>
+                </Text>
+              </VStack>
               {index < 3 && (
-                <div className={`w-12 sm:w-24 h-0.5 mx-2 ${
-                  step > index + 1 ? 'bg-green-500' : 'bg-gray-200'
-                }`} />
+                <Box
+                  w={{ base: 12, sm: 24 }}
+                  h="0.5"
+                  mx={2}
+                  bg={step > index + 1 ? 'green.500' : 'gray.200'}
+                />
               )}
-            </div>
+            </HStack>
           ))}
-        </div>
-      </div>
+        </Flex>
+      </Container>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <Container maxW="1920px" px={containerPadding} pb={32}>
+        <Grid templateColumns={{ base: '1fr', lg: '3fr 1fr' }} gap={6}>
           {/* Main Content - Left Column */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Step 1: Cart Review */}
-            {step === 1 && (
-              <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6">
-                <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <ShoppingBag size={20} className="text-orange-500" />
-                  Your Order
-                </h2>
+          <GridItem>
+            <VStack spacing={6} align="stretch">
+              {/* Step 1: Cart Review */}
+              {step === 1 && (
+                <Card bg={cardBg} borderRadius="2xl" shadow="lg" p={{ base: 4, md: 6 }}>
+                  <Heading size="md" mb={4} className="clash-font">
+                    <HStack spacing={2}>
+                      <Icon as={ShoppingBag} color="orange.500" />
+                      <Text>Your Order</Text>
+                    </HStack>
+                  </Heading>
 
-                <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                  {Object.values(cart).map(item => (
-                    <div key={item._id} className="flex gap-4 p-3 bg-gray-50 rounded-xl">
-                      <img 
-                        src={item.image || `https://source.unsplash.com/200x200/?food,${item.name}`}
-                        alt={item.name}
-                        className="w-20 h-20 rounded-xl object-cover"
-                      />
-                      <div className="flex-1">
-                        <div className="flex justify-between mb-1">
-                          <h3 className="font-semibold text-gray-800">{item.name}</h3>
-                          <span className="font-bold text-gray-800">₹{item.price * item.quantity}</span>
-                        </div>
-                        <p className="text-xs text-gray-500 mb-2">Qty: {item.quantity}</p>
-                        {item.specialInstructions && (
-                          <p className="text-xs text-gray-500 bg-white p-2 rounded-lg">
-                            📝 {item.specialInstructions}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => setStep(2)}
-                  className="w-full mt-6 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-medium rounded-xl hover:shadow-lg transition-all"
-                >
-                  Continue to Address
-                </button>
-              </div>
-            )}
-
-            {/* Step 2: Delivery Address */}
-            {step === 2 && (
-              <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6">
-                <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <MapPin size={20} className="text-orange-500" />
-                  Delivery Address
-                </h2>
-
-                {!showAddressForm ? (
-                  <>
-                    <div className="space-y-3 mb-4">
-                      {addresses.map(address => (
-                        <div
-                          key={address.id}
-                          onClick={() => setSelectedAddress(address)}
-                          className={`p-4 border rounded-xl cursor-pointer transition-all ${
-                            selectedAddress?.id === address.id
-                              ? 'border-orange-500 bg-orange-50 shadow-md'
-                              : 'border-gray-200 hover:border-orange-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className={`p-1.5 rounded-full ${
-                                selectedAddress?.id === address.id ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-600'
-                              }`}>
-                                {getAddressIcon(address.type)}
-                              </div>
-                              <span className="text-xs font-medium capitalize bg-gray-200 px-2 py-1 rounded-full">
-                                {address.type}
-                              </span>
-                            </div>
-                            <div className="flex gap-2">
-                              <button className="p-1 hover:bg-white rounded-lg">
-                                <Edit size={14} className="text-gray-400" />
-                              </button>
-                              <button className="p-1 hover:bg-white rounded-lg">
-                                <Trash2 size={14} className="text-gray-400" />
-                              </button>
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-700 pl-8">{address.fullAddress || address.address}</p>
-                          <p className="text-xs text-gray-500 mt-1 pl-8">📞 {address.phone}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <button
-                      onClick={() => setShowAddressForm(true)}
-                      className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-orange-500 hover:text-orange-500 transition-all flex items-center justify-center gap-2 mb-4"
-                    >
-                      <Plus size={18} />
-                      Add New Address
-                    </button>
-
-                    <button
-                      onClick={() => setStep(3)}
-                      disabled={!selectedAddress}
-                      className={`w-full py-3 rounded-xl font-medium transition-all ${
-                        selectedAddress
-                          ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:shadow-lg'
-                          : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      Continue to Payment
-                    </button>
-                  </>
-                ) : (
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-gray-700">Add New Address</h3>
-                    
-                    <div className="flex gap-2 mb-4">
-                      {['home', 'work', 'other'].map(type => (
-                        <button
-                          key={type}
-                          onClick={() => setNewAddress({...newAddress, type})}
-                          className={`flex-1 py-2 rounded-xl text-sm font-medium capitalize transition-all ${
-                            newAddress.type === type
-                              ? 'bg-orange-500 text-white'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {type === 'home' && <Home size={14} className="inline mr-1" />}
-                          {type === 'work' && <Briefcase size={14} className="inline mr-1" />}
-                          {type === 'other' && <Building size={14} className="inline mr-1" />}
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <input
-                        type="text"
-                        placeholder="Address"
-                        value={newAddress.address}
-                        onChange={(e) => setNewAddress({...newAddress, address: e.target.value})}
-                        className="col-span-2 p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Landmark"
-                        value={newAddress.landmark}
-                        onChange={(e) => setNewAddress({...newAddress, landmark: e.target.value})}
-                        className="p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Area"
-                        value={newAddress.area}
-                        onChange={(e) => setNewAddress({...newAddress, area: e.target.value})}
-                        className="p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                      />
-                      <input
-                        type="text"
-                        placeholder="City"
-                        value={newAddress.city}
-                        onChange={(e) => setNewAddress({...newAddress, city: e.target.value})}
-                        className="p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Pincode"
-                        value={newAddress.pincode}
-                        onChange={(e) => setNewAddress({...newAddress, pincode: e.target.value})}
-                        className="p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                      />
-                      <input
-                        type="tel"
-                        placeholder="Phone Number"
-                        value={newAddress.phone}
-                        onChange={(e) => setNewAddress({...newAddress, phone: e.target.value})}
-                        className="col-span-2 p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                      />
-                      <textarea
-                        placeholder="Delivery instructions (optional)"
-                        value={newAddress.instructions}
-                        onChange={(e) => setNewAddress({...newAddress, instructions: e.target.value})}
-                        rows="2"
-                        className="col-span-2 p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                      />
-                    </div>
-
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => setShowAddressForm(false)}
-                        className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-all"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSaveAddress}
-                        className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-xl hover:shadow-lg transition-all"
-                      >
-                        Save Address
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Step 3: Payment Method */}
-            {step === 3 && (
-              <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6">
-                <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <CreditCard size={20} className="text-orange-500" />
-                  Payment Method
-                </h2>
-
-                <div className="space-y-4">
-                  {/* UPI Option */}
-                  <div className={`p-4 border rounded-xl cursor-pointer transition-all ${
-                    paymentMethod === 'online' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-orange-300'
-                  }`}>
-                    <div className="flex items-center gap-3 mb-3" onClick={() => setPaymentMethod('online')}>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        paymentMethod === 'online' ? 'border-orange-500' : 'border-gray-300'
-                      }`}>
-                        {paymentMethod === 'online' && <div className="w-3 h-3 bg-orange-500 rounded-full" />}
-                      </div>
-                      <Wallet size={20} className="text-gray-600" />
-                      <span className="font-medium">UPI / Online Payment</span>
-                    </div>
-
-                    {paymentMethod === 'online' && (
-                      <div className="pl-8 mt-3 space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          {upiApps.map(app => (
-                            <button
-                              key={app.id}
-                              onClick={() => setSelectedUpiApp(app.id)}
-                              className={`p-3 border rounded-xl text-center transition-all ${
-                                selectedUpiApp === app.id
-                                  ? 'border-orange-500 bg-orange-50'
-                                  : 'border-gray-200 hover:border-orange-300'
-                              }`}
-                            >
-                              <span className="text-2xl mb-1 block">{app.icon}</span>
-                              <span className="text-xs">{app.name}</span>
-                            </button>
-                          ))}
-                        </div>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="Enter UPI ID"
-                            className="w-full p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Card Payment */}
-                  <div className={`p-4 border rounded-xl cursor-pointer transition-all ${
-                    paymentMethod === 'card' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-orange-300'
-                  }`}>
-                    <div className="flex items-center gap-3 mb-3" onClick={() => setPaymentMethod('card')}>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        paymentMethod === 'card' ? 'border-orange-500' : 'border-gray-300'
-                      }`}>
-                        {paymentMethod === 'card' && <div className="w-3 h-3 bg-orange-500 rounded-full" />}
-                      </div>
-                      <CreditCard size={20} className="text-gray-600" />
-                      <span className="font-medium">Credit / Debit Card</span>
-                    </div>
-
-                    {paymentMethod === 'card' && (
-                      <div className="pl-8 mt-3 space-y-3">
-                        <input
-                          type="text"
-                          placeholder="Card Number"
-                          value={cardDetails.number}
-                          onChange={(e) => setCardDetails({...cardDetails, number: e.target.value})}
-                          className="w-full p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Cardholder Name"
-                          value={cardDetails.name}
-                          onChange={(e) => setCardDetails({...cardDetails, name: e.target.value})}
-                          className="w-full p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                        />
-                        <div className="grid grid-cols-2 gap-3">
-                          <input
-                            type="text"
-                            placeholder="MM/YY"
-                            value={cardDetails.expiry}
-                            onChange={(e) => setCardDetails({...cardDetails, expiry: e.target.value})}
-                            className="p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                          />
-                          <input
-                            type="password"
-                            placeholder="CVV"
-                            value={cardDetails.cvv}
-                            onChange={(e) => setCardDetails({...cardDetails, cvv: e.target.value})}
-                            className="p-3 border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Cash on Delivery */}
-                  <div className={`p-4 border rounded-xl cursor-pointer transition-all ${
-                    paymentMethod === 'cod' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-orange-300'
-                  }`}>
-                    <div className="flex items-center gap-3" onClick={() => setPaymentMethod('cod')}>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        paymentMethod === 'cod' ? 'border-orange-500' : 'border-gray-300'
-                      }`}>
-                        {paymentMethod === 'cod' && <div className="w-3 h-3 bg-orange-500 rounded-full" />}
-                      </div>
-                      <IndianRupee size={20} className="text-gray-600" />
-                      <span className="font-medium">Cash on Delivery</span>
-                      <span className="text-xs text-gray-500 ml-auto">Pay when you receive</span>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setStep(4)}
-                  className="w-full mt-6 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-medium rounded-xl hover:shadow-lg transition-all"
-                >
-                  Review Order
-                </button>
-              </div>
-            )}
-
-            {/* Step 4: Order Confirmation */}
-            {step === 4 && (
-              <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6">
-                <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <CheckCircle size={20} className="text-green-500" />
-                  Review Your Order
-                </h2>
-
-                {/* Delivery Details Summary */}
-                <div className="space-y-4 mb-6">
-                  <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-xl">
-                    <MapPin size={18} className="text-blue-500 mt-1" />
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Delivering to</p>
-                      <p className="text-sm font-medium">{selectedAddress?.fullAddress || selectedAddress?.address}</p>
-                      <p className="text-xs text-gray-500 mt-1">📞 {selectedAddress?.phone}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 p-3 bg-green-50 rounded-xl">
-                    <Clock size={18} className="text-green-500 mt-1" />
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Delivery Time</p>
-                      <p className="text-sm font-medium">30-40 minutes</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-xl">
-                    <CreditCard size={18} className="text-purple-500 mt-1" />
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Payment Method</p>
-                      <p className="text-sm font-medium capitalize">
-                        {paymentMethod === 'online' ? `UPI (${selectedUpiApp})` : 
-                         paymentMethod === 'card' ? 'Card Payment' : 'Cash on Delivery'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Order Items Summary */}
-                <div className="mb-6">
-                  <h3 className="font-semibold text-gray-700 mb-3">Order Summary</h3>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                  <VStack spacing={4} maxH="96" overflowY="auto" pr={2} className="custom-scrollbar">
                     {Object.values(cart).map(item => (
-                      <div key={item._id} className="flex justify-between text-sm">
-                        <span className="text-gray-600">{item.quantity}x {item.name}</span>
-                        <span className="font-medium">₹{item.price * item.quantity}</span>
-                      </div>
+                      <Card key={item._id} direction="row" bg="gray.50" borderRadius="xl" p={3}>
+                        <Image
+                          src={item.image || `https://source.unsplash.com/200x200/?food,${item.name}`}
+                          alt={item.name}
+                          boxSize={20}
+                          borderRadius="xl"
+                          objectFit="cover"
+                        />
+                        <Box flex={1} ml={4}>
+                          <Flex justify="space-between" mb={1}>
+                            <Text fontWeight="semibold" color={textColor} className="sfpro-font">
+                              {item.name}
+                            </Text>
+                            <Text fontWeight="bold" color={textColor}>
+                              ₹{item.price * item.quantity}
+                            </Text>
+                          </Flex>
+                          <Text fontSize="xs" color={mutedColor} mb={2}>
+                            Qty: {item.quantity}
+                          </Text>
+                          {item.specialInstructions && (
+                            <Text fontSize="xs" color={mutedColor} bg="white" p={2} borderRadius="lg">
+                              📝 {item.specialInstructions}
+                            </Text>
+                          )}
+                        </Box>
+                      </Card>
                     ))}
-                  </div>
-                </div>
+                  </VStack>
 
-                {error && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-600">
-                    <AlertCircle size={16} />
-                    <span className="text-sm">{error}</span>
-                  </div>
-                )}
+                  <Button
+                    mt={6}
+                    w="full"
+                    bgGradient="linear(to-r, orange.500, pink.500)"
+                    color="white"
+                    size="lg"
+                    onClick={() => setStep(2)}
+                    className="sfpro-font"
+                  >
+                    Continue to Address
+                  </Button>
+                </Card>
+              )}
 
-                <button
-                  onClick={handlePlaceOrder}
-                  disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-medium rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {loading ? (
+              {/* Step 2: Delivery Address */}
+              {step === 2 && (
+                <Card bg={cardBg} borderRadius="2xl" shadow="lg" p={{ base: 4, md: 6 }}>
+                  <Heading size="md" mb={4} className="clash-font">
+                    <HStack spacing={2}>
+                      <Icon as={MapPin} color="orange.500" />
+                      <Text>Delivery Address</Text>
+                    </HStack>
+                  </Heading>
+
+                  {!showAddressForm ? (
                     <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Processing...
+                      <VStack spacing={3} mb={4}>
+                        {addresses.map(address => (
+                          <Card
+                            key={address.id}
+                            p={4}
+                            borderRadius="xl"
+                            cursor="pointer"
+                            borderWidth="2px"
+                            borderColor={selectedAddress?.id === address.id ? 'orange.500' : 'transparent'}
+                            bg={selectedAddress?.id === address.id ? 'orange.50' : 'gray.50'}
+                            onClick={() => setSelectedAddress(address)}
+                            _hover={{ borderColor: 'orange.300' }}
+                          >
+                            <Flex justify="space-between" align="start" mb={2}>
+                              <HStack spacing={2}>
+                                <Circle
+                                  size={6}
+                                  bg={selectedAddress?.id === address.id ? 'orange.500' : 'gray.200'}
+                                  color={selectedAddress?.id === address.id ? 'white' : 'gray.600'}
+                                >
+                                  <Icon as={getAddressIcon(address.type)} boxSize={3} />
+                                </Circle>
+                                <Badge colorScheme="gray" borderRadius="full" textTransform="capitalize">
+                                  {address.type}
+                                </Badge>
+                              </HStack>
+                              <HStack spacing={2}>
+                                <IconButton
+                                  aria-label="Edit"
+                                  icon={<Edit size={14} />}
+                                  size="xs"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Handle edit
+                                  }}
+                                />
+                                <IconButton
+                                  aria-label="Delete"
+                                  icon={<Trash2 size={14} />}
+                                  size="xs"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Handle delete
+                                  }}
+                                />
+                              </HStack>
+                            </Flex>
+                            <Text fontSize="sm" color={textColor} pl={8} className="sfpro-font">
+                              {address.fullAddress || address.address}
+                            </Text>
+                            <Text fontSize="xs" color={mutedColor} mt={1} pl={8}>
+                              📞 {address.phone}
+                            </Text>
+                          </Card>
+                        ))}
+                      </VStack>
+
+                      <Button
+                        w="full"
+                        variant="outline"
+                        borderStyle="dashed"
+                        leftIcon={<Plus size={18} />}
+                        onClick={() => setShowAddressForm(true)}
+                        mb={4}
+                        className="sfpro-font"
+                      >
+                        Add New Address
+                      </Button>
+
+                      <Button
+                        w="full"
+                        bgGradient={selectedAddress ? "linear(to-r, orange.500, pink.500)" : "gray.200"}
+                        color={selectedAddress ? "white" : "gray.500"}
+                        size="lg"
+                        onClick={() => setStep(3)}
+                        isDisabled={!selectedAddress}
+                        _hover={selectedAddress ? { shadow: 'lg' } : {}}
+                        className="sfpro-font"
+                      >
+                        Continue to Payment
+                      </Button>
                     </>
                   ) : (
-                    `Place Order • ₹${grandTotal.toFixed(2)}`
-                  )}
-                </button>
+                    <VStack spacing={4} align="stretch">
+                      <Heading size="sm" color={textColor} className="sfpro-font">
+                        Add New Address
+                      </Heading>
+                      
+                      <RadioGroup
+                        value={newAddress.type}
+                        onChange={(value) => setNewAddress({...newAddress, type: value})}
+                      >
+                        <HStack spacing={4} mb={4}>
+                          {['home', 'work', 'other'].map(type => (
+                            <Radio key={type} value={type} colorScheme="orange">
+                              <HStack spacing={1}>
+                                <Icon
+                                  as={type === 'home' ? Home : type === 'work' ? Briefcase : Building}
+                                  size={14}
+                                />
+                                <Text textTransform="capitalize" className="sfpro-font">
+                                  {type}
+                                </Text>
+                              </HStack>
+                            </Radio>
+                          ))}
+                        </HStack>
+                      </RadioGroup>
 
-                <p className="text-xs text-gray-500 text-center mt-4 flex items-center justify-center gap-1">
-                  <Lock size={12} />
-                  Your payment information is secure
-                </p>
-              </div>
-            )}
-          </div>
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                        <Input
+                          placeholder="Address"
+                          value={newAddress.address}
+                          onChange={(e) => setNewAddress({...newAddress, address: e.target.value})}
+                          gridColumn={{ base: 'span 1', md: 'span 2' }}
+                          className="sfpro-font"
+                        />
+                        <Input
+                          placeholder="Landmark"
+                          value={newAddress.landmark}
+                          onChange={(e) => setNewAddress({...newAddress, landmark: e.target.value})}
+                          className="sfpro-font"
+                        />
+                        <Input
+                          placeholder="Area"
+                          value={newAddress.area}
+                          onChange={(e) => setNewAddress({...newAddress, area: e.target.value})}
+                          className="sfpro-font"
+                        />
+                        <Input
+                          placeholder="City"
+                          value={newAddress.city}
+                          onChange={(e) => setNewAddress({...newAddress, city: e.target.value})}
+                          className="sfpro-font"
+                        />
+                        <Input
+                          placeholder="Pincode"
+                          value={newAddress.pincode}
+                          onChange={(e) => setNewAddress({...newAddress, pincode: e.target.value})}
+                          className="sfpro-font"
+                        />
+                        <Input
+                          placeholder="Phone Number"
+                          value={newAddress.phone}
+                          onChange={(e) => setNewAddress({...newAddress, phone: e.target.value})}
+                          gridColumn={{ base: 'span 1', md: 'span 2' }}
+                          className="sfpro-font"
+                        />
+                        <ChakraTextarea
+                          placeholder="Delivery instructions (optional)"
+                          value={newAddress.instructions}
+                          onChange={(e) => setNewAddress({...newAddress, instructions: e.target.value})}
+                          rows={2}
+                          gridColumn={{ base: 'span 1', md: 'span 2' }}
+                          className="sfpro-font"
+                        />
+                      </SimpleGrid>
+
+                      <HStack spacing={3}>
+                        <Button
+                          flex={1}
+                          variant="outline"
+                          onClick={() => setShowAddressForm(false)}
+                          className="sfpro-font"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          flex={1}
+                          bgGradient="linear(to-r, orange.500, pink.500)"
+                          color="white"
+                          onClick={handleSaveAddress}
+                          className="sfpro-font"
+                        >
+                          Save Address
+                        </Button>
+                      </HStack>
+                    </VStack>
+                  )}
+                </Card>
+              )}
+
+              {/* Step 3: Payment Method */}
+              {step === 3 && (
+                <Card bg={cardBg} borderRadius="2xl" shadow="lg" p={{ base: 4, md: 6 }}>
+                  <Heading size="md" mb={4} className="clash-font">
+                    <HStack spacing={2}>
+                      <Icon as={CreditCard} color="orange.500" />
+                      <Text>Payment Method</Text>
+                    </HStack>
+                  </Heading>
+
+                  <VStack spacing={4}>
+                    {/* UPI Option */}
+                    <Card
+                      p={4}
+                      borderRadius="xl"
+                      borderWidth="2px"
+                      borderColor={paymentMethod === 'online' ? 'orange.500' : 'gray.200'}
+                      bg={paymentMethod === 'online' ? 'orange.50' : 'transparent'}
+                      cursor="pointer"
+                      onClick={() => setPaymentMethod('online')}
+                      w="full"
+                    >
+                      <HStack spacing={3} mb={paymentMethod === 'online' ? 3 : 0}>
+                        <Radio
+                          value="online"
+                          isChecked={paymentMethod === 'online'}
+                          colorScheme="orange"
+                          size="lg"
+                        />
+                        <Icon as={Wallet} boxSize={5} color="gray.600" />
+                        <Text fontWeight="medium" className="sfpro-font">
+                          UPI / Online Payment
+                        </Text>
+                      </HStack>
+
+                      <Collapse in={paymentMethod === 'online'} animateOpacity>
+                        <VStack pl={8} mt={3} spacing={3}>
+                          <SimpleGrid columns={2} spacing={2}>
+                            {upiApps.map(app => (
+                              <Button
+                                key={app.id}
+                                variant={selectedUpiApp === app.id ? 'solid' : 'outline'}
+                                colorScheme={selectedUpiApp === app.id ? 'orange' : 'gray'}
+                                onClick={() => setSelectedUpiApp(app.id)}
+                                h="auto"
+                                py={3}
+                              >
+                                <VStack spacing={1}>
+                                  <Text fontSize="2xl">{app.icon}</Text>
+                                  <Text fontSize="xs" className="sfpro-font">
+                                    {app.name}
+                                  </Text>
+                                </VStack>
+                              </Button>
+                            ))}
+                          </SimpleGrid>
+                          <Input
+                            placeholder="Enter UPI ID"
+                            className="sfpro-font"
+                          />
+                        </VStack>
+                      </Collapse>
+                    </Card>
+
+                    {/* Card Payment */}
+                    <Card
+                      p={4}
+                      borderRadius="xl"
+                      borderWidth="2px"
+                      borderColor={paymentMethod === 'card' ? 'orange.500' : 'gray.200'}
+                      bg={paymentMethod === 'card' ? 'orange.50' : 'transparent'}
+                      cursor="pointer"
+                      onClick={() => setPaymentMethod('card')}
+                      w="full"
+                    >
+                      <HStack spacing={3} mb={paymentMethod === 'card' ? 3 : 0}>
+                        <Radio
+                          value="card"
+                          isChecked={paymentMethod === 'card'}
+                          colorScheme="orange"
+                          size="lg"
+                        />
+                        <Icon as={CreditCard} boxSize={5} color="gray.600" />
+                        <Text fontWeight="medium" className="sfpro-font">
+                          Credit / Debit Card
+                        </Text>
+                      </HStack>
+
+                      <Collapse in={paymentMethod === 'card'} animateOpacity>
+                        <VStack pl={8} mt={3} spacing={3}>
+                          <Input
+                            placeholder="Card Number"
+                            value={cardDetails.number}
+                            onChange={(e) => setCardDetails({...cardDetails, number: e.target.value})}
+                            className="sfpro-font"
+                          />
+                          <Input
+                            placeholder="Cardholder Name"
+                            value={cardDetails.name}
+                            onChange={(e) => setCardDetails({...cardDetails, name: e.target.value})}
+                            className="sfpro-font"
+                          />
+                          <HStack spacing={3}>
+                            <Input
+                              placeholder="MM/YY"
+                              value={cardDetails.expiry}
+                              onChange={(e) => setCardDetails({...cardDetails, expiry: e.target.value})}
+                              className="sfpro-font"
+                            />
+                            <Input
+                              type="password"
+                              placeholder="CVV"
+                              value={cardDetails.cvv}
+                              onChange={(e) => setCardDetails({...cardDetails, cvv: e.target.value})}
+                              className="sfpro-font"
+                            />
+                          </HStack>
+                        </VStack>
+                      </Collapse>
+                    </Card>
+
+                    {/* Cash on Delivery */}
+                    <Card
+                      p={4}
+                      borderRadius="xl"
+                      borderWidth="2px"
+                      borderColor={paymentMethod === 'cod' ? 'orange.500' : 'gray.200'}
+                      bg={paymentMethod === 'cod' ? 'orange.50' : 'transparent'}
+                      cursor="pointer"
+                      onClick={() => setPaymentMethod('cod')}
+                      w="full"
+                    >
+                      <HStack spacing={3} justify="space-between">
+                        <HStack spacing={3}>
+                          <Radio
+                            value="cod"
+                            isChecked={paymentMethod === 'cod'}
+                            colorScheme="orange"
+                            size="lg"
+                          />
+                          <Icon as={IndianRupee} boxSize={5} color="gray.600" />
+                          <Text fontWeight="medium" className="sfpro-font">
+                            Cash on Delivery
+                          </Text>
+                        </HStack>
+                        <Text fontSize="xs" color={mutedColor} className="sfpro-font">
+                          Pay when you receive
+                        </Text>
+                      </HStack>
+                    </Card>
+                  </VStack>
+
+                  <Button
+                    mt={6}
+                    w="full"
+                    bgGradient="linear(to-r, orange.500, pink.500)"
+                    color="white"
+                    size="lg"
+                    onClick={() => setStep(4)}
+                    className="sfpro-font"
+                  >
+                    Review Order
+                  </Button>
+                </Card>
+              )}
+
+              {/* Step 4: Order Confirmation */}
+              {step === 4 && (
+                <Card bg={cardBg} borderRadius="2xl" shadow="lg" p={{ base: 4, md: 6 }}>
+                  <Heading size="md" mb={4} className="clash-font">
+                    <HStack spacing={2}>
+                      <Icon as={CheckCircle} color="green.500" />
+                      <Text>Review Your Order</Text>
+                    </HStack>
+                  </Heading>
+
+                  {/* Delivery Details Summary */}
+                  <VStack spacing={4} mb={6}>
+                    <Card bg="blue.50" p={3} borderRadius="xl" w="full">
+                      <HStack spacing={3} align="flex-start">
+                        <Icon as={MapPin} boxSize={4} color="blue.500" mt={1} />
+                        <Box>
+                          <Text fontSize="xs" color="gray.500" mb={1} className="sfpro-font">
+                            Delivering to
+                          </Text>
+                          <Text fontSize="sm" fontWeight="medium" className="sfpro-font">
+                            {selectedAddress?.fullAddress || selectedAddress?.address}
+                          </Text>
+                          <Text fontSize="xs" color="gray.500" mt={1}>
+                            📞 {selectedAddress?.phone}
+                          </Text>
+                        </Box>
+                      </HStack>
+                    </Card>
+
+                    <Card bg="green.50" p={3} borderRadius="xl" w="full">
+                      <HStack spacing={3} align="flex-start">
+                        <Icon as={Clock} boxSize={4} color="green.500" mt={1} />
+                        <Box>
+                          <Text fontSize="xs" color="gray.500" mb={1} className="sfpro-font">
+                            Delivery Time
+                          </Text>
+                          <Text fontSize="sm" fontWeight="medium" className="sfpro-font">
+                            30-40 minutes
+                          </Text>
+                        </Box>
+                      </HStack>
+                    </Card>
+
+                    <Card bg="purple.50" p={3} borderRadius="xl" w="full">
+                      <HStack spacing={3} align="flex-start">
+                        <Icon as={CreditCard} boxSize={4} color="purple.500" mt={1} />
+                        <Box>
+                          <Text fontSize="xs" color="gray.500" mb={1} className="sfpro-font">
+                            Payment Method
+                          </Text>
+                          <Text fontSize="sm" fontWeight="medium" textTransform="capitalize" className="sfpro-font">
+                            {paymentMethod === 'online' ? `UPI (${selectedUpiApp})` : 
+                             paymentMethod === 'card' ? 'Card Payment' : 'Cash on Delivery'}
+                          </Text>
+                        </Box>
+                      </HStack>
+                    </Card>
+                  </VStack>
+
+                  {/* Order Items Summary */}
+                  <Box mb={6}>
+                    <Text fontWeight="semibold" mb={3} className="sfpro-font">
+                      Order Summary
+                    </Text>
+                    <VStack spacing={2} maxH="40" overflowY="auto" className="custom-scrollbar">
+                      {Object.values(cart).map(item => (
+                        <Flex key={item._id} justify="space-between" w="full" fontSize="sm">
+                          <Text color={mutedColor} className="sfpro-font">
+                            {item.quantity}x {item.name}
+                          </Text>
+                          <Text fontWeight="medium">₹{item.price * item.quantity}</Text>
+                        </Flex>
+                      ))}
+                    </VStack>
+                  </Box>
+
+                  {error && (
+                    <Alert status="error" borderRadius="xl" mb={4}>
+                      <AlertIcon />
+                      <AlertDescription className="sfpro-font">{error}</AlertDescription>
+                      <CloseButton position="absolute" right={2} top={2} onClick={() => setError('')} />
+                    </Alert>
+                  )}
+
+                  <Button
+                    w="full"
+                    bgGradient="linear(to-r, green.500, emerald.500)"
+                    color="white"
+                    size="lg"
+                    onClick={handlePlaceOrder}
+                    isLoading={loading}
+                    loadingText="Processing..."
+                    spinner={<Loader2 className="animate-spin" />}
+                    className="sfpro-font"
+                  >
+                    {!loading && `Place Order • ₹${grandTotal.toFixed(2)}`}
+                  </Button>
+
+                  <Text fontSize="xs" color={mutedColor} textAlign="center" mt={4} className="sfpro-font">
+                    <HStack spacing={1} justify="center">
+                      <Icon as={Lock} boxSize={3} />
+                      <span>Your payment information is secure</span>
+                    </HStack>
+                  </Text>
+                </Card>
+              )}
+            </VStack>
+          </GridItem>
 
           {/* Right Column - Order Summary */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 sticky top-24">
-              <h3 className="font-bold text-gray-800 mb-4">Order Summary</h3>
+          <GridItem>
+            <Card bg={cardBg} borderRadius="2xl" shadow="lg" p={6} position="sticky" top={24}>
+              <Heading size="md" mb={4} className="clash-font">
+                Order Summary
+              </Heading>
 
               {/* Restaurant Info */}
-              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-200">
-                <img 
+              <HStack spacing={3} mb={4} pb={4} borderBottomWidth="1px" borderColor={borderColor}>
+                <Image
                   src={restaurant?.image || 'https://source.unsplash.com/200x200/?restaurant'}
                   alt={restaurant?.name}
-                  className="w-12 h-12 rounded-xl object-cover"
+                  boxSize={12}
+                  borderRadius="xl"
+                  objectFit="cover"
                 />
-                <div>
-                  <p className="font-semibold text-gray-800">{restaurant?.name}</p>
-                  <p className="text-xs text-gray-500">{itemCount} items</p>
-                </div>
-              </div>
+                <Box>
+                  <Text fontWeight="semibold" color={textColor} className="sfpro-font">
+                    {restaurant?.name}
+                  </Text>
+                  <Text fontSize="xs" color={mutedColor} className="sfpro-font">
+                    {itemCount} items
+                  </Text>
+                </Box>
+              </HStack>
 
               {/* Price Breakdown */}
-              <div className="space-y-2 mb-4 pb-4 border-b border-gray-200">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">₹{subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Delivery Fee</span>
-                  <span className="font-medium">₹{deliveryFee}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Packaging Fee</span>
-                  <span className="font-medium">₹{packagingFee}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Tax (GST)</span>
-                  <span className="font-medium">₹{tax.toFixed(2)}</span>
-                </div>
+              <VStack spacing={2} mb={4} pb={4} borderBottomWidth="1px" borderColor={borderColor}>
+                <Flex justify="space-between" w="full" fontSize="sm">
+                  <Text color={mutedColor} className="sfpro-font">Subtotal</Text>
+                  <Text fontWeight="medium">₹{subtotal.toFixed(2)}</Text>
+                </Flex>
+                <Flex justify="space-between" w="full" fontSize="sm">
+                  <Text color={mutedColor} className="sfpro-font">Delivery Fee</Text>
+                  <Text fontWeight="medium">₹{deliveryFee}</Text>
+                </Flex>
+                <Flex justify="space-between" w="full" fontSize="sm">
+                  <Text color={mutedColor} className="sfpro-font">Packaging Fee</Text>
+                  <Text fontWeight="medium">₹{packagingFee}</Text>
+                </Flex>
+                <Flex justify="space-between" w="full" fontSize="sm">
+                  <Text color={mutedColor} className="sfpro-font">Tax (GST)</Text>
+                  <Text fontWeight="medium">₹{tax.toFixed(2)}</Text>
+                </Flex>
                 {discount > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
-                    <span>Discount</span>
-                    <span>-₹{discount.toFixed(2)}</span>
-                  </div>
+                  <Flex justify="space-between" w="full" fontSize="sm" color="green.600">
+                    <Text className="sfpro-font">Discount</Text>
+                    <Text>-₹{discount.toFixed(2)}</Text>
+                  </Flex>
                 )}
                 {donateToCharity && (
-                  <div className="flex justify-between text-sm text-purple-600">
-                    <span>Donation</span>
-                    <span>+₹{donationAmount}</span>
-                  </div>
+                  <Flex justify="space-between" w="full" fontSize="sm" color="purple.600">
+                    <Text className="sfpro-font">Donation</Text>
+                    <Text>+₹{donationAmount}</Text>
+                  </Flex>
                 )}
-              </div>
+              </VStack>
 
               {/* Coupon Section */}
-              <div className="mb-4">
-                <button
+              <Box mb={4}>
+                <Button
+                  w="full"
+                  bgGradient="linear(to-r, purple.50, pink.50)"
+                  borderWidth="1px"
+                  borderColor="purple.200"
+                  borderRadius="xl"
                   onClick={() => setShowCoupons(!showCoupons)}
-                  className="w-full p-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl flex items-center justify-between text-purple-600 hover:shadow-md transition-all"
+                  _hover={{ shadow: 'md' }}
                 >
-                  <span className="flex items-center gap-2 text-sm font-medium">
-                    <BadgePercent size={16} />
-                    {appliedCoupon ? `Applied: ${appliedCoupon.code}` : 'Apply Coupon'}
-                  </span>
-                  <ChevronLeft size={16} className={`transform transition-transform ${showCoupons ? '-rotate-90' : 'rotate-0'}`} />
-                </button>
+                  <Flex justify="space-between" align="center" w="full">
+                    <HStack spacing={2}>
+                      <Icon as={BadgePercent} boxSize={4} color="purple.600" />
+                      <Text fontSize="sm" fontWeight="medium" color="purple.600" className="sfpro-font">
+                        {appliedCoupon ? `Applied: ${appliedCoupon.code}` : 'Apply Coupon'}
+                      </Text>
+                    </HStack>
+                    <Icon
+                      as={ChevronLeft}
+                      boxSize={4}
+                      color="purple.600"
+                      transform={showCoupons ? 'rotate(-90deg)' : 'rotate(0)'}
+                      transition="transform 0.2s"
+                    />
+                  </Flex>
+                </Button>
 
-                {showCoupons && (
-                  <div className="mt-3 space-y-3">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
+                <Collapse in={showCoupons} animateOpacity>
+                  <Box mt={3} spaceY={3}>
+                    <HStack>
+                      <Input
                         placeholder="Enter coupon code"
                         value={couponCode}
                         onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                        className="flex-1 p-2 text-sm border border-gray-200 rounded-xl focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
+                        size="sm"
+                        className="sfpro-font"
                       />
-                      <button
+                      <Button
+                        size="sm"
+                        bgGradient="linear(to-r, orange.500, pink.500)"
+                        color="white"
                         onClick={handleApplyCoupon}
-                        className="px-4 py-2 bg-gradient-to-r from-orange-500 to-pink-500 text-white text-sm font-medium rounded-xl hover:shadow-lg"
                       >
                         Apply
-                      </button>
-                    </div>
+                      </Button>
+                    </HStack>
                     {couponError && (
-                      <p className="text-xs text-red-500">{couponError}</p>
+                      <Text fontSize="xs" color="red.500" className="sfpro-font">
+                        {couponError}
+                      </Text>
                     )}
 
-                    <div className="space-y-2">
+                    <VStack spacing={2}>
                       {availableCoupons.map(coupon => (
-                        <div
+                        <Card
                           key={coupon.id}
+                          p={3}
+                          borderRadius="xl"
+                          borderWidth="1px"
+                          borderColor={coupon.applicable ? 'green.200' : 'gray.200'}
+                          bg={coupon.applicable ? 'green.50' : 'gray.50'}
+                          opacity={coupon.applicable ? 1 : 0.5}
+                          cursor={coupon.applicable ? 'pointer' : 'not-allowed'}
                           onClick={() => {
-                            setCouponCode(coupon.code);
-                            handleApplyCoupon();
+                            if (coupon.applicable) {
+                              setCouponCode(coupon.code);
+                              handleApplyCoupon();
+                            }
                           }}
-                          className={`p-3 border rounded-xl cursor-pointer transition-all ${
-                            coupon.applicable 
-                              ? 'border-green-200 bg-green-50 hover:border-green-400' 
-                              : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
-                          }`}
+                          w="full"
                         >
-                          <div className="flex items-center gap-2 mb-1">
-                            <Gift size={14} className={coupon.applicable ? 'text-green-600' : 'text-gray-400'} />
-                            <span className="font-mono font-bold text-sm">{coupon.code}</span>
-                            {coupon.applicable && <span className="text-xs text-green-600 ml-auto">Available</span>}
-                          </div>
-                          <p className="text-xs text-gray-600">{coupon.description}</p>
-                          <p className="text-xs text-gray-400 mt-1">Min. order: ₹{coupon.minOrder}</p>
-                        </div>
+                          <HStack spacing={2} mb={1}>
+                            <Icon as={Gift} boxSize={3} color={coupon.applicable ? 'green.600' : 'gray.400'} />
+                            <Text fontFamily="mono" fontSize="sm" fontWeight="bold">
+                              {coupon.code}
+                            </Text>
+                            {coupon.applicable && (
+                              <Badge colorScheme="green" size="sm" ml="auto">
+                                Available
+                              </Badge>
+                            )}
+                          </HStack>
+                          <Text fontSize="xs" color="gray.600" className="sfpro-font">
+                            {coupon.description}
+                          </Text>
+                          <Text fontSize="xs" color="gray.400" mt={1}>
+                            Min. order: ₹{coupon.minOrder}
+                          </Text>
+                        </Card>
                       ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+                    </VStack>
+                  </Box>
+                </Collapse>
+              </Box>
 
               {/* Donation Option */}
-              <div className="mb-4 p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={donateToCharity}
-                    onChange={(e) => setDonateToCharity(e.target.checked)}
-                    className="mt-1"
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">Donate ₹10 to charity</p>
-                    <p className="text-xs text-gray-500">Support local communities with every order</p>
-                  </div>
-                </label>
-              </div>
+              <Box mb={4} p={3} bgGradient="linear(to-r, amber.50, orange.50)" borderRadius="xl">
+                <Checkbox
+                  isChecked={donateToCharity}
+                  onChange={(e) => setDonateToCharity(e.target.checked)}
+                  colorScheme="orange"
+                >
+                  <VStack align="start" spacing={0}>
+                    <Text fontSize="sm" fontWeight="medium" color="gray.700" className="sfpro-font">
+                      Donate ₹10 to charity
+                    </Text>
+                    <Text fontSize="xs" color="gray.500" className="sfpro-font">
+                      Support local communities with every order
+                    </Text>
+                  </VStack>
+                </Checkbox>
+              </Box>
 
               {/* Grand Total */}
-              <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                <span className="font-bold text-gray-800">Total</span>
-                <span className="text-xl font-bold text-orange-500">₹{grandTotal.toFixed(2)}</span>
-              </div>
+              <Flex justify="space-between" align="center" pt={4} borderTopWidth="1px" borderColor={borderColor}>
+                <Text fontWeight="bold" color={textColor} className="clash-font">
+                  Total
+                </Text>
+                <Text fontSize="xl" fontWeight="bold" color="orange.500" className="clash-font">
+                  ₹{grandTotal.toFixed(2)}
+                </Text>
+              </Flex>
 
-              <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                <Shield size={12} className="text-green-500" />
-                Secure payment. Your data is protected.
-              </p>
+              <Text fontSize="xs" color={mutedColor} mt={2} className="sfpro-font">
+                <HStack spacing={1}>
+                  <Icon as={Shield} boxSize={3} color="green.500" />
+                  <span>Secure payment. Your data is protected.</span>
+                </HStack>
+              </Text>
 
               {/* Delivery Time Selection */}
               {step === 4 && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Time</label>
-                  <div className="flex gap-2">
+                <Box mt={4}>
+                  <Text fontSize="sm" fontWeight="medium" mb={2} className="sfpro-font">
+                    Delivery Time
+                  </Text>
+                  <HStack spacing={2}>
                     {deliveryTimes.map(option => (
-                      <button
+                      <Button
                         key={option.id}
+                        flex={1}
+                        variant={deliveryTime === option.id ? 'solid' : 'outline'}
+                        colorScheme={deliveryTime === option.id ? 'orange' : 'gray'}
                         onClick={() => setDeliveryTime(option.id)}
-                        className={`flex-1 p-2 border rounded-xl text-sm transition-all ${
-                          deliveryTime === option.id
-                            ? 'border-orange-500 bg-orange-50 text-orange-600'
-                            : 'border-gray-200 hover:border-orange-300'
-                        }`}
+                        size="sm"
+                        h="auto"
+                        py={2}
                       >
-                        <div className="font-medium">{option.label}</div>
-                        <div className="text-xs text-gray-500">{option.time}</div>
-                      </button>
+                        <VStack spacing={0}>
+                          <Text fontSize="sm" fontWeight="medium">
+                            {option.label}
+                          </Text>
+                          <Text fontSize="xs" color={deliveryTime === option.id ? 'whiteAlpha.800' : mutedColor}>
+                            {option.time}
+                          </Text>
+                        </VStack>
+                      </Button>
                     ))}
-                  </div>
+                  </HStack>
                   {deliveryTime === 'later' && (
-                    <input
+                    <Input
                       type="datetime-local"
                       value={scheduledTime}
                       onChange={(e) => setScheduledTime(e.target.value)}
-                      className="w-full mt-2 p-2 border border-gray-200 rounded-xl text-sm"
+                      mt={2}
+                      size="sm"
                       min={new Date().toISOString().slice(0, 16)}
                     />
                   )}
-                </div>
+                </Box>
               )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+            </Card>
+          </GridItem>
+        </Grid>
+      </Container>
+
+      {/* Custom Scrollbar Styles */}
+      <Box as="style">
+        {`
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 4px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+          }
+          @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+          }
+        `}
+      </Box>
+    </Box>
   );
 };
 

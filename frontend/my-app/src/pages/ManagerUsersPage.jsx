@@ -23,8 +23,8 @@ export default function ManagerUsersPage() {
 
         // Get user info and all users for the restaurant
         const [userRes, usersRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/auth/me', { headers }),
-          axios.get('http://localhost:5000/api/auth/', { headers }),
+          axios.get('http://localhost:4000/api/auth/me', { headers }),
+          axios.get('http://localhost:4000/api/auth/', { headers }),
         ]);
 
         setRestaurantName(userRes.data.user?.restaurant?.name || 'Restaurant');
@@ -60,8 +60,8 @@ export default function ManagerUsersPage() {
       const headers = { Authorization: `Bearer ${token}` };
 
       const [userRes, usersRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/auth/me', { headers }),
-        axios.get('http://localhost:5000/api/auth/', { headers }),
+        axios.get('http://localhost:4000/api/auth/me', { headers }),
+        axios.get('http://localhost:4000/api/auth/', { headers }),
       ]);
 
       const currentUser = userRes.data.user;

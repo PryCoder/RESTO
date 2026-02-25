@@ -5,6 +5,7 @@ import Inventory from '../models/Inventory.js';
 config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: 'gemini-pro' }); // Use the stable 'gemini-pro' model
 
 // In-memory cache for waste alerts: { userId: { data, timestamp } }
 const wasteAlertCache = {};
@@ -87,7 +88,6 @@ Only return the JSON array. Do NOT include any markdown code blocks or explanati
 `;
 
     // 4. Generate Gemini Response
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     let responseText = '';
     try {
       const result = await model.generateContent(prompt);
@@ -123,8 +123,6 @@ Only return the JSON array. Do NOT include any markdown code blocks or explanati
 };
 
 export const processCustomerInput = async (customerInput, menu, inventory) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
   const prompt = `
 You are a smart AI restaurant assistant.
 
@@ -167,8 +165,6 @@ Output JSON in this format:
 };
 
 export const processVoiceOrder = async (voiceText) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
   const prompt = `
 Convert the following restaurant voice input into structured JSON:
 
@@ -201,8 +197,6 @@ Output ONLY valid JSON (no explanation, no \`\`\`json code block):
 };
 
 export const generateUpsellSuggestions = async (orderHistory) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
   const prompt = `
 Analyze the following order history and recommend 3 upsell items (preferably Indian items):
 ${JSON.stringify(orderHistory)}
@@ -232,8 +226,6 @@ export const smartLeftoverReuse = async (req, res) => {
   if (!input || typeof input !== "string") {
     return res.status(400).json({ error: "Input string is required." });
   }
-
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   const prompt = `
 Vendor said: "${input}"
@@ -273,8 +265,6 @@ export const slowHourAnalyzer = async (req, res) => {
   if (!Array.isArray(salesData)) {
     return res.status(400).json({ error: "salesData array is required" });
   }
-
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   const prompt = `
 You are an AI assistant helping food vendors analyze slow hours.
@@ -430,7 +420,6 @@ Ensure the response is valid JSON only, no markdown formatting.
 `;
 
     console.log('Sending prompt to Gemini...');
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
     // Add safety settings to avoid common errors
     const generationConfig = {
@@ -590,7 +579,6 @@ Return JSON in this exact format:
 }
 `;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const result = await model.generateContent(prompt);
     const text = result.response.text();
 
@@ -614,8 +602,6 @@ Return JSON in this exact format:
 };
 
 export const optimizePricing = async (menu, demandFactor) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
   const prompt = `
 Adjust menu pricing based on demand factor = ${demandFactor} (0 = low, 1 = high).
 
@@ -645,8 +631,6 @@ Example format:
 };
 
 export const generateSchedule = async (data) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
   const prompt = `
 Using the following data, suggest an optimal shift schedule:
 ${JSON.stringify(data)}

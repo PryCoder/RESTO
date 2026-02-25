@@ -37,7 +37,7 @@ export default function TableManagement() {
     borderColor: '#1e7e34',
     notes: ''
   });
-  
+  const VITE_API_URL =  import.meta.env.VITE_API_URL;
   const [reservationForm, setReservationForm] = useState({
     customerName: '',
     customerPhone: '',
@@ -78,7 +78,7 @@ export default function TableManagement() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.get('http://localhost:5000/api/tables/restaurants', { headers });
+      const response = await axios.get(`${VITE_API_URL}/api/tables/restaurants`, { headers });
       if (response.data.restaurants && response.data.restaurants.length > 0) {
         setRestaurantId(response.data.restaurants[0].id);
         setLoading(false);
@@ -97,7 +97,7 @@ export default function TableManagement() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.get(`http://localhost:5000/api/tables/layout/${restaurantId}`, { headers });
+      const response = await axios.get(`${VITE_API_URL}/api/tables/layout/${restaurantId}`, { headers });
       
       setLayout(response.data.layout);
       setTables(response.data.tables);
@@ -111,7 +111,7 @@ export default function TableManagement() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.get(`http://localhost:5000/api/tables/tables/${restaurantId}/status?date=${selectedDate}`, { headers });
+      const response = await axios.get(`${VITE_API_URL}/api/tables/tables/${restaurantId}/status?date=${selectedDate}`, { headers });
       
       setTables(response.data.tables);
       setReservations(response.data.reservations);
@@ -135,7 +135,7 @@ export default function TableManagement() {
         position: { x: 100, y: 100 } // Default position
       };
 
-      const response = await axios.post(`http://localhost:5000/api/tables/tables/${restaurantId}`, newTable, { headers });
+      const response = await axios.post(`${VITE_API_URL}/api/tables/tables/${restaurantId}`, newTable, { headers });
       
       setTables([...tables, response.data.table]);
       setShowAddTable(false);
@@ -160,7 +160,7 @@ export default function TableManagement() {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
       
-      await axios.put(`http://localhost:5000/api/tables/tables/${restaurantId}/${tableId}`, updateData, { headers });
+      await axios.put(`${VITE_API_URL}/api/tables/tables/${restaurantId}/${tableId}`, updateData, { headers });
       
       setTables(tables.map(table => 
         table.tableId === tableId ? { ...table, ...updateData } : table
@@ -180,7 +180,7 @@ export default function TableManagement() {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
       
-      await axios.delete(`http://localhost:5000/api/tables/tables/${restaurantId}/${tableId}`, { headers });
+      await axios.delete(`${VITE_API_URL}/api/tables/tables/${restaurantId}/${tableId}`, { headers });
       
       setTables(tables.filter(table => table.tableId !== tableId));
     } catch (err) {
@@ -204,7 +204,7 @@ export default function TableManagement() {
       console.log('Creating reservation with data:', reservationData);
       console.log('Selected table:', selectedTable);
       
-      const response = await axios.post(`http://localhost:5000/api/tables/reservations/${restaurantId}`, reservationData, { headers });
+      const response = await axios.post(`${VITE_API_URL}/api/tables/reservations/${restaurantId}`, reservationData, { headers });
       
       console.log('Reservation created successfully:', response.data);
       
@@ -235,7 +235,7 @@ export default function TableManagement() {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
       
-      await axios.put(`http://localhost:5000/api/tables/reservations/${reservationId}/status`, { status }, { headers });
+      await axios.put(`${VITE_API_URL}/api/tables/reservations/${reservationId}/status`, { status }, { headers });
       
       fetchTableStatus();
     } catch (err) {
