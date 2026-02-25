@@ -10,7 +10,7 @@ export default function Login() {
   const cardRef = useRef();
   const navigate = useNavigate();
 
-  const API_URL =  'http://localhost:4000';
+  const API_URL =  import.meta.API_URL;
 
   // Card parallax tilt
   const handleCardMouseMove = (e) => {
