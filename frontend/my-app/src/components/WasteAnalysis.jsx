@@ -24,9 +24,8 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
       };
-
       const response = await axios.post(
-        'http://localhost:4000/api/orders/wasteanalyze', // Corrected endpoint
+        `${import.meta.env.VITE_API_URL}/api/orders/wasteanalyze`, // Use environment variable
         {
           voiceInput: "Analyze food waste patterns and provide recommendations",
           weather: "sunny"
