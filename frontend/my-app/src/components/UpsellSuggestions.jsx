@@ -40,7 +40,7 @@ export default function UpsellSuggestions({ restaurantId, userRole }) {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
 
-      const response = await axios.get('http://localhost:4000/api/ai/upsell', { headers });
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/ai/upsell`, { headers });
       
       // Use API data if available, otherwise use static fallback
       if (response.data && response.data.suggestion && response.data.suggestion.length > 0) {

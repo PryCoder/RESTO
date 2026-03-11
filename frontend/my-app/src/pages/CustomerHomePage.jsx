@@ -116,6 +116,7 @@ import {
   Crown,
   Users,
 } from 'lucide-react';
+import MapWithNearbyRestaurants from '../components/MapNearby';
 
 // Custom theme with all fonts
 const theme = extendTheme({
@@ -1484,6 +1485,12 @@ const CustomerHomePage = () => {
             </HStack>
           </Flex>
         </Container>
+        <Container maxW="7xl" py={8}>
+  <MapWithNearbyRestaurants
+    userLocation={userLocation}
+    apiKey="aa5340f7ea7246bf862e89964c901398"
+  />
+</Container>
 
         {/* Main Content */}
         <Container maxW="7xl" py={8}>

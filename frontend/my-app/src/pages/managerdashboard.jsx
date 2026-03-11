@@ -421,8 +421,15 @@ const openUPIApp = (amount, tableNo) => {
 
   // Fetch inventory for voice assistant
   const getInventory = async () => {
-    const data = await getInventoryAPI();
-    setInventory(data);
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const response = await axios.get(`${VITE_API_URL}/api/orders/inventory`, { headers });
+      setInventory(response.data);
+    } catch (err) {
+      console.error('Error fetching inventory:', err);
+    }
   };
 
   useEffect(() => { getInventory(); }, []);
