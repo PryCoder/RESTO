@@ -45,7 +45,7 @@ export default function Register() {
     setLoading(true);
     
     try {
-      const response = await fetch(`${API_URL}/api/auth/register/initiate-email`, {
+      const response = await fetch(`https://resto-cvc1.onrender.com/api/auth/register/initiate-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
