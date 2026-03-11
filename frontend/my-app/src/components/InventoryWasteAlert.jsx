@@ -23,7 +23,7 @@ export default function InventoryWasteAlert({ restaurantId, userRole }) {
       const headers = { Authorization: `Bearer ${token}` };
 
       const response = await axios.get(
-        'http://localhost:4000/api/orders/inventoryalert',
+        `${import.meta.env.VITE_API_URL}/api/orders/inventoryalert`, // Use environment variable
         { headers }
       );
 
@@ -414,4 +414,4 @@ export default function InventoryWasteAlert({ restaurantId, userRole }) {
       </div>
     </div>
   );
-} 
+}
