@@ -20,7 +20,21 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:5173' }));
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://resto-gold-iota.vercel.app"
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '10mb' })); // Allows large JSON payloads like imageBase64
 
 // API Routes
