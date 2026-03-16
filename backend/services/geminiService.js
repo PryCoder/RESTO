@@ -5,7 +5,7 @@ import Inventory from '../models/Inventory.js';
 config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// Note: You MUST run `npm install @google/generative-ai@latest` in your backend folder for this to work
+// Note: You MUST run `npm install @google/generative-ai@latest` in your backend folder
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' }); 
 
 // In-memory cache for waste alerts: { userId: { data, timestamp } }

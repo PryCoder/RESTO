@@ -40,7 +40,7 @@ import {
   GiForkKnifeSpoon
 } from 'react-icons/gi';
 
-const SOCKET_URL = 'http://localhost:5000';
+const SOCKET_URL = 'http://localhost:4000';
 
 export default function WaiterDashboard() {
   const [dishes, setDishes] = useState([]);
@@ -65,7 +65,7 @@ export default function WaiterDashboard() {
   const [userId, setUserId] = useState(null);
   const [activeTab, setActiveTab] = useState('menu');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
+  const API_URL = import.meta.env.VITE_API_URL 
   const {
     transcript,
     listening,
@@ -408,7 +408,7 @@ export default function WaiterDashboard() {
         items
       };
 
-      await axios.post('http://localhost:5000/api/orders/create', payload, { headers });
+      await axios.post(`${API_URL}/api/orders/create`, payload, { headers });
       setVoiceOrderLoading(false);
       setVoiceOrderModal(false);
       fetchOrders();
@@ -423,7 +423,7 @@ export default function WaiterDashboard() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get('http://localhost:5000/api/orders', { headers });
+      const res = await axios.get(`${API_URL}/api/orders`, { headers });
       setOrders(res.data);
     } catch (err) {
       console.error('Failed to fetch orders:', err);
@@ -438,7 +438,7 @@ export default function WaiterDashboard() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get('http://localhost:5000/api/orders/dishes', { headers });
+      const res = await axios.get(`${API_URL}/api/orders/dishes`, { headers });
       setDishes(res.data);
     } catch (err) {
       setDishesError('Could not load dishes');
@@ -450,31 +450,46 @@ export default function WaiterDashboard() {
   useEffect(() => {
     fetchOrders();
     fetchDishes();
-    
+  
     const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUserId(payload.userId);
-      } catch (err) {
-        console.error('Failed to decode token:', err);
-      }
+  
+    if (!token) {
+      navigate('/');
+      return;
     }
-
+  
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+  
+      setUserId(payload.userId);
+  
+      // 🚨 check restaurant id
+    
+  
+    } catch (err) {
+      console.error('Failed to decode token:', err);
+      navigate('/');
+    }
+  
     const socket = io(SOCKET_URL);
     socket.on('order:new', (order) => {
       setOrders(prev => [...prev, order]);
     });
+  
     socket.on('order:assigned', (order) => {
       setOrders(prev => [...prev, order]);
     });
+  
     socket.on('order:update', (updatedOrder) => {
-      setOrders(prev => prev.map(order => order._id === updatedOrder._id ? updatedOrder : order));
+      setOrders(prev =>
+        prev.map(order => order._id === updatedOrder._id ? updatedOrder : order)
+      );
     });
-
+  
     return () => {
       socket.disconnect();
     };
+  
   }, []);
 
   useEffect(() => {
@@ -508,7 +523,7 @@ export default function WaiterDashboard() {
           }
         ]
       };
-      await axios.post('http://localhost:5000/api/orders/create', payload, { headers });
+      await axios.post(`${API_URL}/api/orders/create`, payload, { headers });
       setGalleryOrderSuccess(true);
       setGalleryOrderQty('');
       setGalleryOrderMods('');
@@ -527,7 +542,7 @@ export default function WaiterDashboard() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      await axios.put(`http://localhost:5000/api/orders/${orderId}`, { status: newStatus }, { headers });
+      await axios.put(`${API_URL}/api/orders/${orderId}`, { status: newStatus }, { headers });
       fetchOrders();
     } catch (err) {
       console.error('Failed to update order status:', err);

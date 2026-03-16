@@ -44,7 +44,7 @@ export default function JoinRestaurantPage() {
       }
       const headers = { Authorization: `Bearer ${waiterToken}` };
       const res = await axios.get(
-        `http://localhost:5000/api/auth/join?rid=${restaurantId}`,
+        `http://localhost:4000/api/auth/join?rid=${restaurantId}`,
         { headers }
       );
       if (res.data.user) {

@@ -256,7 +256,8 @@ router.post('/dishes', authMiddleware, async (req, res) => {
    🔹 UPDATE ORDER STATUS
 ================================= */
 
-router.put('/order/:id', authMiddleware, updateOrderStatus);
+// Change this from '/order/:id' to '/:id' to match the frontend call
+router.put('/:id', authMiddleware, updateOrderStatus);
 
 /* ===============================
    🔥 GENERIC ROUTES LAST

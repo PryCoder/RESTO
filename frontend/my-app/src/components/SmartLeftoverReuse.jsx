@@ -8,7 +8,7 @@ export default function SmartLeftoverReuse({ restaurantId, userRole }) {
   const [input, setInput] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
-
+  const API_URL = import.meta.env.VITE_API_URL 
   const fetchLeftoverSuggestions = async () => {
     if (!input.trim()) {
       setError('Please describe your leftover ingredients');
@@ -20,7 +20,7 @@ export default function SmartLeftoverReuse({ restaurantId, userRole }) {
     setHasSearched(true);
     
     try {
-      const response = await axios.post('http://localhost:5000/api/ai/smartwaste', {
+      const response = await axios.post(`${API_URL}/api/ai/smartwaste`, {
         input: input.trim()
       });
 

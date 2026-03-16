@@ -14,8 +14,9 @@ export default function Register() {
   const navigate = useNavigate();
 
   // API URL from environment or default
-  const API_URL = import.meta.VITE_API_URL;
-
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  console.log(API_URL);
+  
   // Card parallax tilt
   const handleCardMouseMove = (e) => {
     const card = cardRef.current;
@@ -44,8 +45,11 @@ export default function Register() {
     setShowError(false);
     setLoading(true);
     
+    const targetUrl = `${API_URL}/api/auth/register/initiate-email`;
+    console.log('Fetching OTP from:', targetUrl);
+    
     try {
-      const response = await fetch(`https://resto-cvc1.onrender.com/api/auth/register/initiate-email`, {
+      const response = await fetch(targetUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -53,16 +57,26 @@ export default function Register() {
         body: JSON.stringify(form),
       });
       
-      const data = await response.json();
+      // Better error handling for non-JSON responses (like 404s)
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        data = await response.json();
+      } else {
+        const textData = await response.text();
+        throw new Error(`Server Error (${response.status}): Endpoint might not exist. Response: ${textData.substring(0, 50)}...`);
+      }
       
       if (response.ok && data.success) {
         setStep('otp');
         setLoading(false);
       } else {
-        throw new Error(data.error || 'Failed to send OTP');
+        throw new Error(data.error || `Server responded with status ${response.status}`);
       }
     } catch (err) {
-      console.error('Email OTP Error:', err);
+      console.error('Email OTP Error Detailed:', err);
+      // Display the EXACT error on the screen
       setError(err.message || 'Failed to send OTP email. Please try again.');
       setShowError(true);
       setLoading(false);

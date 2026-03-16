@@ -17,8 +17,8 @@ fontLinks.forEach(link => {
     document.head.appendChild(l);
   }
 });
-
-const SOCKET_URL = 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL ;
+const SOCKET_URL = API_URL;
 
 export default function KitchenDashboard() {
   const [orders, setOrders] = useState([]);
@@ -54,7 +54,7 @@ export default function KitchenDashboard() {
           return;
         }
         const headers = { Authorization: `Bearer ${token}` };
-        const res = await axios.get('http://localhost:5000/api/auth/me', { headers });
+        const res = await axios.get(`${API_URL}/api/auth/me`, { headers });
         setUser(res.data.user);
         if (!res.data.user.restaurant) {
           navigate('/join');
@@ -94,7 +94,7 @@ export default function KitchenDashboard() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get('http://localhost:5000/api/orders', { headers });
+      const res = await axios.get(`${API_URL}/api/orders`, { headers });
       setOrders(res.data);
     } catch (err) {
       console.error('Error fetching orders:', err);
@@ -109,7 +109,7 @@ export default function KitchenDashboard() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get('http://localhost:5000/api/orders/dishes', { headers });
+      const res = await axios.get(`${API_URL}/api/orders/dishes`, { headers });
       setDishes(res.data);
     } catch (err) {
       setDishesError('Could not load dishes');
@@ -122,7 +122,7 @@ export default function KitchenDashboard() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      await axios.put(`http://localhost:5000/api/orders/${orderId}`, { status: newStatus }, { headers });
+      await axios.put(`${API_URL}/api/orders/${orderId}`, { status: newStatus }, { headers });
       fetchOrders();
     } catch (err) {
       console.error('Error updating order:', err);

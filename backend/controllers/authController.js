@@ -344,10 +344,26 @@ export const getUsers = async (req, res) => {
 export const initiateRegisterWithEmailOtp = async (req, res) => {
   try {
     const { email, ...userData } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email is required' });
+    if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
     
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ success: false, error: 'Email already registered' });
+    }
+
+    // Check if Email configuration exists in your backend .env file!
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error('Missing EMAIL_USER or EMAIL_PASS in backend .env file');
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Email configuration is missing on the server. Added EMAIL_USER and EMAIL_PASS to backend .env' 
+      });
+    }
+
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log(`Generated OTP for ${email}:`, otp);
     
     // Store OTP and user data (expires in 5 minutes)
     otpStore[email] = { 
@@ -356,13 +372,9 @@ export const initiateRegisterWithEmailOtp = async (req, res) => {
       expires: Date.now() + 5 * 60 * 1000 
     };
     
-    // TEST MODE: Log OTP to console instead of sending email
-    console.log('🔐 TEST MODE - OTP for', email, ':', otp);
-    console.log('📧 In production, this OTP would be sent via email');
-    
     // Email content (for when email is properly configured)
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'your-email@gmail.com',
+      from: process.env.EMAIL_USER,
       to: email,
       subject: 'Your Registration OTP - Restaurant Management System',
       html: `
@@ -385,27 +397,20 @@ export const initiateRegisterWithEmailOtp = async (req, res) => {
       `
     };
     
-    // Try to send email, but don't fail if email is not configured
-    try {
-      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        await transporter.sendMail(mailOptions);
-        console.log('✅ Email sent successfully to:', email);
-      }
-    } catch (emailError) {
-      console.log('⚠️ Email not sent (check console for OTP):', emailError.message);
-    }
+    // Attempt sending 
+    await transporter.sendMail(mailOptions);
+    console.log('✅ Email sent successfully to:', email);
     
     res.json({ 
       success: true, 
-      message: 'OTP sent to your email successfully',
-      testMode: !process.env.EMAIL_USER || !process.env.EMAIL_PASS
+      message: 'OTP sent to your email successfully'
     });
     
   } catch (err) {
     console.error('Email OTP Error:', err);
     res.status(500).json({ 
-      error: 'Failed to send OTP email', 
-      details: err.message 
+      success: false,
+      error: `Failed to send OTP email: ${err.message}` 
     });
   }
 };
