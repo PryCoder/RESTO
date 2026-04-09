@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 export default function UpsellSuggestions({ restaurantId, userRole }) {
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10,11 +12,11 @@ export default function UpsellSuggestions({ restaurantId, userRole }) {
 
   // Static fallback suggestions
   const staticSuggestions = [
-    "Suggest premium desserts with main courses - 45% success rate",
-    "Offer craft beverages with lunch specials - 38% uptake",
-    "Recommend appetizer combos for table orders - 52% acceptance",
-    "Promote seasonal specials as add-ons - 42% conversion",
-    "Upsell premium sides with burger orders - 48% success"
+    { message: "Suggest premium desserts with main courses", category: "recommendation", confidence: 0.85, ingredient: "Desserts" },
+    { message: "Offer craft beverages with lunch specials", category: "upsell", confidence: 0.78, ingredient: "Beverages" },
+    { message: "Recommend appetizer combos for table orders", category: "upsell", confidence: 0.92, ingredient: "Appetizers" },
+    { message: "Promote seasonal specials as add-ons", category: "recommendation", confidence: 0.82, ingredient: "Seasonal" },
+    { message: "Upsell premium sides with burger orders", category: "upsell", confidence: 0.88, ingredient: "Sides" }
   ];
 
   // Auto-load upsell suggestions on component mount
@@ -38,16 +40,45 @@ export default function UpsellSuggestions({ restaurantId, userRole }) {
     
     try {
       const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/ai/upsell`, { headers });
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
       
-      // Use API data if available, otherwise use static fallback
-      if (response.data && response.data.suggestion && response.data.suggestion.length > 0) {
-        setSuggestions(response.data.suggestion);
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_URL}/api/ai/upsell`, { headers });
+      
+      // Handle different response formats
+      let suggestionsData = [];
+      
+      if (response.data && response.data.suggestions) {
+        suggestionsData = response.data.suggestions;
+      } else if (Array.isArray(response.data)) {
+        suggestionsData = response.data;
+      } else if (response.data && response.data.suggestion) {
+        suggestionsData = response.data.suggestion;
+      } else if (response.data && response.data.alerts) {
+        suggestionsData = response.data.alerts;
+      }
+      
+      // Check if the data contains objects with message property
+      if (suggestionsData.length > 0) {
+        if (typeof suggestionsData[0] === 'object' && suggestionsData[0].message) {
+          // Data is array of objects with message property
+          setSuggestions(suggestionsData);
+        } else if (typeof suggestionsData[0] === 'string') {
+          // Data is array of strings - convert to object format
+          const formattedSuggestions = suggestionsData.map((item, index) => ({
+            message: item,
+            category: index === 0 ? 'top' : index === 1 ? 'medium' : 'low',
+            confidence: 0.8 - (index * 0.1),
+            ingredient: 'General'
+          }));
+          setSuggestions(formattedSuggestions);
+        } else {
+          setSuggestions(staticSuggestions);
+        }
       } else {
-        // Use static data as fallback
-        setSuggestions(staticSuggestions.slice(0, 3));
+        setSuggestions(staticSuggestions);
       }
       
       setLoading(false);
@@ -55,10 +86,27 @@ export default function UpsellSuggestions({ restaurantId, userRole }) {
       console.error('Upsell suggestions error:', err);
       
       // On error, use static data as fallback
-      setSuggestions(staticSuggestions.slice(0, 3));
+      setSuggestions(staticSuggestions);
       setError('Using smart recommendations based on industry patterns');
       setLoading(false);
     }
+  };
+
+  const getCategoryColor = (category) => {
+    switch(category) {
+      case 'waste risk': return '#ef4444';
+      case 'upsell': return '#10b981';
+      case 'recommendation': return '#8b5cf6';
+      case 'overstock': return '#f59e0b';
+      case 'underuse': return '#3b82f6';
+      default: return '#9c27b0';
+    }
+  };
+
+  const getConfidenceIcon = (confidence) => {
+    if (confidence >= 0.8) return '🔥';
+    if (confidence >= 0.6) return '⭐';
+    return '💡';
   };
 
   if (error && suggestions.length === 0) {
@@ -163,38 +211,72 @@ export default function UpsellSuggestions({ restaurantId, userRole }) {
                 padding: '14px', 
                 backgroundColor: '#f3e5f5', 
                 borderRadius: '10px',
-                border: '1px solid #e1bee7',
+                border: `1px solid ${getCategoryColor(suggestion.category)}`,
                 position: 'relative',
                 overflow: 'hidden'
               }}
             >
               <div style={{ 
                 display: 'flex', 
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 gap: '10px'
               }}>
                 <div style={{ 
                   fontSize: '20px',
-                  color: '#9c27b0'
+                  color: getCategoryColor(suggestion.category)
                 }}>
-                  {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                  {getConfidenceIcon(suggestion.confidence)}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ 
                     fontSize: '14px', 
                     fontWeight: 'bold', 
                     color: '#6a1b9a',
-                    marginBottom: '2px',
+                    marginBottom: '4px',
                     lineHeight: '1.3'
                   }}>
-                    {suggestion}
+                    {suggestion.message || suggestion}
                   </div>
                   <div style={{ 
-                    fontSize: '11px', 
-                    color: '#9c27b0',
-                    fontStyle: 'italic'
+                    display: 'flex',
+                    gap: '8px',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    marginTop: '6px'
                   }}>
-                    {error ? 'Pattern-based recommendation' : 'High-potential upsell'}
+                    {suggestion.category && (
+                      <span style={{ 
+                        fontSize: '10px', 
+                        backgroundColor: getCategoryColor(suggestion.category),
+                        color: 'white',
+                        padding: '2px 6px',
+                        borderRadius: '12px',
+                        fontWeight: 'bold'
+                      }}>
+                        {suggestion.category}
+                      </span>
+                    )}
+                    {suggestion.ingredient && suggestion.ingredient !== 'General' && (
+                      <span style={{ 
+                        fontSize: '10px', 
+                        backgroundColor: '#e0e7ff',
+                        color: '#4338ca',
+                        padding: '2px 6px',
+                        borderRadius: '12px',
+                        fontWeight: 'bold'
+                      }}>
+                        🍽️ {suggestion.ingredient}
+                      </span>
+                    )}
+                    {suggestion.confidence && (
+                      <span style={{ 
+                        fontSize: '10px', 
+                        color: '#9c27b0',
+                        fontWeight: 'bold'
+                      }}>
+                        {Math.round(suggestion.confidence * 100)}% confidence
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{ 
@@ -213,7 +295,7 @@ export default function UpsellSuggestions({ restaurantId, userRole }) {
         </div>
       )}
 
-      {/* No Suggestions State - This should rarely show now with static fallback */}
+      {/* No Suggestions State */}
       {!loading && suggestions.length === 0 && (
         <div style={{ 
           padding: '20px 16px',
@@ -447,6 +529,13 @@ export default function UpsellSuggestions({ restaurantId, userRole }) {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.1); opacity: 0.8; }
+        }
+      `}</style>
     </div>
   );
 }

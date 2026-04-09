@@ -8,7 +8,13 @@ import {
   customerallergy,
   createSchedule
 } from '../controllers/aiController.js';
-import { inventoryWasteAlert, salesProfitAdvisor, slowHourAnalyzer, smartLeftoverReuse } from '../services/geminiService.js';
+import { 
+  inventoryWasteAlert, 
+  salesProfitAdvisor, 
+  slowHourAnalyzer, 
+  smartLeftoverReuse,
+  analyzeWasteAndAdvice
+} from '../services/geminiService.js';
 import authMiddleware from '../middleware/auth.js';
 
 const router = express.Router();
@@ -22,30 +28,32 @@ router.post('/plate', authMiddleware, analyzePlate);
 // AI crowd prediction
 router.get('/crowd', authMiddleware, predictCrowd);
 
+// Adjust menu prices
 router.post('/adjust-prices', authMiddleware, adjustMenuPrices);
 
+// Voice order processing
 router.post('/voice-order', handleVoiceOrder);
 
-router.post('/inventory-waste-alert', inventoryWasteAlert);
+// Inventory waste alerts
+router.post('/inventory-waste-alert', authMiddleware, inventoryWasteAlert);
 
-router.post('/allergy', customerallergy);
+// Customer allergy analysis
+router.post('/allergy', authMiddleware, customerallergy);
 
-router.post('/smartwaste',smartLeftoverReuse);
+// Smart leftover reuse
+router.post('/smartwaste', authMiddleware, smartLeftoverReuse);
 
-router.post('/slowhour',slowHourAnalyzer);
+// Slow hour analyzer
+router.post('/slowhour', authMiddleware, slowHourAnalyzer);
 
+// Sales profit advisor - Both routes for compatibility
+router.post('/sales-profit-advisor', authMiddleware, salesProfitAdvisor);
 router.post('/salesprofit', authMiddleware, salesProfitAdvisor);
 
-router.post('/schedule', authMiddleware, createSchedule);
+// Waste analysis - Direct route
+router.post('/waste-analysis', authMiddleware, analyzeWasteAndAdvice);
 
-router.post('/waste-analysis', authMiddleware, async (req, res) => {
-  try {
-    const { analyzeWasteAndAdvice } = await import('../services/geminiService.js');
-    const result = await analyzeWasteAndAdvice(req.body);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// Schedule creation
+router.post('/schedule', authMiddleware, createSchedule);
 
 export default router;

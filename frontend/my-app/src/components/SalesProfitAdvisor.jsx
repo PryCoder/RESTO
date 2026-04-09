@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 export default function SalesProfitAdvisor({ restaurantId, userRole, orders = [] }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
   const [showTipModal, setShowTipModal] = useState(false);
-  const [timeRange, setTimeRange] = useState('today'); // today, week, month
+  const [timeRange, setTimeRange] = useState('today');
   const [realTimeData, setRealTimeData] = useState(true);
 
   // Calculate dynamic sales data from actual orders
@@ -16,7 +18,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
-    // Today's sales
     const todaySales = orders
       .filter(order => {
         const orderDate = new Date(order.createdAt);
@@ -24,7 +25,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
       })
       .reduce((sum, order) => sum + (order.totalAmount || 0), 0);
 
-    // Yesterday's sales
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     
@@ -35,7 +35,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
       })
       .reduce((sum, order) => sum + (order.totalAmount || 0), 0);
 
-    // Last week sales for comparison
     const lastWeek = new Date(today);
     lastWeek.setDate(lastWeek.getDate() - 7);
     
@@ -44,7 +43,7 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
         const orderDate = new Date(order.createdAt);
         return orderDate >= lastWeek && orderDate < today;
       })
-      .reduce((sum, order) => sum + (order.totalAmount || 0), 0) / 7; // Average per day
+      .reduce((sum, order) => sum + (order.totalAmount || 0), 0) / 7;
 
     return {
       today: todaySales,
@@ -57,7 +56,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
 
   const salesData = calculateSalesData();
   
-  // Dynamic chart data based on time range
   const getChartData = () => {
     switch(timeRange) {
       case 'week':
@@ -90,7 +88,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
         for (let i = 29; i >= 0; i--) {
           const targetDate = new Date();
           targetDate.setDate(targetDate.getDate() - i);
-          const dateKey = targetDate.getDate();
           
           const daySales = orders
             .filter(order => {
@@ -102,44 +99,33 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
             .reduce((sum, order) => sum + (order.totalAmount || 0), 0);
             
           monthData.push({
-            name: dateKey.toString(),
+            name: targetDate.getDate().toString(),
             Sales: daySales,
             fill: i === 0 ? '#6366f1' : '#fbbf24'
           });
         }
         return monthData;
 
-      default: // today
+      default:
         return [
-          { 
-            name: 'Yesterday', 
-            Sales: salesData.yesterday, 
-            fill: '#fbbf24' 
-          },
-          { 
-            name: 'Today', 
-            Sales: salesData.today, 
-            fill: '#6366f1' 
-          },
+          { name: 'Yesterday', Sales: salesData.yesterday, fill: '#fbbf24' },
+          { name: 'Today', Sales: salesData.today, fill: '#6366f1' },
         ];
     }
   };
 
   const chartData = getChartData();
 
-  // Auto-load profit analysis on component mount or when orders change
   useEffect(() => {
     if (restaurantId || orders.length > 0) {
       fetchProfitAnalysis();
     } else {
-      // Use calculated data if no restaurantId
       const calculatedAnalysis = calculateProfitFromOrders();
       setAnalysis(calculatedAnalysis);
       setLoading(false);
     }
   }, [restaurantId, orders.length, timeRange]);
 
-  // Real-time updates
   useEffect(() => {
     if (!realTimeData) return;
     
@@ -151,12 +137,11 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
           ...updatedAnalysis
         }));
       }
-    }, 30000); // Update every 30 seconds
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [realTimeData, orders]);
 
-  // Progress animation
   useEffect(() => {
     if (loading) {
       const interval = setInterval(() => {
@@ -172,12 +157,8 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
     }
   }, [loading]);
 
-  // Calculate profit from actual orders data
   const calculateProfitFromOrders = () => {
     const currentSalesData = calculateSalesData();
-    const totalSales = currentSalesData.today;
-    
-    // More sophisticated profit calculation based on order items
     let totalCost = 0;
     let totalRevenue = 0;
 
@@ -188,14 +169,11 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
       .filter(order => new Date(order.createdAt) >= today)
       .forEach(order => {
         totalRevenue += order.totalAmount || 0;
-        // Estimate cost as 60% of revenue (typical restaurant food cost)
         totalCost += (order.totalAmount || 0) * 0.6;
       });
 
     const profit = totalRevenue - totalCost;
     const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
-
-    // Generate dynamic tips based on actual data
     const tips = generateDynamicTips(currentSalesData, profitMargin, orders);
 
     return {
@@ -207,48 +185,43 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
     };
   };
 
-  // Generate context-aware tips
   const generateDynamicTips = (salesData, profitMargin, orders) => {
     const tips = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const todayOrders = orders.filter(order => new Date(order.createdAt) >= today);
-    const avgOrderValue = todayOrders.length > 0 ? 
-      salesData.today / todayOrders.length : 0;
+    const avgOrderValue = todayOrders.length > 0 ? salesData.today / todayOrders.length : 0;
 
-    // Sales performance tips
     if (salesData.comparison > 0) {
       tips.push(`Great! Sales are up ${salesData.comparison}% from yesterday - maintain this momentum`);
     } else if (salesData.comparison < 0) {
       tips.push(`Sales are down ${Math.abs(salesData.comparison)}% from yesterday - consider promotions`);
     }
 
-    // Profit margin tips
     if (profitMargin < 20) {
       tips.push(`Low profit margin (${Math.round(profitMargin)}%) - focus on high-margin items and reduce waste`);
     } else if (profitMargin > 35) {
       tips.push(`Excellent profit margin (${Math.round(profitMargin)}%) - consider reinvesting in quality improvements`);
     }
 
-    // Order value tips
     if (avgOrderValue < 500) {
       tips.push(`Low average order value (₹${Math.round(avgOrderValue)}) - train staff on upselling techniques`);
     }
 
-    // Time-based tips
     const currentHour = new Date().getHours();
     if (currentHour >= 14 && currentHour <= 17 && salesData.today < salesData.lastWeekAvg) {
       tips.push(`Slow afternoon hours - consider offering happy hour specials`);
     }
 
-    // Inventory-based tips (if we had inventory data)
     if (todayOrders.length > 0) {
       const popularItems = {};
       todayOrders.forEach(order => {
-        order.items.forEach(item => {
-          popularItems[item.name] = (popularItems[item.name] || 0) + (item.quantity || 1);
-        });
+        if (order.items && Array.isArray(order.items)) {
+          order.items.forEach(item => {
+            popularItems[item.name] = (popularItems[item.name] || 0) + (item.quantity || 1);
+          });
+        }
       });
       
       const mostPopular = Object.entries(popularItems).sort((a, b) => b[1] - a[1])[0];
@@ -268,12 +241,15 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
     
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       const headers = { 
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
       };
 
-      // Use actual orders data for analysis
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -281,8 +257,9 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
         .filter(order => new Date(order.createdAt) >= today)
         .slice(0, 100);
 
+      // Fixed API endpoint
       const response = await axios.post(
-        'http://localhost:5000/api/ai/salesprofit',
+        `${API_URL}/api/ai/sales-profit-advisor`, // Changed from /api/ai/salesprofit
         {
           voiceInput: `Analyze sales performance for ${timeRange} with ${recentOrders.length} orders`,
           restaurantId: restaurantId,
@@ -299,16 +276,21 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
       if (response.data && (response.data.profit || response.data.totalSales)) {
         setAnalysis(response.data);
       } else {
-        // Fallback to calculated analysis
         setAnalysis(calculateProfitFromOrders());
       }
       setLoading(false);
     } catch (err) {
       console.error('Profit analysis error:', err);
       
-      // Use calculated data when API fails
+      if (err.code === 'ERR_NETWORK') {
+        setError('Cannot connect to server. Using calculated data.');
+      } else if (err.response?.status === 401) {
+        setError('Session expired. Using calculated data.');
+      } else {
+        setError('AI analysis unavailable - using calculated data');
+      }
+      
       setAnalysis(calculateProfitFromOrders());
-      setError('AI analysis unavailable - using calculated data');
       setLoading(false);
     }
   };
@@ -341,11 +323,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
     return '#ef4444';
   };
 
-  const getSalesTrendColor = () => {
-    const comparison = parseFloat(salesData.comparison);
-    return comparison >= 0 ? '#22c55e' : '#ef4444';
-  };
-
   const formatCurrency = (amount) => {
     if (typeof amount === 'number') {
       return `₹${amount.toLocaleString('en-IN')}`;
@@ -353,7 +330,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
     return amount || '₹0';
   };
 
-  // Show error only if we have no analysis data
   if (error && !analysis) {
     return (
       <div style={{ 
@@ -365,48 +341,27 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
       }}>
         <div style={{ fontSize: '24px', marginBottom: '8px' }}>⚠️</div>
         <p style={{ margin: '0 0 12px 0', color: '#92400e', fontSize: '14px' }}>{error}</p>
-        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button 
-            onClick={fetchProfitAnalysis}
-            style={{ 
-              padding: '6px 12px', 
-              backgroundColor: '#6366f1', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 600
-            }}
-          >
-            Retry AI Analysis
-          </button>
-          <button 
-            onClick={() => {
-              setAnalysis(calculateProfitFromOrders());
-              setError('');
-            }}
-            style={{ 
-              padding: '6px 12px', 
-              backgroundColor: '#22c55e', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 600
-            }}
-          >
-            Use Calculated Data
-          </button>
-        </div>
+        <button 
+          onClick={fetchProfitAnalysis}
+          style={{ 
+            padding: '6px 12px', 
+            backgroundColor: '#6366f1', 
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '12px',
+            fontWeight: 600
+          }}
+        >
+          Retry Analysis
+        </button>
       </div>
     );
   }
 
   return (
     <div style={{ padding: '0' }}>
-      {/* Header with Controls */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -420,7 +375,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
         </div>
         
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {/* Time Range Selector */}
           <select 
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value)}
@@ -437,7 +391,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
             <option value="month">Last 30 Days</option>
           </select>
 
-          {/* Real-time Toggle */}
           <button
             onClick={() => setRealTimeData(!realTimeData)}
             style={{
@@ -455,7 +408,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
         </div>
       </div>
 
-      {/* Sales Comparison Graph */}
       <div style={{ 
         marginBottom: '20px', 
         background: 'linear-gradient(135deg, #6366f1 0%, #fbbf24 100%)', 
@@ -534,7 +486,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
         </ResponsiveContainer>
       </div>
 
-      {/* Performance Metrics */}
       <div style={{ 
         display: 'grid', 
         gridTemplateColumns: 'repeat(2, 1fr)', 
@@ -570,7 +521,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
         </div>
       </div>
 
-      {/* Profit Metrics */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -630,7 +580,6 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
         </div>
       </div>
 
-      {/* Action Buttons */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
         {analysis?.tip && !loading && (
           <button 
@@ -644,9 +593,7 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
               borderRadius: '8px',
               cursor: 'pointer',
               fontSize: '12px',
-              fontWeight: 'bold',
-              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)',
-              transition: 'all 0.2s ease'
+              fontWeight: 'bold'
             }}
           >
             💡 Smart Tips
@@ -664,15 +611,13 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
             borderRadius: '8px',
             cursor: loading ? 'not-allowed' : 'pointer',
             fontSize: '12px',
-            fontWeight: 'bold',
-            opacity: loading ? 0.7 : 1
+            fontWeight: 'bold'
           }}
         >
           {loading ? `🔄 ${progress}%` : '🔍 Analyze'}
         </button>
       </div>
 
-      {/* Smart Tip Modal */}
       {showTipModal && analysis?.tip && (
         <div style={{
           position: 'fixed',
@@ -715,8 +660,7 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background-color 0.2s ease'
+                justifyContent: 'center'
               }}
             >
               ×
@@ -734,11 +678,7 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
               }}>
                 💡 Smart Profit Tips
               </h3>
-              <p style={{ 
-                margin: '4px 0 0 0', 
-                color: '#64748b', 
-                fontSize: 12 
-              }}>
+              <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: 12 }}>
                 Based on your current performance
               </p>
             </div>
@@ -759,22 +699,10 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
                   background: '#f8fafc',
                   borderRadius: '6px'
                 }}>
-                  <span style={{ 
-                    color: '#fbbf24', 
-                    fontSize: 16, 
-                    fontWeight: 'bold',
-                    marginTop: 2,
-                    flexShrink: 0
-                  }}>
+                  <span style={{ color: '#fbbf24', fontSize: 16, fontWeight: 'bold', marginTop: 2, flexShrink: 0 }}>
                     •
                   </span>
-                  <p style={{ 
-                    margin: 0, 
-                    color: '#232946', 
-                    fontSize: 13, 
-                    lineHeight: 1.4,
-                    fontWeight: 500
-                  }}>
+                  <p style={{ margin: 0, color: '#232946', fontSize: 13, lineHeight: 1.4, fontWeight: 500 }}>
                     {point.trim()}
                   </p>
                 </div>

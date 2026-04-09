@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import { Server } from 'socket.io';
+import swaggerJsdoc from "swagger-jsdoc";
+import swaggerUi from "swagger-ui-express"; 
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -12,8 +14,25 @@ import tableRoutes from './routes/tables.js';
 import whatsappRoutes from './routes/whatsapp.js';
 import attendanceRoutes from './routes/attendance.js';
 import inventoryRoutes from './routes/inventory.js';
-import restaurantRoutes from './routes/restaurant.js'; // Add this import
+import restaurantRoutes from './routes/restaurant.js';
+import Order from './models/Order.js'; // Import Order model
+const options = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "My MERN API",
+      version: "1.0.0",
+    },
+    servers: [
+      {
+        url: "http://localhost:4000",
+      },
+    ],
+  },
+  apis: ["./routes/*.js"], // adjust this to your routes
+};
 
+const specs = swaggerJsdoc(options);
 dotenv.config();
 
 const app = express();
@@ -35,17 +54,17 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' })); // Allows large JSON payloads like imageBase64
+app.use(express.json({ limit: '10mb' }));
 
 // API Routes
-app.use('/api/auth', authRoutes);        // /api/auth/register, /generate-qr, /join
-app.use('/api/orders', orderRoutes);     // /api/orders/create, /profit, /recipe
-app.use('/api/ai', aiRoutes);            // /api/ai/upsell, /plate, /crowd
-app.use('/api/tables', tableRoutes);     // /api/tables/layout, /tables, /reservations
+app.use('/api/auth', authRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/tables', tableRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/inventory', inventoryRoutes);
-app.use('/api/restaurants', restaurantRoutes); // Add this route
+app.use('/api/restaurants', restaurantRoutes);
 
 // Default Route
 app.get('/', (req, res) => {
@@ -55,6 +74,88 @@ app.get('/', (req, res) => {
 // MongoDB Connection
 let io; // Global io reference
 let emitAnalyticsUpdate, emitInventoryUpdate, emitWasteAlert, broadcastOrder;
+let urgentOrderInterval; // Store interval reference
+
+// Function to check for urgent orders
+const checkForUrgentOrders = async () => {
+  try {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    
+    // Find orders that are:
+    // 1. Not completed, cancelled, or received
+    // 2. Created more than 10 minutes ago
+    const urgentOrders = await Order.find({
+      status: { $nin: ['completed', 'cancelled', 'received'] },
+      createdAt: { $lt: tenMinutesAgo }
+    }).populate('restaurant', 'name _id');
+    
+    if (urgentOrders.length === 0) return;
+    
+    // Group by restaurant for targeted notifications
+    const restaurantMap = new Map();
+    urgentOrders.forEach(order => {
+      if (order.restaurant && order.restaurant._id) {
+        const restaurantId = order.restaurant._id.toString();
+        if (!restaurantMap.has(restaurantId)) {
+          restaurantMap.set(restaurantId, []);
+        }
+        restaurantMap.get(restaurantId).push(order);
+      }
+    });
+    
+    // Emit to specific restaurant rooms
+    restaurantMap.forEach((orders, restaurantId) => {
+      console.log(`🔔 Emitting ${orders.length} urgent orders for restaurant ${restaurantId}`);
+      io.to(`restaurant_${restaurantId}`).emit('urgent:orders', orders);
+      
+      // Also emit a general urgent alert
+      io.to(`restaurant_${restaurantId}`).emit('urgent:alert', {
+        count: orders.length,
+        orders: orders.map(o => ({
+          id: o._id,
+          table: o.table,
+          timeElapsed: Math.floor((Date.now() - new Date(o.createdAt)) / (1000 * 60)),
+          status: o.status
+        }))
+      });
+    });
+    
+    // Also emit to all connected clients (for global dashboard)
+    if (urgentOrders.length > 0) {
+      io.emit('urgent:orders:global', {
+        count: urgentOrders.length,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error checking urgent orders:', error);
+  }
+};
+
+// Function to start urgent order monitoring
+const startUrgentOrderMonitoring = () => {
+  // Clear existing interval if any
+  if (urgentOrderInterval) {
+    clearInterval(urgentOrderInterval);
+  }
+  
+  // Check every minute
+  urgentOrderInterval = setInterval(checkForUrgentOrders, 60000);
+  console.log('✅ Urgent order monitoring started (checking every minute)');
+  
+  // Also do an immediate check
+  checkForUrgentOrders();
+};
+
+// Function to stop monitoring (useful for graceful shutdown)
+const stopUrgentOrderMonitoring = () => {
+  if (urgentOrderInterval) {
+    clearInterval(urgentOrderInterval);
+    console.log('🛑 Urgent order monitoring stopped');
+  }
+};
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -64,23 +165,98 @@ mongoose.connect(process.env.MONGO_URI, {
     console.log(`Server running on port ${PORT}`);
   });
 
-  io = new Server(httpServer, { cors: { origin: '*' } });
+  io = new Server(httpServer, { 
+    cors: { 
+      origin: '*',
+      methods: ['GET', 'POST']
+    } 
+  });
 
+  // Socket.IO connection handling
+  io.on('connection', (socket) => {
+    console.log('🔌 New client connected:', socket.id);
+    
+    // Handle restaurant room joining
+    socket.on('join:restaurant', (restaurantId) => {
+      if (restaurantId) {
+        socket.join(`restaurant_${restaurantId}`);
+        console.log(`Client ${socket.id} joined restaurant room: ${restaurantId}`);
+      }
+    });
+    
+    // Handle leaving restaurant room
+    socket.on('leave:restaurant', (restaurantId) => {
+      if (restaurantId) {
+        socket.leave(`restaurant_${restaurantId}`);
+        console.log(`Client ${socket.id} left restaurant room: ${restaurantId}`);
+      }
+    });
+    
+    socket.on('disconnect', () => {
+      console.log('🔌 Client disconnected:', socket.id);
+    });
+  });
+
+  // Emit functions
   emitAnalyticsUpdate = (analytics) => {
     io.emit('analytics:update', analytics);
   };
+  
   emitInventoryUpdate = (inventory) => {
     io.emit('inventory:update', inventory);
   };
+  
   emitWasteAlert = (alert) => {
     io.emit('waste:alert', alert);
   };
+  
   broadcastOrder = (order) => {
     io.emit('order:new', order);
+    
+    // Also check if this order becomes urgent immediately (for orders created close to threshold)
+    setTimeout(() => {
+      checkForUrgentOrders();
+    }, 5000);
   };
+
+  // Start urgent order monitoring
+  startUrgentOrderMonitoring();
+
+  // Optional: Add endpoint to manually trigger check (for testing)
+  app.get('/api/admin/check-urgent', async (req, res) => {
+    await checkForUrgentOrders();
+    res.json({ message: 'Urgent orders check triggered' });
+  });
 
 }).catch((err) => {
   console.error('❌ MongoDB connection error:', err.message);
+  process.exit(1);
 });
 
-export { io, emitAnalyticsUpdate, emitInventoryUpdate, emitWasteAlert, broadcastOrder };
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  stopUrgentOrderMonitoring();
+  if (io) {
+    io.close();
+  }
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT signal received: closing HTTP server');
+  stopUrgentOrderMonitoring();
+  if (io) {
+    io.close();
+  }
+  process.exit(0);
+});
+
+export { 
+  io, 
+  emitAnalyticsUpdate, 
+  emitInventoryUpdate, 
+  emitWasteAlert, 
+  broadcastOrder,
+  checkForUrgentOrders // Export for manual triggering if needed
+};

@@ -1,5 +1,54 @@
 import Restaurant from '../models/Restaurant.js';
 
+// Helper function to safely extract coordinates from restaurant object
+const getRestaurantCoordinates = (restaurant) => {
+  // Try different possible location structures
+  let latitude = null;
+  let longitude = null;
+
+  // Case 1: location object with latitude/longitude
+  if (restaurant.location) {
+    latitude = restaurant.location.latitude || restaurant.location.lat;
+    longitude = restaurant.location.longitude || restaurant.location.lng;
+  }
+  
+  // Case 2: Direct latitude/longitude fields
+  if (!latitude && restaurant.latitude) latitude = restaurant.latitude;
+  if (!longitude && restaurant.longitude) longitude = restaurant.longitude;
+  
+  // Case 3: GeoJSON format with coordinates array
+  if (!latitude && restaurant.coordinates && restaurant.coordinates.type === 'Point') {
+    longitude = restaurant.coordinates.coordinates[0];
+    latitude = restaurant.coordinates.coordinates[1];
+  }
+  
+  // Case 4: Array format [longitude, latitude]
+  if (!latitude && restaurant.loc && Array.isArray(restaurant.loc)) {
+    longitude = restaurant.loc[0];
+    latitude = restaurant.loc[1];
+  }
+
+  return { latitude, longitude };
+};
+
+// Helper function to calculate distance between coordinates (in meters)
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  
+  const R = 6371e3; // Earth's radius in meters
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  
+  return R * c; // Distance in meters
+};
+
 // List all restaurants with basic info
 export const listRestaurants = async (req, res) => {
   try {
@@ -60,79 +109,73 @@ export const findNearbyRestaurants = async (req, res) => {
       return res.status(400).json({ error: 'Latitude/longitude or city are required' });
     }
 
+    // Fetch all restaurants (or filter by city if provided)
+    let query = {};
+    if (city) {
+      query = { 'location.city': { $regex: `^${city}$`, $options: 'i' } };
+    }
+
+    const restaurants = await Restaurant.find(query)
+      .select('name cuisine location menu rating address phone image offers isOpen isVeg deliveryTime avgPrice');
+    
+    if (!restaurants || restaurants.length === 0) {
+      return res.json([]);
+    }
+
     let nearbyRestaurants = [];
     const restaurantIds = new Set();
 
-    // 1. Find by GPS coordinates if available
-    if (latitude && longitude) {
-      const restaurants = await Restaurant.find({
-        'location.latitude': { $exists: true },
-        'location.longitude': { $exists: true }
-      }).select('name cuisine location menu rating');
+    // Calculate distances for restaurants with coordinates
+    const userLat = latitude ? parseFloat(latitude) : null;
+    const userLng = longitude ? parseFloat(longitude) : null;
 
-      const calculateDistance = (lat1, lon1, lat2, lon2) => {
-        const R = 6371e3; // Earth's radius in meters
-        const φ1 = lat1 * Math.PI / 180;
-        const φ2 = lat2 * Math.PI / 180;
-        const Δφ = (lat2 - lat1) * Math.PI / 180;
-        const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-                  Math.cos(φ1) * Math.cos(φ2) *
-                  Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c; // Distance in meters
-      };
-
-      const gpsRestaurants = restaurants
-        .map(restaurant => ({
-          ...restaurant.toObject(),
-          distance: calculateDistance(
-            parseFloat(latitude),
-            parseFloat(longitude),
-            restaurant.location.latitude,
-            restaurant.location.longitude
-          )
-        }))
-        .filter(restaurant => restaurant.distance <= parseInt(maxDistance));
+    for (const restaurant of restaurants) {
+      const { latitude: restLat, longitude: restLng } = getRestaurantCoordinates(restaurant);
       
-      gpsRestaurants.forEach(r => {
-        nearbyRestaurants.push(r);
-        restaurantIds.add(r._id.toString());
-      });
+      let distance = null;
+      
+      // Calculate distance if we have both user and restaurant coordinates
+      if (userLat && userLng && restLat && restLng) {
+        distance = calculateDistance(userLat, userLng, restLat, restLng);
+        
+        // Skip if beyond max distance
+        if (distance && distance > parseFloat(maxDistance)) {
+          continue;
+        }
+      }
+
+      // Convert restaurant to plain object and add distance
+      const restaurantObj = restaurant.toObject();
+      restaurantObj.distance = distance;
+      
+      // Ensure location object exists with coordinates
+      if (!restaurantObj.location) {
+        restaurantObj.location = {};
+      }
+      restaurantObj.location.latitude = restLat;
+      restaurantObj.location.longitude = restLng;
+      
+      nearbyRestaurants.push(restaurantObj);
+      restaurantIds.add(restaurant._id.toString());
     }
 
-    // 2. Find by city if provided
-    if (city) {
-      const cityRestaurants = await Restaurant.find({
-        'location.city': { $regex: `^${city}$`, $options: 'i' },
-        _id: { $nin: Array.from(restaurantIds) } // Exclude already found restaurants
-      }).select('name cuisine location menu rating');
-
-      cityRestaurants.forEach(r => {
-        // For city-only matches, distance is null or a high value to sort them after GPS matches
-        nearbyRestaurants.push({ ...r.toObject(), distance: null });
-      });
-    }
-
-    // 3. Sort the combined list
+    // Sort restaurants: those with distance first, then by distance, then by rating
     nearbyRestaurants.sort((a, b) => {
       if (a.distance !== null && b.distance !== null) {
-        return a.distance - b.distance; // Both have distance, sort by it
+        return a.distance - b.distance;
       }
-      if (a.distance !== null) {
-        return -1; // a has distance, b doesn't, so a comes first
-      }
-      if (b.distance !== null) {
-        return 1; // b has distance, a doesn't, so b comes first
-      }
-      return 0; // Neither has distance, keep original order
+      if (a.distance !== null) return -1;
+      if (b.distance !== null) return 1;
+      return (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0);
     });
 
     res.json(nearbyRestaurants);
   } catch (err) {
     console.error('Error finding nearby restaurants:', err);
-    res.status(500).json({ error: 'Failed to find nearby restaurants' });
+    res.status(500).json({ 
+      error: 'Failed to find nearby restaurants',
+      details: err.message 
+    });
   }
 };
 
@@ -149,9 +192,10 @@ export const searchRestaurants = async (req, res) => {
       $or: [
         { name: { $regex: query, $options: 'i' } },
         { cuisine: { $regex: query, $options: 'i' } },
-        { 'location.city': { $regex: query, $options: 'i' } }
+        { 'location.city': { $regex: query, $options: 'i' } },
+        { 'location.area': { $regex: query, $options: 'i' } }
       ]
-    }).select('name cuisine location menu rating');
+    }).select('name cuisine location menu rating address phone image offers isOpen isVeg deliveryTime avgPrice');
 
     res.json(restaurants);
   } catch (err) {
@@ -171,7 +215,7 @@ export const filterByCuisine = async (req, res) => {
 
     const restaurants = await Restaurant.find({
       cuisine: { $regex: cuisine, $options: 'i' }
-    }).select('name cuisine location menu rating');
+    }).select('name cuisine location menu rating address phone image offers isOpen isVeg deliveryTime avgPrice');
 
     res.json(restaurants);
   } catch (err) {
@@ -180,21 +224,88 @@ export const filterByCuisine = async (req, res) => {
   }
 };
 
-// Get popular/featured restaurants (you can customize the logic)
+// Get popular/featured restaurants
 export const getPopularRestaurants = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
 
-    // For now, just return the most recently created restaurants
-    // In production, you might want to sort by ratings, order count, etc.
+    // Sort by rating and order count if available, otherwise by creation date
     const restaurants = await Restaurant.find()
-      .select('name cuisine location menu rating')
-      .sort({ createdAt: -1 })
+      .select('name cuisine location menu rating address phone image offers isOpen isVeg deliveryTime avgPrice')
+      .sort({ rating: -1, orderCount: -1, createdAt: -1 })
       .limit(parseInt(limit));
 
     res.json(restaurants);
   } catch (err) {
     console.error('Error fetching popular restaurants:', err);
     res.status(500).json({ error: 'Failed to fetch popular restaurants' });
+  }
+};
+
+// Add a new restaurant (for admin use)
+export const addRestaurant = async (req, res) => {
+  try {
+    const restaurantData = req.body;
+    
+    // Validate required fields
+    if (!restaurantData.name) {
+      return res.status(400).json({ error: 'Restaurant name is required' });
+    }
+
+    // Create new restaurant
+    const restaurant = new Restaurant(restaurantData);
+    await restaurant.save();
+
+    res.status(201).json({
+      message: 'Restaurant added successfully',
+      restaurant
+    });
+  } catch (err) {
+    console.error('Error adding restaurant:', err);
+    res.status(500).json({ error: 'Failed to add restaurant' });
+  }
+};
+
+// Update restaurant information
+export const updateRestaurant = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const restaurant = await Restaurant.findByIdAndUpdate(
+      id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
+
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    res.json({
+      message: 'Restaurant updated successfully',
+      restaurant
+    });
+  } catch (err) {
+    console.error('Error updating restaurant:', err);
+    res.status(500).json({ error: 'Failed to update restaurant' });
+  }
+};
+
+// Delete a restaurant
+export const deleteRestaurant = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const restaurant = await Restaurant.findByIdAndDelete(id);
+
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    res.json({ message: 'Restaurant deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting restaurant:', err);
+    res.status(500).json({ error: 'Failed to delete restaurant' });
   }
 };

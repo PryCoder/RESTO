@@ -6,6 +6,104 @@ const restaurantSchema = new mongoose.Schema({
     required: true,
   },
 
+  // Add location fields for map functionality
+  address: {
+    type: String,
+    required: false,
+    default: ''
+  },
+  
+  location: {
+    latitude: {
+      type: Number,
+      required: false
+    },
+    longitude: {
+      type: Number,
+      required: false
+    },
+    city: {
+      type: String,
+      default: ''
+    },
+    area: {
+      type: String,
+      default: ''
+    },
+    pincode: {
+      type: String,
+      default: ''
+    }
+  },
+
+  // Alternative GeoJSON format for better spatial queries
+  coordinates: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number],
+      default: [0, 0]
+    }
+  },
+
+  // Restaurant details
+  cuisine: [{
+    type: String,
+    default: []
+  }],
+  
+  rating: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 5
+  },
+  
+  image: {
+    type: String,
+    default: 'https://via.placeholder.com/400x300?text=Restaurant'
+  },
+  
+  phone: {
+    type: String,
+    default: ''
+  },
+  
+  email: {
+    type: String,
+    default: ''
+  },
+  
+  isOpen: {
+    type: Boolean,
+    default: true
+  },
+  
+  isVeg: {
+    type: Boolean,
+    default: false
+  },
+  
+  deliveryTime: {
+    type: Number,
+    default: 30
+  },
+  
+  avgPrice: {
+    type: Number,
+    default: 300
+  },
+  
+  offers: [{
+    text: String,
+    code: String,
+    discount: Number,
+    validUntil: Date
+  }],
+
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -92,15 +190,20 @@ const restaurantSchema = new mongoose.Schema({
         enum: ['available', 'occupied', 'reserved', 'maintenance'],
         default: 'available'
       },
-      // Current reservation/occupancy
+      // Current reservation/occupancy - FIXED: Make it optional with select: false
       currentReservation: {
-        reservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
-        customerName: { type: String },
-        customerPhone: { type: String },
-        partySize: { type: Number },
-        reservationTime: { type: Date },
-        expectedDuration: { type: Number, default: 120 }, // minutes
-        notes: { type: String }
+        type: {
+          reservationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
+          customerName: { type: String },
+          customerPhone: { type: String },
+          partySize: { type: Number },
+          reservationTime: { type: Date },
+          expectedDuration: { type: Number, default: 120 },
+          notes: { type: String }
+        },
+        required: false,
+        default: undefined,
+        select: true
       },
       // Table notes
       notes: { type: String },
@@ -112,10 +215,10 @@ const restaurantSchema = new mongoose.Schema({
 
   // Reservation settings
   reservationSettings: {
-    maxAdvanceBooking: { type: Number, default: 30 }, // days
+    maxAdvanceBooking: { type: Number, default: 30 },
     minPartySize: { type: Number, default: 1 },
     maxPartySize: { type: Number, default: 20 },
-    reservationDuration: { type: Number, default: 120 }, // minutes
+    reservationDuration: { type: Number, default: 120 },
     allowWalkIns: { type: Boolean, default: true },
     requireDeposit: { type: Boolean, default: false },
     depositAmount: { type: Number, default: 0 }
@@ -154,6 +257,10 @@ const restaurantSchema = new mongoose.Schema({
     default: Date.now
   }
 });
+
+// Create a 2dsphere index for better geospatial queries
+restaurantSchema.index({ coordinates: '2dsphere' });
+restaurantSchema.index({ 'location.latitude': 1, 'location.longitude': 1 });
 
 // Update the updatedAt field before saving
 restaurantSchema.pre('save', function(next) {

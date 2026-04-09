@@ -42,36 +42,35 @@ router.get('/layout/:restaurantId', authMiddleware, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
       return res.status(400).json({ error: 'Invalid restaurant ID format' });
     }
-    console.log('=== GET LAYOUT DEBUG ===');
-    console.log('Restaurant ID:', restaurantId);
-    console.log('User:', req.user);
-
-    const restaurant = await Restaurant.findById(restaurantId);
-    console.log('Restaurant found:', restaurant ? 'YES' : 'NO');
     
+    const restaurant = await Restaurant.findById(restaurantId);
     if (!restaurant) {
-      console.log('Restaurant not found for ID:', restaurantId);
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
-    console.log('Restaurant details:', {
-      id: restaurant._id,
-      name: restaurant.name,
-      tablesCount: restaurant.tables.length,
-      hasLayout: !!restaurant.layout,
-      hasReservationSettings: !!restaurant.reservationSettings
+    // Ensure layout has default values if not present
+    const layout = restaurant.layout || {
+      floors: 1,
+      floorNames: ['Ground Floor'],
+      canvasWidth: 800,
+      canvasHeight: 600,
+      backgroundColor: '#ffffff'
+    };
+
+    // Return tables without currentReservation (it will be calculated in status endpoint)
+    const tablesWithoutReservation = (restaurant.tables || []).map(table => {
+      const tableObj = table.toObject ? table.toObject() : table;
+      const { currentReservation, ...tableWithoutRes } = tableObj;
+      return tableWithoutRes;
     });
 
     res.json({
-      layout: restaurant.layout,
-      tables: restaurant.tables,
-      reservationSettings: restaurant.reservationSettings
+      layout: layout,
+      tables: tablesWithoutReservation,
+      reservationSettings: restaurant.reservationSettings || {}
     });
   } catch (error) {
-    console.error('=== GET LAYOUT ERROR ===');
-    console.error('Error details:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('Error fetching layout:', error);
     res.status(500).json({ error: 'Failed to fetch restaurant layout', details: error.message });
   }
 });
@@ -83,26 +82,88 @@ router.put('/layout/:restaurantId', authMiddleware, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
       return res.status(400).json({ error: 'Invalid restaurant ID format' });
     }
+    
     const { layout, reservationSettings } = req.body;
+    
+    console.log('=== UPDATE LAYOUT DEBUG ===');
+    console.log('Restaurant ID:', restaurantId);
+    console.log('Received layout update:', JSON.stringify(layout, null, 2));
     
     const restaurant = await Restaurant.findById(restaurantId);
     if (!restaurant) {
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
-    if (layout) {
-      restaurant.layout = { ...restaurant.layout, ...layout };
-    }
-    
-    if (reservationSettings) {
-      restaurant.reservationSettings = { ...restaurant.reservationSettings, ...reservationSettings };
+    // Initialize layout if it doesn't exist
+    if (!restaurant.layout) {
+      restaurant.layout = {
+        floors: 1,
+        floorNames: ['Ground Floor'],
+        canvasWidth: 800,
+        canvasHeight: 600,
+        backgroundColor: '#ffffff'
+      };
     }
 
+    // Update layout if provided and it's an object
+    if (layout && typeof layout === 'object') {
+      if (layout.floors !== undefined && !isNaN(layout.floors)) {
+        restaurant.layout.floors = Number(layout.floors);
+      }
+      if (layout.floorNames !== undefined && Array.isArray(layout.floorNames)) {
+        restaurant.layout.floorNames = layout.floorNames;
+      }
+      if (layout.canvasWidth !== undefined && !isNaN(layout.canvasWidth)) {
+        restaurant.layout.canvasWidth = Number(layout.canvasWidth);
+      }
+      if (layout.canvasHeight !== undefined && !isNaN(layout.canvasHeight)) {
+        restaurant.layout.canvasHeight = Number(layout.canvasHeight);
+      }
+      if (layout.backgroundColor !== undefined) {
+        restaurant.layout.backgroundColor = layout.backgroundColor;
+      }
+      
+      console.log('Updated layout:', restaurant.layout);
+    }
+    
+    // Update reservation settings if provided
+    if (reservationSettings && typeof reservationSettings === 'object') {
+      if (!restaurant.reservationSettings) {
+        restaurant.reservationSettings = {};
+      }
+      restaurant.reservationSettings = {
+        ...restaurant.reservationSettings,
+        ...reservationSettings
+      };
+    }
+
+    // Mark as modified to ensure Mongoose saves
+    restaurant.markModified('layout');
+    restaurant.markModified('reservationSettings');
+    
     await restaurant.save();
-    res.json({ message: 'Layout updated successfully', layout: restaurant.layout });
+    
+    res.json({ 
+      message: 'Layout updated successfully', 
+      layout: restaurant.layout,
+      reservationSettings: restaurant.reservationSettings
+    });
+    
   } catch (error) {
-    console.error('Error updating layout:', error);
-    res.status(500).json({ error: 'Failed to update layout' });
+    console.error('=== UPDATE LAYOUT ERROR ===');
+    console.error('Error:', error);
+    
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        error: 'Validation error', 
+        details: error.message 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to update layout', 
+      details: error.message 
+    });
   }
 });
 
@@ -110,21 +171,18 @@ router.put('/layout/:restaurantId', authMiddleware, async (req, res) => {
 router.post('/tables/:restaurantId', authMiddleware, async (req, res) => {
   try {
     const { restaurantId } = req.params;
+    
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
       return res.status(400).json({ error: 'Invalid restaurant ID format' });
     }
-    console.log('=== ADD TABLE DEBUG ===');
-    console.log('Restaurant ID:', restaurantId);
-    console.log('Request body:', req.body);
-    console.log('User:', req.user);
 
     const {
       tableNumber,
+      seats,
+      position,
       floor,
       floorIndex,
       tableType,
-      seats,
-      position,
       width,
       height,
       color,
@@ -132,121 +190,122 @@ router.post('/tables/:restaurantId', authMiddleware, async (req, res) => {
       notes
     } = req.body;
 
-    console.log('Extracted data:', {
-      tableNumber,
-      floor,
-      floorIndex,
-      tableType,
-      seats,
-      position,
-      width,
-      height,
-      color,
-      borderColor,
-      notes
-    });
+    // Validate required fields
+    if (!tableNumber) {
+      return res.status(400).json({ error: 'tableNumber is required' });
+    }
+    
+    if (seats === undefined || seats === null) {
+      return res.status(400).json({ error: 'seats is required' });
+    }
+    
+    if (typeof seats !== 'number' || seats < 1) {
+      return res.status(400).json({ error: 'seats must be a number greater than 0' });
+    }
+    
+    if (!position) {
+      return res.status(400).json({ error: 'position is required' });
+    }
+    
+    if (typeof position.x !== 'number' || typeof position.y !== 'number') {
+      return res.status(400).json({ error: 'position must have x and y coordinates as numbers' });
+    }
 
     const restaurant = await Restaurant.findById(restaurantId);
-    console.log('Restaurant found:', restaurant ? 'YES' : 'NO');
-    
     if (!restaurant) {
-      console.log('Restaurant not found for ID:', restaurantId);
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
-    console.log('Restaurant details:', {
-      id: restaurant._id,
-      name: restaurant.name,
-      tablesCount: restaurant.tables.length
-    });
+    // Check for duplicate table number on same floor
+    const targetFloor = floor || 'Ground Floor';
+    const existingTable = restaurant.tables.find(
+      t => t.tableNumber === tableNumber && t.floor === targetFloor
+    );
+    
+    if (existingTable) {
+      return res.status(400).json({ 
+        error: `A table with number ${tableNumber} already exists on ${targetFloor}` 
+      });
+    }
 
     // Generate unique table ID
     const tableId = `T${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    console.log('Generated table ID:', tableId);
 
+    // Create new table object WITHOUT currentReservation
     const newTable = {
       tableId,
-      tableNumber,
-      floor: floor || 'Ground Floor',
-      floorIndex: floorIndex || 0,
+      tableNumber: String(tableNumber),
+      floor: targetFloor,
+      floorIndex: floorIndex !== undefined ? Number(floorIndex) : 0,
       tableType: tableType || 'normal',
-      seats,
-      position,
-      width: width || 80,
-      height: height || 80,
+      seats: Number(seats),
+      position: {
+        x: Number(position.x),
+        y: Number(position.y)
+      },
+      width: width ? Number(width) : 80,
+      height: height ? Number(height) : 80,
       color: color || '#28a745',
       borderColor: borderColor || '#1e7e34',
-      notes
+      status: 'available',
+      isActive: true,
+      notes: notes || '',
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
 
-    console.log('New table object:', newTable);
-
     restaurant.tables.push(newTable);
-    console.log('Table added to restaurant array');
-    
     await restaurant.save();
-    console.log('Restaurant saved successfully');
 
-    res.status(201).json({ message: 'Table added successfully', table: newTable });
+    res.status(201).json({ 
+      message: 'Table added successfully', 
+      table: newTable 
+    });
+    
   } catch (error) {
-    console.error('=== ADD TABLE ERROR ===');
-    console.error('Error details:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ error: 'Failed to add table', details: error.message });
+    console.error('Error adding table:', error);
+    res.status(500).json({ 
+      error: 'Failed to add table', 
+      details: error.message 
+    });
   }
 });
 
-// Update table
+// Update table - FIXED: Remove currentReservation handling
 router.put('/tables/:restaurantId/:tableId', authMiddleware, async (req, res) => {
   try {
+    const { restaurantId, tableId } = req.params;
+    
     console.log('=== UPDATE TABLE DEBUG ===');
-    console.log('Restaurant ID:', req.params.restaurantId);
-    console.log('Table ID:', req.params.tableId);
-    console.log('Request body:', req.body);
-    console.log('User:', req.user);
-
-    const { restaurantId } = req.params;
+    console.log('Restaurant ID:', restaurantId);
+    console.log('Table ID:', tableId);
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
       return res.status(400).json({ error: 'Invalid restaurant ID format' });
     }
-    const { tableId } = req.params;
-    const updateData = req.body;
 
-    const restaurant = await Restaurant.findById(restaurantId);
-    console.log('Restaurant found:', restaurant ? 'YES' : 'NO');
+    const updateData = req.body;
     
+    // Find restaurant
+    const restaurant = await Restaurant.findById(restaurantId);
     if (!restaurant) {
-      console.log('Restaurant not found for ID:', restaurantId);
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
+    // Find table index
     const tableIndex = restaurant.tables.findIndex(table => table.tableId === tableId);
-    console.log('Table index found:', tableIndex);
-    
     if (tableIndex === -1) {
-      console.log('Table not found for ID:', tableId);
       return res.status(404).json({ error: 'Table not found' });
     }
 
-    console.log('Original table data:', restaurant.tables[tableIndex]);
-    console.log('Update data:', updateData);
-
-    // Defensive check for position
-    if (updateData.position) {
-      if (
-        typeof updateData.position.x !== 'number' ||
-        typeof updateData.position.y !== 'number' ||
-        isNaN(updateData.position.x) ||
-        isNaN(updateData.position.y)
-      ) {
-        return res.status(400).json({ error: 'Invalid position: x and y must be numbers' });
-      }
-    }
-
-    // Update table data - preserve all existing fields and only update what's provided
-    const originalTable = restaurant.tables[tableIndex];
-    restaurant.tables[tableIndex] = {
+    console.log('Table found at index:', tableIndex);
+    
+    // Get the original table as a plain object
+    const originalTable = restaurant.tables[tableIndex].toObject();
+    
+    // Create updated table object - start with original (without currentReservation)
+    const updatedTable = {
       tableId: originalTable.tableId,
       tableNumber: originalTable.tableNumber,
       floor: originalTable.floor,
@@ -259,41 +318,109 @@ router.put('/tables/:restaurantId/:tableId', authMiddleware, async (req, res) =>
       color: originalTable.color,
       borderColor: originalTable.borderColor,
       status: originalTable.status,
-      currentReservation: originalTable.currentReservation,
       notes: originalTable.notes,
       isActive: originalTable.isActive,
       createdAt: originalTable.createdAt,
-      updatedAt: new Date(),
-      // Override with any provided update data
-      ...updateData
+      updatedAt: new Date()
     };
+    
+    // Update only the fields that are provided
+    if (updateData.tableNumber !== undefined) {
+      updatedTable.tableNumber = String(updateData.tableNumber);
+    }
+    if (updateData.floor !== undefined) {
+      updatedTable.floor = updateData.floor;
+    }
+    if (updateData.floorIndex !== undefined) {
+      updatedTable.floorIndex = Number(updateData.floorIndex);
+    }
+    if (updateData.tableType !== undefined) {
+      updatedTable.tableType = updateData.tableType;
+    }
+    if (updateData.seats !== undefined) {
+      updatedTable.seats = Number(updateData.seats);
+    }
+    if (updateData.position !== undefined) {
+      if (updateData.position.x !== undefined && updateData.position.y !== undefined) {
+        updatedTable.position = {
+          x: Number(updateData.position.x),
+          y: Number(updateData.position.y)
+        };
+      }
+    }
+    if (updateData.width !== undefined) {
+      updatedTable.width = Number(updateData.width);
+    }
+    if (updateData.height !== undefined) {
+      updatedTable.height = Number(updateData.height);
+    }
+    if (updateData.color !== undefined) {
+      updatedTable.color = updateData.color;
+    }
+    if (updateData.borderColor !== undefined) {
+      updatedTable.borderColor = updateData.borderColor;
+    }
+    if (updateData.notes !== undefined) {
+      updatedTable.notes = updateData.notes;
+    }
+    if (updateData.status !== undefined) {
+      updatedTable.status = updateData.status;
+    }
 
-    // Ensure Mongoose tracks subdocument changes
+    console.log('Updated table data:', {
+      tableId: updatedTable.tableId,
+      tableNumber: updatedTable.tableNumber,
+      status: updatedTable.status,
+      position: updatedTable.position
+    });
+    
+    // Update the table in the array
+    restaurant.tables[tableIndex] = updatedTable;
+    
+    // Mark as modified to ensure Mongoose saves
     restaurant.markModified('tables');
-
-    console.log('Updated table data:', restaurant.tables[tableIndex]);
-
+    
+    // Save the restaurant
     await restaurant.save();
     console.log('Restaurant saved successfully');
     
-    res.json({ message: 'Table updated successfully', table: restaurant.tables[tableIndex] });
+    // Return the updated table
+    const savedTable = restaurant.tables[tableIndex].toObject();
+    const { currentReservation, ...tableWithoutRes } = savedTable;
+    res.json({ 
+      message: 'Table updated successfully', 
+      table: tableWithoutRes 
+    });
+    
   } catch (error) {
     console.error('=== UPDATE TABLE ERROR ===');
     console.error('Error details:', error);
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
-    res.status(500).json({ error: 'Failed to update table', details: error.message });
+    
+    // Check for validation errors
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        error: 'Validation error', 
+        details: error.message 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to update table', 
+      details: error.message 
+    });
   }
 });
 
 // Delete table
 router.delete('/tables/:restaurantId/:tableId', authMiddleware, async (req, res) => {
   try {
-    const { restaurantId } = req.params;
+    const { restaurantId, tableId } = req.params;
+    
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
       return res.status(400).json({ error: 'Invalid restaurant ID format' });
     }
-    const { tableId } = req.params;
 
     const restaurant = await Restaurant.findById(restaurantId);
     if (!restaurant) {
@@ -325,92 +452,124 @@ router.delete('/tables/:restaurantId/:tableId', authMiddleware, async (req, res)
   }
 });
 
-// Get table status and reservations
+// Get table status and reservations - FIXED DYNAMIC STATUS CALCULATION
 router.get('/tables/:restaurantId/status', authMiddleware, async (req, res) => {
   try {
     const { restaurantId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
       return res.status(400).json({ error: 'Invalid restaurant ID format' });
     }
-    console.log('=== GET TABLE STATUS DEBUG ===');
-    console.log('Restaurant ID:', restaurantId);
-    console.log('Date query:', req.query.date);
-    console.log('User:', req.user);
 
     const { date } = req.query;
     const queryDate = date ? new Date(date) : new Date();
 
     const restaurant = await Restaurant.findById(restaurantId);
-    console.log('Restaurant found:', restaurant ? 'YES' : 'NO');
-    
     if (!restaurant) {
-      console.log('Restaurant not found for ID:', restaurantId);
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
-    console.log('Restaurant details:', {
-      id: restaurant._id,
-      name: restaurant.name,
-      tablesCount: restaurant.tables.length
-    });
+    // Get reservations for the selected date - include ALL statuses
+    const startOfDay = new Date(queryDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(queryDate);
+    endOfDay.setHours(23, 59, 59, 999);
 
-    // Get reservations for the date
     const reservations = await Reservation.find({
       restaurantId: restaurantId,
-      reservationDate: {
-        $gte: new Date(queryDate.setHours(0, 0, 0, 0)),
-        $lt: new Date(queryDate.setHours(23, 59, 59, 999))
-      }
+      reservationDate: { $gte: startOfDay, $lte: endOfDay }
     });
 
-    console.log('Reservations found:', reservations.length);
+    // Get current time for checking active reservations
+    const currentTime = new Date();
+    const isToday = queryDate.toDateString() === new Date().toDateString();
 
-    // Update table status based on reservations
+    // Calculate table status dynamically based on reservations for the selected date
     const tablesWithStatus = restaurant.tables.map(table => {
+      // Find all reservations for this table on the selected date
       const tableReservations = reservations.filter(res => res.tableId === table.tableId);
-      const currentTime = new Date();
       
-      let status = table.status;
+      let status = 'available';
       let currentReservation = null;
 
-      // Check for current reservations
-      for (const reservation of tableReservations) {
-        const reservationDateTime = new Date(reservation.reservationDate);
-        const [hours, minutes] = reservation.reservationTime.split(':');
-        reservationDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        
-        const endTime = new Date(reservationDateTime.getTime() + reservation.duration * 60000);
-        
-        if (currentTime >= reservationDateTime && currentTime <= endTime) {
-          status = reservation.status === 'seated' ? 'occupied' : 'reserved';
+      // Check for seated reservations first (highest priority)
+      const seatedReservation = tableReservations.find(res => res.status === 'seated');
+      if (seatedReservation && isToday) {
+        status = 'occupied';
+        currentReservation = {
+          reservationId: seatedReservation._id,
+          customerName: seatedReservation.customerName,
+          customerPhone: seatedReservation.customerPhone,
+          partySize: seatedReservation.partySize,
+          reservationTime: seatedReservation.reservationTime,
+          expectedDuration: seatedReservation.duration,
+          notes: seatedReservation.specialRequests
+        };
+      } 
+      // Check for active reservation (current time within reservation time)
+      else if (isToday) {
+        for (const reservation of tableReservations) {
+          // Only consider pending or confirmed reservations for active time check
+          if (reservation.status === 'pending' || reservation.status === 'confirmed') {
+            const reservationDateTime = new Date(reservation.reservationDate);
+            const [hours, minutes] = reservation.reservationTime.split(':');
+            reservationDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            
+            const endTime = new Date(reservationDateTime.getTime() + reservation.duration * 60000);
+            
+            if (currentTime >= reservationDateTime && currentTime <= endTime) {
+              status = 'reserved';
+              currentReservation = {
+                reservationId: reservation._id,
+                customerName: reservation.customerName,
+                customerPhone: reservation.customerPhone,
+                partySize: reservation.partySize,
+                reservationTime: reservation.reservationTime,
+                expectedDuration: reservation.duration,
+                notes: reservation.specialRequests
+              };
+              break;
+            }
+          }
+        }
+      }
+      
+      // For future dates, check for any pending/confirmed reservations
+      if (!isToday && status === 'available') {
+        const futureReservation = tableReservations.find(res => 
+          res.status === 'pending' || res.status === 'confirmed' || res.status === 'seated'
+        );
+        if (futureReservation) {
+          status = 'reserved';
           currentReservation = {
-            reservationId: reservation._id,
-            customerName: reservation.customerName,
-            customerPhone: reservation.customerPhone,
-            partySize: reservation.partySize,
-            reservationTime: reservation.reservationTime,
-            expectedDuration: reservation.duration,
-            notes: reservation.specialRequests
+            reservationId: futureReservation._id,
+            customerName: futureReservation.customerName,
+            customerPhone: futureReservation.customerPhone,
+            partySize: futureReservation.partySize,
+            reservationTime: futureReservation.reservationTime,
+            expectedDuration: futureReservation.duration,
+            notes: futureReservation.specialRequests
           };
-          break;
         }
       }
 
+      const tableObj = table.toObject();
+      const { currentReservation: _, ...tableWithoutRes } = tableObj;
+
       return {
-        ...table.toObject(),
+        ...tableWithoutRes,
         status,
         currentReservation
       };
     });
 
-    console.log('Tables with status processed:', tablesWithStatus.length);
+    // Filter reservations to show in the list (only active ones for the selected date)
+    const activeReservations = reservations.filter(res => 
+      res.status !== 'cancelled' && res.status !== 'completed'
+    );
 
-    res.json({ tables: tablesWithStatus, reservations });
+    res.json({ tables: tablesWithStatus, reservations: activeReservations });
   } catch (error) {
-    console.error('=== GET TABLE STATUS ERROR ===');
-    console.error('Error details:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('Error fetching table status:', error);
     res.status(500).json({ error: 'Failed to fetch table status', details: error.message });
   }
 });
@@ -418,15 +577,11 @@ router.get('/tables/:restaurantId/status', authMiddleware, async (req, res) => {
 // Create reservation
 router.post('/reservations/:restaurantId', authMiddleware, async (req, res) => {
   try {
-    console.log('=== CREATE RESERVATION DEBUG ===');
-    console.log('Restaurant ID:', req.params.restaurantId);
-    console.log('Request body:', req.body);
-    console.log('User:', req.user);
-
     const { restaurantId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
       return res.status(400).json({ error: 'Invalid restaurant ID format' });
     }
+    
     const {
       tableId,
       customerName,
@@ -440,7 +595,7 @@ router.post('/reservations/:restaurantId', authMiddleware, async (req, res) => {
       notes
     } = req.body;
 
-    // Extra validation for required fields
+    // Validate required fields
     if (!tableId) return res.status(400).json({ error: 'Missing tableId' });
     if (!customerName) return res.status(400).json({ error: 'Missing customerName' });
     if (!customerPhone) return res.status(400).json({ error: 'Missing customerPhone' });
@@ -448,82 +603,51 @@ router.post('/reservations/:restaurantId', authMiddleware, async (req, res) => {
     if (!reservationDate) return res.status(400).json({ error: 'Missing reservationDate' });
     if (!reservationTime) return res.status(400).json({ error: 'Missing reservationTime' });
 
-    // Validate date and time
     const reservationDateTime = new Date(reservationDate);
     if (isNaN(reservationDateTime.getTime())) {
       return res.status(400).json({ error: 'Invalid reservationDate' });
     }
-    const [hours, minutes] = reservationTime.split(':');
-    if (isNaN(parseInt(hours)) || isNaN(parseInt(minutes))) {
-      return res.status(400).json({ error: 'Invalid reservationTime format' });
-    }
 
-    // Validate table availability
     const restaurant = await Restaurant.findById(restaurantId);
-    console.log('Restaurant found:', restaurant ? 'YES' : 'NO');
-    
     if (!restaurant) {
-      console.log('Restaurant not found for ID:', restaurantId);
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
     const table = restaurant.tables.find(t => t.tableId === tableId);
-    console.log('Table found:', table ? 'YES' : 'NO');
-    
     if (!table) {
-      console.log('Table not found for ID:', tableId);
       return res.status(404).json({ error: 'Table not found' });
     }
 
-    console.log('Table details:', {
-      tableId: table.tableId,
-      tableNumber: table.tableNumber,
-      seats: table.seats,
-      status: table.status
-    });
-
     if (partySize > table.seats) {
-      console.log('Party size exceeds table capacity:', { partySize, tableSeats: table.seats });
       return res.status(400).json({ error: 'Party size exceeds table capacity' });
     }
 
-    // Check for conflicting reservations
     const endTime = new Date(reservationDateTime.getTime() + (duration || 120) * 60000);
+    const startOfDay = new Date(reservationDateTime);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(reservationDateTime);
+    endOfDay.setHours(23, 59, 59, 999);
 
-    console.log('Reservation time details:', {
-      reservationDateTime,
-      endTime,
-      duration: duration || 120
-    });
-
-    // Simplified conflicting reservations check
+    // Check for conflicting reservations on the same date and time
     const conflictingReservations = await Reservation.find({
       tableId,
-      reservationDate: reservationDateTime,
+      reservationDate: { $gte: startOfDay, $lte: endOfDay },
       status: { $in: ['pending', 'confirmed', 'seated'] }
     });
 
-    console.log('Conflicting reservations found:', conflictingReservations.length);
-
-    // Check for time conflicts manually
     const hasConflict = conflictingReservations.some(existingReservation => {
       const existingStart = new Date(existingReservation.reservationDate);
       const [existingHours, existingMinutes] = existingReservation.reservationTime.split(':');
       existingStart.setHours(parseInt(existingHours), parseInt(existingMinutes), 0, 0);
-      
       const existingEnd = new Date(existingStart.getTime() + existingReservation.duration * 60000);
-      
-      // Check if the new reservation overlaps with existing one
       return (reservationDateTime < existingEnd && endTime > existingStart);
     });
 
     if (hasConflict) {
-      console.log('Table is not available for the selected time');
       return res.status(400).json({ error: 'Table is not available for the selected time' });
     }
 
-    console.log('Creating new reservation...');
-
+    // Create reservation
     const reservation = new Reservation({
       restaurantId: restaurantId,
       tableId,
@@ -538,35 +662,11 @@ router.post('/reservations/:restaurantId', authMiddleware, async (req, res) => {
       notes
     });
 
-    console.log('Reservation object created:', reservation);
-
     await reservation.save();
-    console.log('Reservation saved successfully');
-
-    // Update table status
-    table.status = 'reserved';
-    table.currentReservation = {
-      reservationId: reservation._id,
-      customerName,
-      customerPhone,
-      customerEmail,
-      partySize,
-      reservationTime: reservationDateTime,
-      expectedDuration: duration || 120,
-      specialRequests,
-      notes
-    };
-    
-    console.log('Updating table status...');
-    await restaurant.save();
-    console.log('Restaurant updated successfully');
 
     res.status(201).json({ message: 'Reservation created successfully', reservation });
   } catch (error) {
-    console.error('=== CREATE RESERVATION ERROR ===');
-    console.error('Error details:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('Error creating reservation:', error);
     res.status(500).json({ error: 'Failed to create reservation', details: error.message });
   }
 });
@@ -578,8 +678,8 @@ router.get('/reservations/:restaurantId', authMiddleware, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
       return res.status(400).json({ error: 'Invalid restaurant ID format' });
     }
-    const { date, status } = req.query;
     
+    const { date, status } = req.query;
     let query = { restaurantId: restaurantId };
     
     if (date) {
@@ -609,40 +709,27 @@ router.put('/reservations/:reservationId/status', authMiddleware, async (req, re
     if (!mongoose.Types.ObjectId.isValid(reservationId)) {
       return res.status(400).json({ error: 'Invalid reservation ID format' });
     }
-    const { status } = req.body;
     
+    const { status } = req.body;
     const reservation = await Reservation.findById(reservationId);
+    
     if (!reservation) {
       return res.status(404).json({ error: 'Reservation not found' });
     }
 
     reservation.status = status;
     
-    // Update timestamps based on status
     if (status === 'confirmed' && !reservation.confirmedAt) {
       reservation.confirmedAt = new Date();
     } else if (status === 'seated' && !reservation.seatedAt) {
       reservation.seatedAt = new Date();
     } else if (status === 'completed' && !reservation.completedAt) {
       reservation.completedAt = new Date();
+    } else if (status === 'cancelled') {
+      reservation.cancelledAt = new Date();
     }
 
     await reservation.save();
-
-    // Update table status
-    const restaurant = await Restaurant.findById(reservation.restaurantId);
-    if (restaurant) {
-      const table = restaurant.tables.find(t => t.tableId === reservation.tableId);
-      if (table) {
-        if (status === 'seated') {
-          table.status = 'occupied';
-        } else if (status === 'completed' || status === 'cancelled' || status === 'no-show') {
-          table.status = 'available';
-          table.currentReservation = null;
-        }
-        await restaurant.save();
-      }
-    }
 
     res.json({ message: 'Reservation status updated successfully', reservation });
   } catch (error) {
@@ -651,4 +738,4 @@ router.put('/reservations/:reservationId/status', authMiddleware, async (req, re
   }
 });
 
-export default router; 
+export default router;

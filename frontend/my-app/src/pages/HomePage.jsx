@@ -1,1489 +1,884 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
-  ChakraProvider,
-  Box,
-  Container,
-  Flex,
-  Heading,
-  Text,
-  Button,
-  Icon,
-  HStack,
-  VStack,
-  Stack,
-  Badge,
-  SimpleGrid,
-  Divider,
-  Link,
-  IconButton,
-  useBreakpointValue,
-  extendTheme,
-  Circle,
-  Wrap,
-  WrapItem,
-  useColorModeValue,
+  ChakraProvider, Box, Flex, Text, Button, Icon,
+  HStack, VStack, Grid, extendTheme, IconButton,
 } from '@chakra-ui/react';
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
-import PizzaHero3D from '../components/PizzaHero3D';
+import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-// Icons from lucide-react
 import {
-  Brain,
-  Bot,
-  TrendingUp,
-  Mic,
-  AlertCircle,
-  Users,
-  BarChart3,
-  Clock,
-  CheckCircle,
-  DollarSign,
-  Shield,
-  Zap,
-  Sparkles,
-  ChefHat,
-  ShoppingCart,
-  Bell,
-  MessageSquare,
-  LogIn,
-  UserPlus,
-  ArrowRight,
-  Star,
-  Menu,
-  X,
+  Brain, TrendingUp, Users, Clock, CheckCircle, Shield,
+  ChefHat, Bell, ArrowRight, Menu, X, BarChart3, Package,
+  Utensils, Leaf, Target, MessageSquare, PieChart, ShoppingCart,
 } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
 
-// Custom theme with your fonts
+// ─── THEME ────────────────────────────────────────────────────────────────────
+// Fonts used:
+//   Cormorant Garamond — high-contrast editorial serif (display headings)
+//   Syne              — geometric grotesque with personality (body / UI)
+//   DM Mono           — monospaced accents, labels, data
 const theme = extendTheme({
   fonts: {
-    heading: `'ClashDisplay', 'Manrope', sans-serif`,
-    body: `'SFProDisplay', 'Inter', sans-serif`,
-    mono: `'Space Grotesk', monospace`,
+    heading: `'Cormorant Garamond', Georgia, serif`,
+    body:    `'Syne', 'Helvetica Neue', sans-serif`,
   },
   styles: {
     global: {
-      body: {
-        bg: 'white',
-        color: 'gray.800',
+      'html, body': {
+        bg: '#F7F4EE', color: '#141210',
+        margin: 0, padding: 0,
+        fontFamily: `'Syne', sans-serif`,
+        overflowX: 'hidden',
       },
-    },
-  },
-  colors: {
-    brand: {
-      50: '#e6f0ff',
-      100: '#b3d1ff',
-      200: '#80b3ff',
-      300: '#4d94ff',
-      400: '#1a75ff',
-      500: '#0066FF',
-      600: '#0052cc',
-      700: '#003d99',
-      800: '#002966',
-      900: '#001433',
-    },
-    accent: {
-      50: '#e0fff5',
-      100: '#b3ffe6',
-      200: '#80ffd6',
-      300: '#4dffc7',
-      400: '#1affb8',
-      500: '#00D4AA',
-      600: '#00aa88',
-      700: '#007f66',
-      800: '#005544',
-      900: '#002a22',
-    },
-  },
-  components: {
-    Button: {
-      baseStyle: {
-        fontWeight: '600',
-        borderRadius: 'full',
-      },
-      variants: {
-        primary: {
-          bg: 'linear-gradient(135deg, #0066FF 0%, #00D4AA 100%)',
-          color: 'white',
-          _hover: {
-            transform: 'translateY(-2px)',
-            boxShadow: 'xl',
-          },
-          _active: {
-            transform: 'translateY(0)',
-          },
-        },
-        secondary: {
-          bg: 'transparent',
-          border: '2px solid',
-          borderColor: 'gray.200',
-          color: 'gray.700',
-          _hover: {
-            borderColor: 'brand.500',
-            color: 'brand.500',
-            transform: 'translateY(-2px)',
-          },
-        },
-      },
+      '::selection': { bg: '#E8C97A', color: '#141210' },
+      '*': { boxSizing: 'border-box' },
     },
   },
 });
 
-const MotionBox = motion(Box);
-const MotionFlex = motion(Flex);
-const MotionDiv = motion.div;
+const MB = motion(Box);
+const MF = motion(Flex);
 
-// Animation variants
-const fadeInUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.5 }
+// ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
+const C = {
+  cream:  '#F7F4EE',
+  ink:    '#141210',
+  gold:   '#B8832A',
+  goldL:  '#E8C97A',
+  muted:  '#8A8275',
+  border: '#E2DDD4',
+  surf:   '#EFEBE3',
+  white:  '#FFFFFF',
 };
 
-const staggerContainer = {
-  animate: {
-    transition: {
-      staggerChildren: 0.1
-    }
-  }
-};
+// ─── ANIMATION ───────────────────────────────────────────────────────────────
+const ease    = [0.22, 1, 0.36, 1];
+const fadeUp  = { hidden: { opacity: 0, y: 28 },  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease } } };
+const fadeL   = { hidden: { opacity: 0, x: -24 }, show: { opacity: 1, x: 0, transition: { duration: 0.65, ease } } };
+const fadeR   = { hidden: { opacity: 0, x: 24 },  show: { opacity: 1, x: 0, transition: { duration: 0.65, ease } } };
+const stagger = { show: { transition: { staggerChildren: 0.08 } } };
 
-const floatAnimation = {
-  y: [0, -20, 0],
-  transition: {
-    duration: 3,
-    repeat: Infinity,
-    ease: "easeInOut"
-  }
-};
-
-const pulseAnimation = {
-  opacity: [1, 0.5, 1],
-  transition: {
-    duration: 2,
-    repeat: Infinity,
-    ease: "easeInOut"
-  }
-};
-
-const spinAnimation = {
-  rotate: 360,
-  transition: {
-    duration: 2,
-    repeat: Infinity,
-    ease: "linear"
-  }
-};
-
-const HomePage = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [scrollY, setScrollY] = useState(0);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-
+// ─── ANIMATED COUNTER ────────────────────────────────────────────────────────
+function Counter({ to, suffix = '' }) {
+  const [n, setN] = useState(0);
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true });
   useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    const handleMouseMove = (e) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    };
+    if (!inView) return;
+    const end = parseInt(to);
+    const step = Math.ceil(end / (1800 / 16));
+    let cur = 0;
+    const t = setInterval(() => {
+      cur = Math.min(cur + step, end);
+      setN(cur);
+      if (cur >= end) clearInterval(t);
+    }, 16);
+    return () => clearInterval(t);
+  }, [inView, to]);
+  return <span ref={ref}>{n}{suffix}</span>;
+}
 
-    window.addEventListener('scroll', handleScroll);
-    window.addEventListener('mousemove', handleMouseMove);
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('mousemove', handleMouseMove);
-    };
-  }, []);
-
-  const isMobile = useBreakpointValue({ base: true, md: false });
-
-  const bgGradient = useColorModeValue(
-    'linear(to-br, brand.50, white)',
-    'linear(to-br, gray.900, gray.800)'
-  );
-
+// ─── MONO LABEL ──────────────────────────────────────────────────────────────
+function MonoLabel({ children, light = false }) {
   return (
-    <ChakraProvider theme={theme}>
-      <Box 
-        position="relative" 
-        minH="100vh" 
-        overflow="hidden"
-        bg="white"
-        className="font-sfpro"
-        _dark={{
-          bg: 'gray.900',
-          color: 'white',
+    <Flex align="center" gap="10px" mb="20px">
+      <Box w="28px" h="1px" bg={light ? 'rgba(255,255,255,0.28)' : C.gold} flexShrink={0} />
+      <Text
+        fontFamily="'DM Mono', monospace"
+        fontSize="10px" fontWeight="300" letterSpacing="0.16em"
+        textTransform="uppercase"
+        color={light ? 'rgba(255,255,255,0.4)' : C.gold}
+      >{children}</Text>
+    </Flex>
+  );
+}
+
+// ─── NAVBAR ──────────────────────────────────────────────────────────────────
+function Navbar({ navigate }) {
+  const [scrolled, setScrolled] = useState(false);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 48);
+    window.addEventListener('scroll', fn, { passive: true });
+    return () => window.removeEventListener('scroll', fn);
+  }, []);
+  const go = id => { document.querySelector(id)?.scrollIntoView({ behavior: 'smooth' }); setOpen(false); };
+  const links = [
+    { label: 'Features', href: '#features' },
+    { label: 'Process',  href: '#process'  },
+    { label: 'Reviews',  href: '#reviews'  },
+    { label: 'Pricing',  href: '#pricing'  },
+  ];
+  return (
+    <Box
+      as="nav" position="fixed" top={0} left={0} right={0} zIndex={200}
+      bg={scrolled ? 'rgba(247,244,238,0.94)' : 'transparent'}
+      backdropFilter={scrolled ? 'blur(18px)' : 'none'}
+      borderBottom={scrolled ? `1px solid ${C.border}` : '1px solid transparent'}
+      transition="all 0.35s ease"
+    >
+      <Flex align="center" justify="space-between" px={{ base: '20px', md: '48px' }} h="64px">
+        <Flex align="center" gap="10px" cursor="pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <Box w="32px" h="32px" bg={C.ink} display="flex" alignItems="center" justifyContent="center">
+            <Icon as={ChefHat} boxSize="15px" color={C.gold} />
+          </Box>
+          <Text fontFamily="'Cormorant Garamond', serif" fontSize="20px" fontWeight="500" letterSpacing="-0.02em">
+            Resto<Text as="span" color={C.gold} fontStyle="italic">AI</Text>
+          </Text>
+        </Flex>
+        <HStack gap="36px" display={{ base: 'none', md: 'flex' }}>
+          {links.map(l => (
+            <Text
+              key={l.href} fontSize="11px" fontWeight="500" letterSpacing="0.06em"
+              textTransform="uppercase" color={C.muted} cursor="pointer"
+              onClick={() => go(l.href)}
+              _hover={{ color: C.ink, transition: 'color 0.2s' }}
+            >{l.label}</Text>
+          ))}
+        </HStack>
+        <HStack gap="10px" display={{ base: 'none', md: 'flex' }}>
+          <Button
+            onClick={() => navigate('/login')}
+            bg="transparent" color={C.muted} border={`1px solid ${C.border}`}
+            fontSize="10px" fontWeight="600" letterSpacing="0.08em" textTransform="uppercase"
+            h="36px" px="18px" borderRadius="0"
+            _hover={{ bg: C.surf, color: C.ink }}
+          >Sign In</Button>
+          <Button
+            onClick={() => navigate('/register')}
+            bg={C.ink} color={C.cream}
+            fontSize="10px" fontWeight="600" letterSpacing="0.08em" textTransform="uppercase"
+            h="36px" px="18px" borderRadius="0"
+            _hover={{ bg: C.gold }}
+          >Get Started</Button>
+        </HStack>
+        <IconButton
+          display={{ base: 'flex', md: 'none' }}
+          icon={<Icon as={open ? X : Menu} boxSize="18px" />}
+          variant="ghost" aria-label="Menu" size="sm"
+          onClick={() => setOpen(p => !p)}
+        />
+      </Flex>
+      <AnimatePresence>
+        {open && (
+          <MB
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }} overflow="hidden"
+            bg={C.cream} borderTop={`1px solid ${C.border}`}
+          >
+            <VStack align="stretch" px="20px" py="16px" gap="0">
+              {links.map(l => (
+                <Text
+                  key={l.href} py="12px" fontSize="14px" color={C.muted} cursor="pointer"
+                  borderBottom={`1px solid ${C.border}`}
+                  onClick={() => go(l.href)} _hover={{ color: C.ink }}
+                >{l.label}</Text>
+              ))}
+              <HStack gap="10px" pt="16px">
+                <Button flex="1" bg="transparent" border={`1px solid ${C.border}`} borderRadius="0" fontSize="12px" onClick={() => navigate('/login')}>Sign In</Button>
+                <Button flex="1" bg={C.ink} color={C.cream} borderRadius="0" fontSize="12px" onClick={() => navigate('/register')}>Get Started</Button>
+              </HStack>
+            </VStack>
+          </MB>
+        )}
+      </AnimatePresence>
+    </Box>
+  );
+}
+
+// ─── HERO ────────────────────────────────────────────────────────────────────
+function Hero({ navigate }) {
+  const scrollTo = id => document.querySelector(id)?.scrollIntoView({ behavior: 'smooth' });
+  return (
+    <Box
+      as="section" minH="100vh" bg={C.ink} position="relative" overflow="hidden"
+      display="grid" gridTemplateColumns={{ base: '1fr', lg: '1fr 1fr' }}
+    >
+      {/* Grid texture */}
+      <Box
+        position="absolute" inset="0" pointerEvents="none" opacity="0.035"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(232,201,122,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(232,201,122,0.5) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+        }}
+      />
+      {/* Radial warm glow */}
+      <Box
+        position="absolute" top="-15%" left="40%" w="700px" h="700px" borderRadius="full"
+        style={{ background: 'radial-gradient(circle, rgba(184,131,42,0.14) 0%, transparent 65%)' }}
+        pointerEvents="none"
+      />
+
+      {/* LEFT */}
+      <MB
+        variants={stagger} initial="hidden" animate="show"
+        display="flex" flexDirection="column" justifyContent="flex-end"
+        px={{ base: '24px', md: '64px' }}
+        pt={{ base: '120px', md: '160px' }}
+        pb={{ base: '64px', md: '80px' }}
+        borderRight={{ lg: '1px solid rgba(255,255,255,0.06)' }}
+        position="relative" zIndex={1}
+      >
+        <MB variants={fadeUp} mb="0">
+          <MonoLabel light>AI Restaurant Intelligence — 2026</MonoLabel>
+        </MB>
+        <MB variants={fadeUp} mb="28px">
+          <Text
+            fontFamily="'Cormorant Garamond', serif"
+            fontSize={{ base: '58px', md: '82px', lg: '96px' }}
+            fontWeight="300" lineHeight="0.92" letterSpacing="-0.03em"
+            color={C.white}
+          >
+            The kitchen<br />runs on{' '}
+            <Text as="em" color={C.gold} fontStyle="italic">data,</Text>
+            <br />not instinct.
+          </Text>
+        </MB>
+        <MB variants={fadeUp} mb="40px">
+          <Text
+            fontSize={{ base: '14px', md: '15px' }} color="rgba(255,255,255,0.48)"
+            maxW="400px" lineHeight="1.85" fontWeight="400"
+          >
+            Demand forecasting, waste reduction, and margin optimization — unified in one platform for operators who think in numbers.
+          </Text>
+        </MB>
+        <MB variants={fadeUp} mb="56px">
+          <HStack gap="12px" flexWrap="wrap">
+            <Button
+              bg={C.gold} color={C.white} borderRadius="0"
+              fontSize="10px" fontWeight="600" letterSpacing="0.1em" textTransform="uppercase"
+              h="48px" px="28px"
+              _hover={{ bg: C.white, color: C.ink }}
+              onClick={() => navigate('/register')}
+            >
+              Start Free Trial <Icon as={ArrowRight} boxSize="13px" ml="8px" />
+            </Button>
+            <Button
+              bg="transparent" color="rgba(255,255,255,0.55)"
+              border="1px solid rgba(255,255,255,0.16)" borderRadius="0"
+              fontSize="10px" fontWeight="600" letterSpacing="0.1em" textTransform="uppercase"
+              h="48px" px="28px"
+              _hover={{ color: C.white, borderColor: 'rgba(255,255,255,0.38)' }}
+              onClick={() => scrollTo('#features')}
+            >
+              See How It Works
+            </Button>
+          </HStack>
+          <Text fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.07em" color="rgba(255,255,255,0.2)" mt="14px">
+            No credit card · 14-day free trial · Cancel anytime
+          </Text>
+        </MB>
+        {/* Stats */}
+        <MB variants={fadeUp}>
+          <Flex gap="0" pt="28px" borderTop="1px solid rgba(255,255,255,0.07)">
+            {[
+              { val: '40', suffix: '%', label: 'Less Waste' },
+              { val: '25', suffix: '%', label: 'More Profit' },
+              { val: '98', suffix: '%', label: 'Accuracy' },
+            ].map(({ val, suffix, label }, i) => (
+              <Box
+                key={label} flex="1"
+                pl={i === 0 ? '0' : '24px'} pr={i === 2 ? '0' : '24px'}
+                borderRight={i < 2 ? '1px solid rgba(255,255,255,0.07)' : 'none'}
+              >
+                <Text fontFamily="'Cormorant Garamond', serif" fontSize="38px" fontWeight="300" color={C.white} lineHeight="1">
+                  <Counter to={val} suffix={suffix} />
+                </Text>
+                <Text fontFamily="'DM Mono', monospace" fontSize="8px" letterSpacing="0.12em" textTransform="uppercase" color="rgba(255,255,255,0.28)" mt="6px">{label}</Text>
+              </Box>
+            ))}
+          </Flex>
+        </MB>
+      </MB>
+
+      {/* RIGHT — Dashboard mockup */}
+      <MB
+        initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.9, delay: 0.25, ease }}
+        display={{ base: 'none', lg: 'flex' }}
+        alignItems="flex-end" px="48px" pb="80px" pt="120px"
+        position="relative" zIndex={1}
+      >
+        <Box w="100%" maxW="440px" mx="auto" position="relative">
+          {/* Chip — revenue */}
+          <MB
+            initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7, duration: 0.6, ease }}
+            position="absolute" top="-20px" right="0" zIndex={3}
+          >
+            <Box bg="rgba(255,255,255,0.06)" border="1px solid rgba(255,255,255,0.1)" px="14px" py="10px" display="flex" alignItems="center" gap="10px">
+              <Box w="5px" h="5px" borderRadius="full" bg="#4CAF6A" />
+              <Box>
+                <Text fontFamily="'Cormorant Garamond', serif" fontSize="18px" fontWeight="300" color="#4CAF6A" lineHeight="1">₹48,320</Text>
+                <Text fontFamily="'DM Mono', monospace" fontSize="8px" letterSpacing="0.1em" color="rgba(255,255,255,0.28)" textTransform="uppercase">Revenue today</Text>
+              </Box>
+            </Box>
+          </MB>
+          {/* Chip — waste */}
+          <MB
+            initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.9, duration: 0.6, ease }}
+            position="absolute" bottom="100px" left="-40px" zIndex={3}
+          >
+            <Box bg="rgba(255,255,255,0.06)" border="1px solid rgba(255,255,255,0.1)" px="14px" py="10px" display="flex" alignItems="center" gap="10px">
+              <Box w="5px" h="5px" borderRadius="full" bg={C.gold} />
+              <Box>
+                <Text fontFamily="'Cormorant Garamond', serif" fontSize="18px" fontWeight="300" color={C.goldL} lineHeight="1">−42%</Text>
+                <Text fontFamily="'DM Mono', monospace" fontSize="8px" letterSpacing="0.1em" color="rgba(255,255,255,0.28)" textTransform="uppercase">Waste saved</Text>
+              </Box>
+            </Box>
+          </MB>
+          {/* Dashboard */}
+          <Box bg="rgba(255,255,255,0.04)" border="1px solid rgba(255,255,255,0.08)">
+            {/* Topbar */}
+            <Flex align="center" justify="space-between" px="18px" py="12px" borderBottom="1px solid rgba(255,255,255,0.06)">
+              <Flex gap="5px">
+                {['#C0392B','#E07B39','#3D9970'].map(c => <Box key={c} w="7px" h="7px" borderRadius="full" bg={c} />)}
+              </Flex>
+              <Text fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.1em" color="rgba(255,255,255,0.22)" textTransform="uppercase">RestoAI · Live</Text>
+              <Box w="40px" />
+            </Flex>
+            {/* KPIs */}
+            <Grid templateColumns="repeat(3,1fr)">
+              {[
+                { label: 'Revenue', val: '₹48.3K', delta: '↑ 18.4%', pos: true },
+                { label: 'Orders',  val: '142',     delta: '↑ 9 today', pos: true },
+                { label: 'Waste',   val: '−42%',    delta: 'Target met', pos: false },
+              ].map(({ label, val, delta, pos }, i) => (
+                <Box key={label} px="14px" py="14px" borderRight={i < 2 ? '1px solid rgba(255,255,255,0.06)' : 'none'}>
+                  <Text fontFamily="'DM Mono', monospace" fontSize="8px" letterSpacing="0.1em" textTransform="uppercase" color="rgba(255,255,255,0.25)" mb="6px">{label}</Text>
+                  <Text fontFamily="'Cormorant Garamond', serif" fontSize="22px" fontWeight="300" color={C.white} lineHeight="1">{val}</Text>
+                  <Text fontSize="9px" color={pos ? '#4CAF6A' : C.gold} mt="4px" fontWeight="500">{delta}</Text>
+                </Box>
+              ))}
+            </Grid>
+            {/* Mini chart */}
+            <Box px="14px" py="14px" borderTop="1px solid rgba(255,255,255,0.06)">
+              <Text fontFamily="'DM Mono', monospace" fontSize="8px" letterSpacing="0.1em" textTransform="uppercase" color="rgba(255,255,255,0.25)" mb="12px">Weekly Revenue</Text>
+              <Flex align="flex-end" gap="4px" h="56px">
+                {[52,68,58,82,71,95,77].map((h, i) => (
+                  <Box key={i} flex="1" bg={h === 95 ? C.white : h === 82 ? C.gold : 'rgba(255,255,255,0.1)'} style={{ height: `${h}%` }} />
+                ))}
+              </Flex>
+              <Flex justify="space-between" mt="6px">
+                {['M','T','W','T','F','S','S'].map((d, i) => (
+                  <Text key={i} fontFamily="'DM Mono', monospace" fontSize="8px" color="rgba(255,255,255,0.18)" flex="1" textAlign="center">{d}</Text>
+                ))}
+              </Flex>
+            </Box>
+            {/* Alert */}
+            <Box px="14px" py="10px" borderTop="1px solid rgba(184,131,42,0.18)" bg="rgba(184,131,42,0.07)" display="flex" alignItems="center" gap="8px">
+              <Box w="5px" h="5px" borderRadius="full" bg={C.gold} flexShrink={0} />
+              <Text fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.05em" color="rgba(232,201,122,0.7)">
+                Low stock: Chicken breast — reorder in 2 days
+              </Text>
+            </Box>
+          </Box>
+        </Box>
+      </MB>
+    </Box>
+  );
+}
+
+// ─── MARQUEE ─────────────────────────────────────────────────────────────────
+function Marquee() {
+  const names = ['Spice Route Mumbai','Urban Kitchen Delhi','FoodChain India','The Amber Table','Curry Leaf Goa','Oven Story','Bombay Brasserie','The Fatty Bao'];
+  const doubled = [...names, ...names];
+  return (
+    <Box bg={C.white} borderTop={`1px solid ${C.border}`} borderBottom={`1px solid ${C.border}`} overflow="hidden" py="14px">
+      <Flex
+        whiteSpace="nowrap"
+        sx={{
+          animation: 'marquee 26s linear infinite',
+          '@keyframes marquee': {
+            '0%':   { transform: 'translateX(0)' },
+            '100%': { transform: 'translateX(-50%)' },
+          },
         }}
       >
-        {/* Background Elements */}
-        <Box
-          position="fixed"
-          top="0"
-          left="0"
-          right="0"
-          bottom="0"
-          bgGradient="radial(circle at 20% 80%, rgba(0, 212, 170, 0.15) 0%, rgba(0, 102, 255, 0.1) 25%, transparent 50%)"
-          pointerEvents="none"
-          zIndex="0"
-        />
+        {doubled.map((name, i) => (
+          <Text
+            key={i} flexShrink={0}
+            fontFamily="'Cormorant Garamond', serif"
+            fontSize="15px" fontStyle="italic" fontWeight="400"
+            color={C.muted} px="28px" borderRight={`1px solid ${C.border}`}
+          >{name}</Text>
+        ))}
+      </Flex>
+    </Box>
+  );
+}
 
-        {/* Grid Background with Parallax */}
-        <MotionBox
-          position="fixed"
-          top="0"
-          left="0"
-          right="0"
-          bottom="0"
-          bgImage="linear-gradient(rgba(0, 102, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 102, 255, 0.03) 1px, transparent 1px)"
-          bgSize={{ base: '30px 30px', md: '50px 50px' }}
-          opacity="0.3"
-          pointerEvents="none"
-          zIndex="0"
-          animate={{
-            x: mousePosition.x * 0.02,
-            y: mousePosition.y * 0.02,
-          }}
-          transition={{ type: 'spring', stiffness: 50, damping: 20 }}
-        />
-
-        {/* Floating Shapes with Framer Motion */}
-        <MotionBox
-          position="fixed"
-          w={{ base: '200px', md: '400px' }}
-          h={{ base: '200px', md: '400px' }}
-          bg="brand.500"
-          borderRadius="full"
-          filter="blur(60px)"
-          opacity="0.1"
-          top="-100px"
-          left="-100px"
-          animate={{
-            x: [0, 40, -30, 0],
-            y: [0, -40, 30, 0],
-            rotate: [0, 120, 240, 0],
-          }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-          pointerEvents="none"
-          zIndex="0"
-        />
-
-        <MotionBox
-          position="fixed"
-          w={{ base: '200px', md: '300px' }}
-          h={{ base: '200px', md: '300px' }}
-          bg="accent.500"
-          borderRadius="full"
-          filter="blur(60px)"
-          opacity="0.1"
-          bottom="-100px"
-          right="-100px"
-          animate={{
-            x: [0, -40, 30, 0],
-            y: [0, 40, -30, 0],
-            rotate: [0, 120, 240, 0],
-          }}
-          transition={{ duration: 20, delay: 5, repeat: Infinity, ease: 'linear' }}
-          pointerEvents="none"
-          zIndex="0"
-        />
-
-        {/* Glowing Orbs with Framer Motion */}
-        <MotionBox
-          position="fixed"
-          w={{ base: '150px', md: '300px' }}
-          h={{ base: '150px', md: '300px' }}
-          bg="brand.500"
-          borderRadius="full"
-          filter="blur(40px)"
-          opacity="0.2"
-          top="20%"
-          left="5%"
-          animate={pulseAnimation}
-          pointerEvents="none"
-          zIndex="0"
-        />
-
-        <MotionBox
-          position="fixed"
-          w={{ base: '100px', md: '200px' }}
-          h={{ base: '100px', md: '200px' }}
-          bg="accent.500"
-          borderRadius="full"
-          filter="blur(40px)"
-          opacity="0.2"
-          bottom="20%"
-          right="5%"
-          animate={pulseAnimation}
-          transition={{ delay: 2 }}
-          pointerEvents="none"
-          zIndex="0"
-        />
-
-        {/* Navigation */}
-        <Box
-          as="nav"
-          position="fixed"
-          top="0"
-          left="0"
-          right="0"
-          zIndex="1000"
-          py={4}
-          bg="rgba(255, 255, 255, 0.8)"
-          backdropFilter="blur(20px)"
-          borderBottom="1px solid"
-          borderColor="whiteAlpha.200"
-          className="shadow-lg"
-          _dark={{
-            bg: 'rgba(23, 23, 23, 0.8)',
-          }}
-        >
-          <Container maxW="1200px" px={{ base: 4, md: 8 }}>
-            <Flex align="center" justify="space-between" wrap="wrap">
-              {/* Logo */}
-              <Flex align="center" gap={3}>
-                <Circle size="48px" bgGradient="linear(135deg, brand.500, accent.500)" color="white">
-                  <Icon as={ChefHat} boxSize={6} />
-                </Circle>
-                <Text
-                  className="font-clash"
-                  fontSize={{ base: 'xl', md: '2xl' }}
-                  fontWeight="bold"
-                  color="gray.900"
-                  _dark={{ color: 'white' }}
-                >
-                  Resto
-                  <Text as="span" bgGradient="linear(135deg, brand.500, accent.500)" bgClip="text">
-                    AI
-                  </Text>
-                </Text>
-                <Badge
-                  bgGradient="linear(135deg, accent.500, orange.400)"
-                  color="white"
-                  borderRadius="full"
-                  px={3}
-                  py={1}
-                  fontSize="xs"
-                  display={{ base: 'none', md: 'block' }}
-                  className="font-medium"
-                >
-                  PRO
-                </Badge>
-              </Flex>
-
-              {/* Desktop Navigation */}
-              <HStack spacing={8} display={{ base: 'none', md: 'flex' }}>
-                <Link href="#features" color="gray.600" _hover={{ color: 'brand.500' }} display="flex" alignItems="center" gap={2}>
-                  <Icon as={Zap} boxSize={4} />
-                  Features
-                </Link>
-                <Link href="#how-it-works" color="gray.600" _hover={{ color: 'brand.500' }} display="flex" alignItems="center" gap={2}>
-                  <Icon as={BarChart3} boxSize={4} />
-                  How It Works
-                </Link>
-                <Link href="#pricing" color="gray.600" _hover={{ color: 'brand.500' }} display="flex" alignItems="center" gap={2}>
-                  <Icon as={DollarSign} boxSize={4} />
-                  Pricing
-                </Link>
-                <Link href="#testimonials" color="gray.600" _hover={{ color: 'brand.500' }} display="flex" alignItems="center" gap={2}>
-                  <Icon as={Users} boxSize={4} />
-                  Testimonials
-                </Link>
-              </HStack>
-
-              {/* Desktop Actions */}
-              <HStack spacing={4} display={{ base: 'none', md: 'flex' }}>
-                <Button variant="secondary"  leftIcon={<Icon as={MessageSquare} boxSize={4} />}>
-                <Link href="/login">
-                  Business Sign In</Link>
-                </Button>
-                <Button variant="primary" leftIcon={<Icon as={Sparkles} boxSize={4} />}>
-                <Link href="/register">
-                  Get Started Free</Link>
-                </Button>
-              </HStack>
-
-              {/* Mobile Menu Button */}
-              <IconButton
-                display={{ base: 'flex', md: 'none' }}
-                icon={<Icon as={isMenuOpen ? X : Menu} boxSize={6} />}
-                variant="ghost"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                aria-label="Toggle menu"
-              />
-            </Flex>
-
-            {/* Mobile Menu */}
-            <AnimatePresence>
-              {isMenuOpen && (
-                <MotionBox
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  overflow="hidden"
-                  mt={4}
-                >
-                  <VStack spacing={4} align="stretch">
-                    <Link href="#features" py={2} display="flex" alignItems="center" gap={2}>
-                      <Icon as={Zap} boxSize={4} /> Features
-                    </Link>
-                    <Link href="#how-it-works" py={2} display="flex" alignItems="center" gap={2}>
-                      <Icon as={BarChart3} boxSize={4} /> How It Works
-                    </Link>
-                    <Link href="#pricing" py={2} display="flex" alignItems="center" gap={2}>
-                      <Icon as={DollarSign} boxSize={4} /> Pricing
-                    </Link>
-                    <Link href="#testimonials" py={2} display="flex" alignItems="center" gap={2}>
-                      <Icon as={Users} boxSize={4} /> Testimonials
-                    </Link>
-                    <Divider />
-                    <Button variant="secondary" w="full"  leftIcon={<Icon as={MessageSquare} boxSize={4} />}>
-                    <Link href="/login"> Business Sign In</Link> 
-                    </Button>
-                    <Button variant="primary" w="full" leftIcon={<Icon as={Sparkles} boxSize={4} />}>
-                    <Link href="/register"> Get Started Free</Link> 
-                    </Button>
-                  </VStack>
-                </MotionBox>
-              )}
-            </AnimatePresence>
-          </Container>
-        </Box>
-
-        {/* Hero Section */}
-        <Box as="section" pt={{ base: '100px', md: '180px' }} pb={{ base: 16, md: 24 }} px={{ base: 4, md: 8 }} position="relative" zIndex="1">
-          <Container maxW="1200px">
-            <Stack direction={{ base: 'column', lg: 'row' }} spacing={{ base: 12, lg: 16 }} align="center">
-              {/* Hero Content */}
-              <MotionBox
-                flex="1"
-                initial={{ opacity: 0, x: -50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8 }}
-              >
-                <VStack align={{ base: 'center', lg: 'start' }} spacing={8}>
-                  <Badge
-                    bgGradient="linear(135deg, brand.500, accent.500)"
-                    color="white"
-                    borderRadius="full"
-                    px={4}
-                    py={2}
-                    fontSize="sm"
-                    display="inline-flex"
-                    alignItems="center"
-                    gap={2}
-                  >
-                    <MotionBox as="span" animate={spinAnimation}>✨</MotionBox>
-                    For Restaurant Owners
-                  </Badge>
-
-                  <Heading
-                    className="font-clash"
-                    fontSize={{ base: '4xl', md: '5xl', lg: '6xl' }}
-                    fontWeight="bold"
-                    lineHeight="1.1"
-                    letterSpacing="-0.02em"
-                    textAlign={{ base: 'center', lg: 'left' }}
-                  >
-                    <Text as="span" display="block">The Future of</Text>
-                    <Text
-                      as="span"
-                      display="block"
-                      bgGradient="linear(135deg, brand.500, accent.500)"
-                      bgClip="text"
-                    >
-                      Restaurant Intelligence
-                    </Text>
-                    <Text as="span" display="block">Is Here</Text>
-                  </Heading>
-
-                  <Text
-                    fontSize={{ base: 'lg', md: 'xl' }}
-                    color="gray.600"
-                    maxW="600px"
-                    textAlign={{ base: 'center', lg: 'left' }}
-                    _dark={{ color: 'gray.400' }}
-                  >
-                    AI-powered insights that predict demand, prevent waste, and maximize profits
-                    in real-time. Transform your kitchen with predictive analytics.
-                  </Text>
-
-                  {/* Stats */}
-                  <Flex
-                    direction={{ base: 'column', md: 'row' }}
-                    align="center"
-                    gap={{ base: 4, md: 8 }}
-                    p={6}
-                    bg="rgba(255, 255, 255, 0.05)"
-                    backdropFilter="blur(20px)"
-                    borderRadius="2xl"
-                    border="1px solid"
-                    borderColor="whiteAlpha.200"
-                    w="full"
-                    maxW="500px"
-                  >
-                    <VStack flex="1">
-                      <Text className="font-space" fontSize="3xl" fontWeight="bold" color="brand.500">
-                        40%
-                      </Text>
-                      <Text fontSize="sm" color="gray.500">Waste Reduction</Text>
-                    </VStack>
-                    <Divider orientation="vertical" h="40px" display={{ base: 'none', md: 'block' }} />
-                    <Divider orientation="horizontal" w="full" display={{ base: 'block', md: 'none' }} />
-                    <VStack flex="1">
-                      <Text className="font-space" fontSize="3xl" fontWeight="bold" color="brand.500">
-                        25%
-                      </Text>
-                      <Text fontSize="sm" color="gray.500">Profit Increase</Text>
-                    </VStack>
-                    <Divider orientation="vertical" h="40px" display={{ base: 'none', md: 'block' }} />
-                    <Divider orientation="horizontal" w="full" display={{ base: 'block', md: 'none' }} />
-                    <VStack flex="1">
-                      <Text className="font-space" fontSize="3xl" fontWeight="bold" color="brand.500">
-                        98%
-                      </Text>
-                      <Text fontSize="sm" color="gray.500">Accuracy Rate</Text>
-                    </VStack>
-                  </Flex>
-
-                  {/* CTA Buttons */}
-                  <Stack direction={{ base: 'column', sm: 'row' }} spacing={4} w={{ base: 'full', sm: 'auto' }}>
-                    <Button
-                      variant="primary"
-                      size="lg"
-                      leftIcon={<Icon as={Sparkles} boxSize={5} />}
-                      w={{ base: 'full', sm: 'auto' }}
-                      position="relative"
-                      overflow="hidden"
-                      _hover={{
-                        '& .glow': {
-                          left: '100%',
-                        },
-                      }}
-                    >
-                      Start Free Trial
-                      <Box
-                        className="glow"
-                        position="absolute"
-                        top="0"
-                        left="-100%"
-                        w="full"
-                        h="full"
-                        bgGradient="linear(90deg, transparent, rgba(255,255,255,0.3), transparent)"
-                        transition="left 0.8s"
-                      />
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="lg"
-                      leftIcon={<Icon as={Bot} boxSize={5} />}
-                      w={{ base: 'full', sm: 'auto' }}
-                    >
-                      Watch Demo
-                    </Button>
-                  </Stack>
-                </VStack>
-              </MotionBox>
-
-              {/* Hero Visual */}
-              <MotionBox
-                flex="1"
-                position="relative"
-                w="full"
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-              >
-                <MotionBox
-                  animate={{
-                    rotateY: [0, -10, 0],
-                    rotateX: [0, 5, 0],
-                  }}
-                  transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-                >
-                  <Box
-                    bg="rgba(255, 255, 255, 0.05)"
-                    backdropFilter="blur(20px)"
-                    borderRadius="3xl"
-                    border="1px solid"
-                    borderColor="whiteAlpha.200"
-                    p={8}
-                    boxShadow="2xl"
-                  >
-                    <VStack spacing={6}>
-                      <Flex justify="space-between" align="center" w="full">
-                        <Text className="font-clash" fontWeight="600">Live Analytics</Text>
-                        <Badge bgGradient="linear(135deg, accent.500, orange.400)" color="white" borderRadius="full" px={3} py={1}>
-                          <Flex align="center" gap={2}>
-                            <MotionBox w="6px" h="6px" bg="white" borderRadius="full" animate={pulseAnimation} />
-                            LIVE
-                          </Flex>
-                        </Badge>
-                      </Flex>
-
-                      <SimpleGrid columns={2} spacing={4} w="full">
-                        <Flex bg="white" p={4} borderRadius="xl" shadow="md" align="center" gap={3}>
-                          <Circle size="40px" bgGradient="linear(135deg, brand.500, accent.500)" color="white">
-                            <Icon as={TrendingUp} boxSize={5} />
-                          </Circle>
-                          <Box>
-                            <Text className="font-space" fontSize="xl" fontWeight="bold">$12,450</Text>
-                            <Text fontSize="sm" color="gray.500">Today's Revenue</Text>
-                          </Box>
-                        </Flex>
-
-                        <Flex bg="white" p={4} borderRadius="xl" shadow="md" align="center" gap={3}>
-                          <Circle size="40px" bgGradient="linear(135deg, brand.500, accent.500)" color="white">
-                            <Icon as={ShoppingCart} boxSize={5} />
-                          </Circle>
-                          <Box>
-                            <Text className="font-space" fontSize="xl" fontWeight="bold">-23%</Text>
-                            <Text fontSize="sm" color="gray.500">Waste Reduced</Text>
-                          </Box>
-                        </Flex>
-                      </SimpleGrid>
-
-                      <Flex w="full" h="100px" align="flex-end" gap={2} p={4} bg="white" borderRadius="xl" shadow="md">
-                        {[60, 40, 80, 30, 70].map((height, i) => (
-                          <MotionBox
-                            key={i}
-                            flex="1"
-                            h={`${height}%`}
-                            bgGradient="linear(135deg, brand.500, accent.500)"
-                            borderRadius="md"
-                            animate={{
-                              height: [`${height}%`, `${height + 15}%`, `${height}%`],
-                            }}
-                            transition={{ duration: 2, delay: i * 0.1, repeat: Infinity }}
-                          />
-                        ))}
-                      </Flex>
-                    </VStack>
-                  </Box>
-                </MotionBox>
-
-                {/* Floating Notifications */}
-                <MotionBox
-                  position="absolute"
-                  top="-20px"
-                  right="-20px"
-                  bg="white"
-                  p={4}
-                  borderRadius="xl"
-                  shadow="lg"
-                  display="flex"
-                  alignItems="center"
-                  gap={3}
-                  animate={floatAnimation}
-                  zIndex="10"
-                  display={{ base: 'none', md: 'flex' }}
-                >
-                  <Icon as={Bell} color="orange.500" />
-                  <Text fontSize="sm">Low stock alert: Tomatoes</Text>
-                </MotionBox>
-
-                <MotionBox
-                  position="absolute"
-                  bottom="-20px"
-                  left="-20px"
-                  bgGradient="linear(135deg, brand.500, accent.500)"
-                  color="white"
-                  p={4}
-                  borderRadius="xl"
-                  shadow="lg"
-                  display="flex"
-                  alignItems="center"
-                  gap={3}
-                  animate={floatAnimation}
-                  transition={{ delay: 1 }}
-                  zIndex="10"
-                  display={{ base: 'none', md: 'flex' }}
-                >
-                  <Icon as={CheckCircle} />
-                  <Text fontSize="sm">Prediction: +15% sales tomorrow</Text>
-                </MotionBox>
-              </MotionBox>
-            </Stack>
-          </Container>
-        </Box>
-
-        {/* Customer Callout Section */}
-        <Box as="section" py={{ base: 16, md: 24 }} px={{ base: 4, md: 8 }} bg="gray.50" _dark={{ bg: 'gray.800' }}>
-          <Container maxW="800px" textAlign="center">
-            <MotionBox
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              viewport={{ once: true }}
+// ─── ABOUT ───────────────────────────────────────────────────────────────────
+function About() {
+  const features = [
+    { n: '01', title: 'AI Demand Forecasting', desc: 'Trained on weather, events, and 24 months of your history. Accurate to within 2%.' },
+    { n: '02', title: 'Smart Inventory',        desc: 'Auto-tracks stock, flags expiry risks, and generates purchase orders before you run out.' },
+    { n: '03', title: 'Menu Intelligence',      desc: 'Know which dishes build margin and which quietly drain your kitchen resources.' },
+  ];
+  return (
+    <Box as="section" display="grid" gridTemplateColumns={{ base: '1fr', lg: '1fr 1fr' }} borderBottom={`1px solid ${C.border}`}>
+      <MB
+        variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}
+        px={{ base: '24px', md: '64px' }} py={{ base: '64px', md: '96px' }}
+        borderRight={{ lg: `1px solid ${C.border}` }}
+      >
+        <MB variants={fadeL}><MonoLabel>01 — Why RestoAI</MonoLabel></MB>
+        <MB variants={fadeL}>
+          <Text fontFamily="'Cormorant Garamond', serif" fontSize={{ base: '48px', md: '72px' }} fontWeight="300" lineHeight="0.95" letterSpacing="-0.025em" color={C.ink}>
+            Most kitchens<br />run on{' '}
+            <Text as="em" color={C.gold} fontStyle="italic">gut feel.</Text>
+            <br />Yours won't.
+          </Text>
+        </MB>
+      </MB>
+      <MB
+        variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}
+        px={{ base: '24px', md: '64px' }} py={{ base: '64px', md: '96px' }}
+        display="flex" flexDirection="column" justifyContent="center"
+      >
+        <MB variants={fadeR} mb="32px">
+          <Text fontSize="14px" lineHeight="1.85" color={C.muted} maxW="420px">
+            Restaurant margins are brutally thin. The difference between profit and loss often comes down to one bad week of over-ordering or one unexpected spike in demand. RestoAI gives you the operational intelligence to see what's coming.
+          </Text>
+        </MB>
+        <VStack align="stretch" gap="0">
+          {features.map(({ n, title, desc }) => (
+            <MB
+              key={n} variants={fadeR}
+              display="flex" alignItems="flex-start" gap="16px"
+              borderTop={`1px solid ${C.border}`} py="20px"
+              _last={{ borderBottom: `1px solid ${C.border}` }}
             >
-              <VStack spacing={6}>
-                <Heading
-                  className="font-clash"
-                  fontSize={{ base: '3xl', md: '4xl' }}
-                  fontWeight="bold"
-                >
-                  Looking for Food?
-                </Heading>
-                <Text fontSize={{ base: 'lg', md: 'xl' }} color="gray.600" _dark={{ color: 'gray.400' }}>
-                  Browse local restaurants, discover new dishes, and order your next meal with ease.
-                </Text>
-                <Stack direction={{ base: 'column', md: 'row' }} spacing={4} w={{ base: 'full', md: 'auto' }}>
-                  <Button colorScheme="brand" size="lg"><Link href="/restaurants">
-                    Browse Restaurants</Link>
-                  </Button>
-                  <Button variant="outline" size="lg" leftIcon={<Icon as={LogIn} boxSize={4} />}><Link href="/customer-login">
-                    Customer Login</Link>
-                  </Button>
-                  <Button variant="outline" size="lg" leftIcon={<Icon as={UserPlus} boxSize={4} />}><Link href="/register">
-                    Customer Sign Up</Link>
-                  </Button>
-                </Stack>
-              </VStack>
-            </MotionBox>
-          </Container>
+              <Text fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.12em" color={C.gold} mt="3px" flexShrink={0}>{n}</Text>
+              <Box>
+                <Text fontSize="13px" fontWeight="600" letterSpacing="0.02em" color={C.ink} mb="4px">{title}</Text>
+                <Text fontSize="12px" lineHeight="1.75" color={C.muted}>{desc}</Text>
+              </Box>
+            </MB>
+          ))}
+        </VStack>
+      </MB>
+    </Box>
+  );
+}
+
+// ─── FEATURES ────────────────────────────────────────────────────────────────
+function Features() {
+  const items = [
+    { icon: Bell,          title: 'Proactive Alerts',   desc: 'Know before problems happen — low stock, spoilage risk, staffing gaps.' },
+    { icon: Package,       title: 'Smart Inventory',    desc: 'Automated tracking eliminates over-ordering and flags expiry risks.' },
+    { icon: Users,         title: 'Staff Scheduling',   desc: 'Optimal shifts based on predicted footfall. Never over- or understaffed.' },
+    { icon: MessageSquare, title: 'Voice Input',        desc: 'Kitchen staff speaks, system listens. No typing during busy service.' },
+    { icon: Brain,         title: 'Demand Forecasting', desc: 'Our models predict exactly how much you\'ll need — accurate to 98%, driven by weather, local events, and 24 months of pattern learning.' },
+    { icon: BarChart3,     title: 'Revenue Analytics',  desc: 'Deep visibility across every menu item, table, and shift.' },
+    { icon: PieChart,      title: 'Waste Reduction',    desc: 'Precision reporting shows exactly where losses happen.' },
+    { icon: Utensils,      title: 'Menu Intelligence',  desc: 'Understand which dishes drive margin and which drain resources.' },
+  ];
+  return (
+    <Box as="section" id="features" borderBottom={`1px solid ${C.border}`}>
+      {/* Header */}
+      <MB
+        initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} variants={stagger}
+        px={{ base: '24px', md: '64px' }} pt={{ base: '64px', md: '96px' }} pb="48px"
+        display="flex" alignItems="flex-end" justifyContent="space-between" flexWrap="wrap" gap="24px"
+        borderBottom={`1px solid ${C.border}`}
+      >
+        <Box>
+          <MB variants={fadeL}><MonoLabel>02 — Features</MonoLabel></MB>
+          <MB variants={fadeL}>
+            <Text fontFamily="'Cormorant Garamond', serif" fontSize={{ base: '44px', md: '64px' }} fontWeight="300" lineHeight="0.95" letterSpacing="-0.025em" color={C.ink}>
+              Every tool<br />in one place.
+            </Text>
+          </MB>
         </Box>
-
-        {/* Features Section */}
-        <Box as="section" id="features" py={{ base: 16, md: 24 }} px={{ base: 4, md: 8 }} position="relative" zIndex="1">
-          <Container maxW="1200px">
-            <MotionBox
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              viewport={{ once: true }}
-              textAlign="center"
-              mb={16}
-            >
-              <Badge
-                bgGradient="linear(135deg, accent.500, orange.400)"
-                color="white"
-                borderRadius="full"
-                px={4}
-                py={2}
-                fontSize="sm"
-                mb={4}
-              >
-                POWERFUL FEATURES
-              </Badge>
-              <Heading
-                className="font-clash"
-                fontSize={{ base: '3xl', md: '4xl' }}
-                fontWeight="bold"
-                mb={4}
-              >
-                Intelligent Kitchen Management
-              </Heading>
-              <Text fontSize={{ base: 'lg', md: 'xl' }} color="gray.600" maxW="600px" mx="auto" _dark={{ color: 'gray.400' }}>
-                Advanced AI capabilities designed specifically for the modern restaurant
-              </Text>
-            </MotionBox>
-
-            <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={8}>
-              {[
-                {
-                  icon: Brain,
-                  title: 'Predictive Analytics',
-                  description: 'AI-powered demand forecasting that analyzes historical data, weather, and events.',
-                  tags: ['ML Algorithms', 'Real-time'],
-                },
-                {
-                  icon: Bot,
-                  title: 'Auto Inventory',
-                  description: 'Smart inventory tracking with automated ordering and waste alerts.',
-                  tags: ['Automation', 'Smart Alerts'],
-                  highlighted: true,
-                },
-                {
-                  icon: Mic,
-                  title: 'Voice Control',
-                  description: 'Hands-free operation with natural language processing.',
-                  tags: ['NLP', 'Hands-free'],
-                },
-                {
-                  icon: AlertCircle,
-                  title: 'Risk Alerts',
-                  description: 'Proactive notifications for potential issues before they affect your business.',
-                  tags: ['Predictive', 'Proactive'],
-                },
-              ].map((feature, index) => (
-                <MotionBox
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                >
-                  <Box
-                    bg={feature.highlighted ? 'brand.500' : 'white'}
-                    color={feature.highlighted ? 'white' : 'gray.900'}
-                    p={8}
-                    borderRadius="2xl"
-                    shadow="lg"
-                    position="relative"
-                    overflow="hidden"
-                    _hover={{
-                      transform: 'translateY(-8px)',
-                      shadow: '2xl',
-                    }}
-                    transition="all 0.3s"
-                    h="full"
-                  >
-                    <Circle
-                      size="64px"
-                      bg={feature.highlighted ? 'white' : 'brand.500'}
-                      color={feature.highlighted ? 'brand.500' : 'white'}
-                      mb={6}
-                    >
-                      <Icon as={feature.icon} boxSize={6} />
-                    </Circle>
-                    <Heading fontSize="xl" mb={4} className="font-clash">
-                      {feature.title}
-                    </Heading>
-                    <Text
-                      fontSize="sm"
-                      color={feature.highlighted ? 'whiteAlpha.900' : 'gray.600'}
-                      mb={6}
-                      lineHeight="tall"
-                    >
-                      {feature.description}
-                    </Text>
-                    <HStack spacing={2}>
-                      {feature.tags.map((tag, i) => (
-                        <Badge
-                          key={i}
-                          bg={feature.highlighted ? 'whiteAlpha.200' : 'gray.100'}
-                          color={feature.highlighted ? 'white' : 'gray.700'}
-                          borderRadius="full"
-                          px={3}
-                          py={1}
-                          fontSize="xs"
-                        >
-                          {tag}
-                        </Badge>
-                      ))}
-                    </HStack>
-                  </Box>
-                </MotionBox>
-              ))}
-            </SimpleGrid>
-          </Container>
-        </Box>
-
-        {/* How It Works Section */}
-        <Box as="section" id="how-it-works" py={{ base: 16, md: 24 }} px={{ base: 4, md: 8 }} bg="gray.50" _dark={{ bg: 'gray.800' }}>
-          <Container maxW="1200px">
-            <MotionBox
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              viewport={{ once: true }}
-              textAlign="center"
-              mb={16}
-            >
-              <Badge
-                bgGradient="linear(135deg, accent.500, orange.400)"
-                color="white"
-                borderRadius="full"
-                px={4}
-                py={2}
-                fontSize="sm"
-                mb={4}
-              >
-                SIMPLE WORKFLOW
-              </Badge>
-              <Heading
-                className="font-clash"
-                fontSize={{ base: '3xl', md: '4xl' }}
-                fontWeight="bold"
-              >
-                From Chaos to Control in 4 Steps
-              </Heading>
-            </MotionBox>
-
-            <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={8} position="relative">
-              {[
-                {
-                  number: '01',
-                  icon: ShoppingCart,
-                  title: 'Connect Inventory',
-                  description: 'Sync your current inventory or start fresh with our smart tracking',
-                },
-                {
-                  number: '02',
-                  icon: Mic,
-                  title: 'Voice Input',
-                  description: 'Speak your sales and updates naturally—no typing needed',
-                },
-                {
-                  number: '03',
-                  icon: Brain,
-                  title: 'AI Analysis',
-                  description: 'Our algorithms process data and generate actionable insights',
-                },
-                {
-                  number: '04',
-                  icon: Bell,
-                  title: 'Smart Decisions',
-                  description: 'Receive precise recommendations for ordering and preparation',
-                },
-              ].map((step, index) => (
-                <MotionBox
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                  position="relative"
-                >
-                  <Box
-                    bg="white"
-                    p={8}
-                    borderRadius="2xl"
-                    shadow="lg"
-                    textAlign="center"
-                    position="relative"
-                    _hover={{ transform: 'translateY(-4px)', shadow: 'xl' }}
-                    transition="all 0.3s"
-                    _dark={{ bg: 'gray.700' }}
-                  >
-                    <Circle
-                      position="absolute"
-                      top="-12px"
-                      left="50%"
-                      transform="translateX(-50%)"
-                      size="40px"
-                      bgGradient="linear(135deg, brand.500, accent.500)"
-                      color="white"
-                      fontWeight="bold"
-                      className="font-space"
-                    >
-                      {step.number}
-                    </Circle>
-                    <Circle
-                      size="64px"
-                      bgGradient="linear(135deg, brand.500, accent.500)"
-                      color="white"
-                      mx="auto"
-                      mb={6}
-                      mt={2}
-                    >
-                      <Icon as={step.icon} boxSize={6} />
-                    </Circle>
-                    <Heading fontSize="xl" mb={4} className="font-clash">
-                      {step.title}
-                    </Heading>
-                    <Text fontSize="sm" color="gray.600" lineHeight="tall" _dark={{ color: 'gray.400' }}>
-                      {step.description}
-                    </Text>
-                  </Box>
-                  {index < 3 && (
-                    <Box
-                      position="absolute"
-                      top="50%"
-                      right="-40px"
-                      transform="translateY(-50%)"
-                      display={{ base: 'none', lg: 'block' }}
-                    >
-                      <Circle size="32px" bgGradient="linear(135deg, brand.500, accent.500)" color="white">
-                        <Icon as={ArrowRight} boxSize={5} />
-                      </Circle>
-                    </Box>
-                  )}
-                </MotionBox>
-              ))}
-            </SimpleGrid>
-          </Container>
-        </Box>
-
-        {/* 3D Visualization */}
-        <Box as="section" py={{ base: 16, md: 24 }} px={{ base: 4, md: 8 }}>
-          <Container maxW="1200px">
-            <Stack direction={{ base: 'column', lg: 'row' }} spacing={12} align="center">
-              <MotionBox
-                flex="1"
-                h={{ base: '300px', md: '400px' }}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
-                viewport={{ once: true }}
-              >
-                <PizzaHero3D />
-              </MotionBox>
-              <MotionBox
-                flex="1"
-                initial={{ opacity: 0, x: 50 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                viewport={{ once: true }}
-              >
-                <VStack align="start" spacing={6}>
-                  <Heading
-                    className="font-clash"
-                    fontSize={{ base: '3xl', md: '4xl' }}
-                    fontWeight="bold"
-                  >
-                    See Your Data Come Alive
-                  </Heading>
-                  <Text fontSize="lg" color="gray.600" _dark={{ color: 'gray.400' }}>
-                    Interactive 3D visualizations of your restaurant's performance metrics.
-                    Watch as patterns emerge and opportunities reveal themselves.
-                  </Text>
-                  <SimpleGrid columns={3} spacing={4} w="full">
-                    {[
-                      { value: '360°', label: 'Data View' },
-                      { value: 'Real-time', label: 'Updates' },
-                      { value: 'Interactive', label: 'Exploration' },
-                    ].map((stat, index) => (
-                      <VStack key={index} spacing={1}>
-                        <Text className="font-space" fontSize="xl" fontWeight="bold" color="brand.500">
-                          {stat.value}
-                        </Text>
-                        <Text fontSize="sm" color="gray.500">
-                          {stat.label}
-                        </Text>
-                      </VStack>
-                    ))}
-                  </SimpleGrid>
-                </VStack>
-              </MotionBox>
-            </Stack>
-          </Container>
-        </Box>
-
-        {/* Testimonials */}
-        <Box as="section" id="testimonials" py={{ base: 16, md: 24 }} px={{ base: 4, md: 8 }} bg="gray.50" _dark={{ bg: 'gray.800' }}>
-          <Container maxW="1200px">
-            <MotionBox
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              viewport={{ once: true }}
-              textAlign="center"
-              mb={16}
-            >
-              <Badge
-                bgGradient="linear(135deg, accent.500, orange.400)"
-                color="white"
-                borderRadius="full"
-                px={4}
-                py={2}
-                fontSize="sm"
-                mb={4}
-              >
-                TRUSTED BY INDUSTRY LEADERS
-              </Badge>
-              <Heading
-                className="font-clash"
-                fontSize={{ base: '3xl', md: '4xl' }}
-                fontWeight="bold"
-              >
-                Success Stories
-              </Heading>
-            </MotionBox>
-
-            <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={8}>
-              {[
-                {
-                  quote: "RestoAI transformed how we manage inventory. We reduced food waste by 42% in the first month alone.",
-                  author: 'Rajesh Chopra',
-                  role: 'Owner, Spice Route Mumbai',
-                  initials: 'RC',
-                  highlighted: false,
-                },
-                {
-                  quote: "The voice input feature is revolutionary. Our kitchen staff can update sales without leaving their stations.",
-                  author: 'Shweta Patel',
-                  role: 'Head Chef, Urban Kitchen Delhi',
-                  initials: 'SP',
-                  highlighted: true,
-                },
-                {
-                  quote: "As a multi-location operator, the centralized dashboard gives me real-time visibility across all restaurants.",
-                  author: 'Amit Kumar',
-                  role: 'CEO, FoodChain India',
-                  initials: 'AK',
-                  highlighted: false,
-                },
-              ].map((testimonial, index) => (
-                <MotionBox
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                >
-                  <Box
-                    bg={testimonial.highlighted ? 'brand.500' : 'white'}
-                    color={testimonial.highlighted ? 'white' : 'gray.900'}
-                    p={8}
-                    borderRadius="2xl"
-                    shadow="lg"
-                    position="relative"
-                    _hover={{ transform: 'translateY(-4px)', shadow: 'xl' }}
-                    transition="all 0.3s"
-                    h="full"
-                  >
-                    <Text
-                      position="absolute"
-                      top="-20px"
-                      left="8"
-                      className="font-betania"
-                      fontSize="6xl"
-                      color={testimonial.highlighted ? 'whiteAlpha.400' : 'brand.200'}
-                    >
-                      "
-                    </Text>
-                    <Text fontSize="md" mb={8} fontStyle="italic" lineHeight="tall" mt={8}>
-                      {testimonial.quote}
-                    </Text>
-                    <Flex align="center" gap={4}>
-                      <Circle
-                        size="48px"
-                        bg={testimonial.highlighted ? 'white' : 'brand.500'}
-                        color={testimonial.highlighted ? 'brand.500' : 'white'}
-                        fontWeight="bold"
-                      >
-                        {testimonial.initials}
-                      </Circle>
-                      <Box>
-                        <Text fontWeight="bold">{testimonial.author}</Text>
-                        <Text fontSize="sm" color={testimonial.highlighted ? 'whiteAlpha.800' : 'gray.500'}>
-                          {testimonial.role}
-                        </Text>
-                      </Box>
-                    </Flex>
-                    <HStack spacing={1} mt={4} color="yellow.400">
-                      {[...Array(5)].map((_, i) => (
-                        <Icon key={i} as={Star} boxSize={4} fill="currentColor" />
-                      ))}
-                    </HStack>
-                  </Box>
-                </MotionBox>
-              ))}
-            </SimpleGrid>
-          </Container>
-        </Box>
-
-        {/* Pricing */}
-        <Box as="section" id="pricing" py={{ base: 16, md: 24 }} px={{ base: 4, md: 8 }}>
-          <Container maxW="1200px">
-            <MotionBox
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              viewport={{ once: true }}
-              textAlign="center"
-              mb={16}
-            >
-              <Badge
-                bgGradient="linear(135deg, accent.500, orange.400)"
-                color="white"
-                borderRadius="full"
-                px={4}
-                py={2}
-                fontSize="sm"
-                mb={4}
-              >
-                FLEXIBLE PLANS
-              </Badge>
-              <Heading
-                className="font-clash"
-                fontSize={{ base: '3xl', md: '4xl' }}
-                fontWeight="bold"
-                mb={4}
-              >
-                Choose Your Plan
-              </Heading>
-              <Text fontSize={{ base: 'lg', md: 'xl' }} color="gray.600" _dark={{ color: 'gray.400' }}>
-                Start with our free plan and upgrade as you grow
-              </Text>
-            </MotionBox>
-
-            <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={8} maxW="1000px" mx="auto">
-              {[
-                {
-                  name: 'STARTER',
-                  price: 0,
-                  description: 'Perfect for small restaurants getting started',
-                  features: [
-                    'Basic inventory tracking',
-                    'Weekly waste reports',
-                    'Email support',
-                  ],
-                  popular: false,
-                },
-                {
-                  name: 'PROFESSIONAL',
-                  price: 49,
-                  description: 'For growing restaurants that need advanced features',
-                  features: [
-                    'AI demand forecasting',
-                    'Voice input & control',
-                    'Multi-location support',
-                    'Priority support',
-                    'Advanced analytics',
-                  ],
-                  popular: true,
-                },
-                {
-                  name: 'ENTERPRISE',
-                  price: 199,
-                  description: 'For large restaurant chains and franchises',
-                  features: [
-                    'Everything in Professional',
-                    'Custom integrations',
-                    'Dedicated account manager',
-                    'API access',
-                    'On-premise deployment',
-                  ],
-                  popular: false,
-                },
-              ].map((plan, index) => (
-                <MotionBox
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                  position="relative"
-                >
-                  {plan.popular && (
-                    <Badge
-                      position="absolute"
-                      top="-12px"
-                      left="50%"
-                      transform="translateX(-50%)"
-                      bgGradient="linear(135deg, accent.500, orange.400)"
-                      color="white"
-                      borderRadius="full"
-                      px={4}
-                      py={1}
-                      fontSize="xs"
-                      whiteSpace="nowrap"
-                      zIndex="2"
-                    >
-                      MOST POPULAR
-                    </Badge>
-                  )}
-                  <Box
-                    bg="white"
-                    p={8}
-                    borderRadius="2xl"
-                    shadow={plan.popular ? 'xl' : 'lg'}
-                    border={plan.popular ? '2px solid' : '1px solid'}
-                    borderColor={plan.popular ? 'brand.500' : 'gray.200'}
-                    position="relative"
-                    transform={plan.popular ? { lg: 'scale(1.05)' } : 'none'}
-                    _hover={{
-                      transform: plan.popular ? { lg: 'scale(1.05) translateY(-4px)' } : 'translateY(-4px)',
-                      shadow: 'xl',
-                    }}
-                    transition="all 0.3s"
-                    h="full"
-                    _dark={{
-                      bg: 'gray.700',
-                      borderColor: plan.popular ? 'brand.500' : 'gray.600',
-                    }}
-                  >
-                    <Text className="font-clash" fontSize="lg" fontWeight="bold" mb={4}>
-                      {plan.name}
-                    </Text>
-                    <Flex align="baseline" gap={1} mb={4}>
-                      <Text as="span" fontSize="2xl" color="gray.500">$</Text>
-                      <Text as="span" className="font-space" fontSize="5xl" fontWeight="bold">
-                        {plan.price}
-                      </Text>
-                      <Text as="span" fontSize="lg" color="gray.500">/month</Text>
-                    </Flex>
-                    <Text fontSize="sm" color="gray.600" mb={8} _dark={{ color: 'gray.400' }}>
-                      {plan.description}
-                    </Text>
-                    <VStack spacing={4} align="stretch" mb={8}>
-                      {plan.features.map((feature, i) => (
-                        <Flex key={i} align="center" gap={3}>
-                          <Icon as={CheckCircle} color="accent.500" boxSize={5} />
-                          <Text fontSize="sm">{feature}</Text>
-                        </Flex>
-                      ))}
-                    </VStack>
-                    <Button
-                      w="full"
-                      variant={plan.popular ? 'primary' : 'secondary'}
-                      size="lg"
-                    >
-                      {plan.price === 0 ? 'Get Started Free' : plan.name === 'ENTERPRISE' ? 'Contact Sales' : 'Start 14-Day Trial'}
-                    </Button>
-                  </Box>
-                </MotionBox>
-              ))}
-            </SimpleGrid>
-          </Container>
-        </Box>
-
-        {/* Final CTA */}
-        <Box as="section" py={{ base: 16, md: 24 }} px={{ base: 4, md: 8 }}>
-          <Container maxW="800px">
-            <MotionBox
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              viewport={{ once: true }}
+        <MB variants={fadeR}>
+          <Text fontSize="14px" color={C.muted} lineHeight="1.8" maxW="280px">
+            Built by restaurateurs — not generic SaaS with a chef's hat on.
+          </Text>
+        </MB>
+      </MB>
+      {/* Asymmetric cell grid */}
+      <Grid templateColumns={{ base: '1fr', sm: 'repeat(2,1fr)', lg: 'repeat(4,1fr)' }}>
+        {items.map((item, i) => {
+          const isHero = i === 4; // spans 2 cols on large screens
+          return (
+            <MB
+              key={i} variants={fadeUp}
+              initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.1 }}
+              gridColumn={isHero ? { base: '1', sm: 'span 2' } : 'auto'}
+              bg={isHero ? C.ink : C.cream}
+              p={{ base: '28px 24px', md: '36px 32px' }}
+              borderRight={`1px solid ${isHero ? 'rgba(255,255,255,0.06)' : C.border}`}
+              borderBottom={`1px solid ${isHero ? 'rgba(255,255,255,0.06)' : C.border}`}
+              position="relative" cursor="default"
+              _hover={{ bg: isHero ? '#1e1b16' : C.white, transition: 'background 0.25s' }}
+              sx={{ '&:nth-of-type(4n)': { borderRightColor: 'transparent' } }}
             >
               <Box
-                bgGradient="linear(135deg, brand.500, accent.500)"
-                borderRadius="3xl"
-                p={{ base: 8, md: 16 }}
-                textAlign="center"
-                color="white"
-                position="relative"
-                overflow="hidden"
+                w="34px" h="34px"
+                border={`1px solid ${isHero ? 'rgba(255,255,255,0.1)' : C.border}`}
+                display="flex" alignItems="center" justifyContent="center" mb="22px"
               >
-                <VStack spacing={8} position="relative" zIndex="2">
-                  <Heading
-                    className="font-clash"
-                    fontSize={{ base: '3xl', md: '4xl' }}
-                    fontWeight="bold"
-                  >
-                    Ready to Transform Your Restaurant?
-                  </Heading>
-                  <Text fontSize={{ base: 'lg', md: 'xl' }} opacity="0.9" maxW="600px">
-                    Join thousands of restaurants already using RestoAI to reduce waste,
-                    increase profits, and make smarter decisions every day.
-                  </Text>
-                  <Stack direction={{ base: 'column', md: 'row' }} spacing={4}>
-                    <Button
-                      size="lg"
-                      bg="white"
-                      color="brand.500"
-                      _hover={{ transform: 'translateY(-4px)', shadow: 'xl' }}
-                      leftIcon={<Icon as={Sparkles} boxSize={5} />}
-                    >
-                      Start Your Free Trial
-                    </Button>
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      borderColor="white"
-                      color="white"
-                      _hover={{ bg: 'whiteAlpha.200' }}
-                    >
-                      Schedule a Demo
-                    </Button>
-                  </Stack>
-                  <Wrap spacing={8} justify="center">
-                    <WrapItem>
-                      <HStack spacing={2}>
-                        <Icon as={Shield} />
-                        <Text fontSize="sm">No credit card required</Text>
-                      </HStack>
-                    </WrapItem>
-                    <WrapItem>
-                      <HStack spacing={2}>
-                        <Icon as={Clock} />
-                        <Text fontSize="sm">14-day free trial</Text>
-                      </HStack>
-                    </WrapItem>
-                    <WrapItem>
-                      <HStack spacing={2}>
-                        <Icon as={Users} />
-                        <Text fontSize="sm">24/7 support included</Text>
-                      </HStack>
-                    </WrapItem>
-                  </Wrap>
-                </VStack>
-                <MotionBox
-                  position="absolute"
-                  top="0"
-                  left="-100%"
-                  w="full"
-                  h="full"
-                  bgGradient="linear(90deg, transparent, rgba(255,255,255,0.1), transparent)"
-                  animate={{
-                    left: ['-100%', '100%'],
-                  }}
-                  transition={{
-                    duration: 8,
-                    repeat: Infinity,
-                    ease: 'linear',
-                  }}
+                <Icon as={item.icon} boxSize="14px" color={isHero ? C.goldL : C.gold} />
+              </Box>
+              <Text fontSize="13px" fontWeight="600" letterSpacing="0.02em" color={isHero ? C.white : C.ink} mb="8px">{item.title}</Text>
+              <Text fontSize="12px" lineHeight="1.72" color={isHero ? 'rgba(255,255,255,0.45)' : C.muted} maxW={isHero ? '340px' : 'none'}>{item.desc}</Text>
+              <Text
+                position="absolute" bottom="14px" right="16px"
+                fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.1em"
+                color={isHero ? 'rgba(255,255,255,0.08)' : C.border}
+              >{String(i + 1).padStart(2, '0')}</Text>
+            </MB>
+          );
+        })}
+      </Grid>
+    </Box>
+  );
+}
+
+// ─── PROCESS ─────────────────────────────────────────────────────────────────
+function Process() {
+  const steps = [
+    { n: '01', icon: ShoppingCart, title: 'Connect Inventory', desc: 'Link your existing system or set up from scratch in under 10 minutes.' },
+    { n: '02', icon: Target,       title: 'Set Your Targets',  desc: 'Define waste limits, safety stock, and revenue goals for your operation.' },
+    { n: '03', icon: Brain,        title: 'AI Gets to Work',   desc: 'Models process your data and generate actionable daily forecasts.' },
+    { n: '04', icon: CheckCircle,  title: 'Make Better Calls', desc: 'Act on precise recommendations. Less guesswork. More profit.' },
+  ];
+  return (
+    <Box as="section" id="process" px={{ base: '24px', md: '64px' }} py={{ base: '64px', md: '96px' }} borderBottom={`1px solid ${C.border}`}>
+      <MB initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} variants={stagger}>
+        <MB variants={fadeUp} mb="0"><MonoLabel>03 — Process</MonoLabel></MB>
+        <MB variants={fadeUp} mb="56px">
+          <Text fontFamily="'Cormorant Garamond', serif" fontSize={{ base: '44px', md: '64px' }} fontWeight="300" lineHeight="0.95" letterSpacing="-0.025em" color={C.ink}>
+            Running in<br />four steps.
+          </Text>
+        </MB>
+        <Grid templateColumns={{ base: '1fr', sm: 'repeat(2,1fr)', lg: 'repeat(4,1fr)' }} gap="0">
+          {steps.map(({ n, icon, title, desc }, i) => (
+            <MB
+              key={n} variants={fadeUp}
+              pr={{ lg: i < 3 ? '32px' : '0' }} pl={{ lg: i > 0 ? '32px' : '0' }}
+              py={{ base: '24px', lg: '0' }}
+              borderRight={{ lg: i < 3 ? `1px solid ${C.border}` : 'none' }}
+              borderBottom={{ base: i < 3 ? `1px solid ${C.border}` : 'none', lg: 'none' }}
+            >
+              <Flex align="center" mb="24px" gap="0">
+                <Box w="8px" h="8px" bg={C.gold} flexShrink={0} />
+                <Box flex="1" h="1px" bg={C.border} />
+              </Flex>
+              <Text fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.14em" textTransform="uppercase" color={C.gold} mb="12px">Step {n}</Text>
+              <Text fontFamily="'Cormorant Garamond', serif" fontSize="22px" fontWeight="400" letterSpacing="-0.01em" color={C.ink} mb="10px">{title}</Text>
+              <Text fontSize="12px" lineHeight="1.75" color={C.muted}>{desc}</Text>
+            </MB>
+          ))}
+        </Grid>
+      </MB>
+    </Box>
+  );
+}
+
+// ─── TESTIMONIALS ────────────────────────────────────────────────────────────
+function Testimonials() {
+  const quotes = [
+    { q: 'RestoAI cut our food waste by 42% in the first month alone. The ROI was immediate and the dashboard is genuinely a pleasure to use every day.', name: 'Rajesh Chopra', role: 'Owner, Spice Route Mumbai' },
+    { q: 'Voice input transformed how our kitchen team works. No more scribbled notes during service — we speak and it tracks everything perfectly.', name: 'Shweta Patel', role: 'Head Chef, Urban Kitchen Delhi' },
+    { q: "Managing 5 restaurants used to mean 5 dashboards. Now it's one. The multi-location visibility alone is worth the subscription price.", name: 'Amit Kumar', role: 'CEO, FoodChain India' },
+  ];
+  return (
+    <Box as="section" id="reviews" bg={C.ink}>
+      <MB
+        initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}
+        px={{ base: '24px', md: '64px' }} pt={{ base: '64px', md: '96px' }} pb="56px"
+        display="flex" alignItems="flex-end" justifyContent="space-between" flexWrap="wrap" gap="24px"
+      >
+        <Box>
+          <MB variants={fadeL}><MonoLabel light>04 — Reviews</MonoLabel></MB>
+          <MB variants={fadeL}>
+            <Text fontFamily="'Cormorant Garamond', serif" fontSize={{ base: '48px', md: '72px' }} fontWeight="300" lineHeight="0.95" letterSpacing="-0.025em" color={C.white}>
+              What operators<br /><Text as="em" color={C.gold} fontStyle="italic">actually</Text> say.
+            </Text>
+          </MB>
+        </Box>
+      </MB>
+      <MB
+        initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} variants={stagger}
+        display="grid" gridTemplateColumns={{ base: '1fr', md: 'repeat(3,1fr)' }}
+        borderTop="1px solid rgba(255,255,255,0.06)"
+      >
+        {quotes.map(({ q, name, role }, i) => (
+          <MB
+            key={i} variants={fadeUp}
+            px={{ base: '24px', md: '40px' }} py="48px"
+            borderRight={{ md: i < 2 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}
+          >
+            <Flex gap="3px" mb="24px">
+              {[...Array(5)].map((_, si) => (
+                <Box key={si} w="9px" h="9px" bg={C.gold} flexShrink={0}
+                  style={{ clipPath: 'polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)' }}
                 />
-              </Box>
-            </MotionBox>
-          </Container>
-        </Box>
-
-        {/* Footer */}
-        <Box as="footer" bg="gray.900" color="white" py={{ base: 12, md: 16 }} px={{ base: 4, md: 8 }}>
-          <Container maxW="1200px">
-            <Stack direction={{ base: 'column', lg: 'row' }} spacing={12} mb={12}>
-              <Box flex="1">
-                <Flex align="center" gap={3} mb={6}>
-                  <Circle size="48px" bgGradient="linear(135deg, brand.500, accent.500)" color="white">
-                    <Icon as={ChefHat} boxSize={6} />
-                  </Circle>
-                  <Text className="font-clash" fontSize="2xl" fontWeight="bold">
-                    Resto
-                    <Text as="span" bgGradient="linear(135deg, brand.500, accent.500)" bgClip="text">
-                      AI
-                    </Text>
-                  </Text>
-                </Flex>
-                <Text color="gray.400" mb={6} maxW="300px">
-                  Intelligent restaurant management powered by AI
-                </Text>
-                <HStack spacing={6}>
-                  <Link href="#" color="gray.400" _hover={{ color: 'white' }}>Twitter</Link>
-                  <Link href="#" color="gray.400" _hover={{ color: 'white' }}>LinkedIn</Link>
-                  <Link href="#" color="gray.400" _hover={{ color: 'white' }}>Instagram</Link>
-                  <Link href="#" color="gray.400" _hover={{ color: 'white' }}>GitHub</Link>
-                </HStack>
-              </Box>
-
-              <SimpleGrid columns={{ base: 2, md: 4 }} spacing={8} flex="2">
-                {[
-                  {
-                    title: 'Product',
-                    links: ['Features', 'How It Works', 'Pricing', 'Demo'],
-                  },
-                  {
-                    title: 'Company',
-                    links: ['About Us', 'Careers', 'Blog', 'Press'],
-                  },
-                  {
-                    title: 'Resources',
-                    links: ['Documentation', 'Help Center', 'Community', 'Contact'],
-                  },
-                  {
-                    title: 'Legal',
-                    links: ['Privacy Policy', 'Terms of Service', 'Cookie Policy', 'Compliance'],
-                  },
-                ].map((group, index) => (
-                  <VStack key={index} align="start" spacing={4}>
-                    <Text fontWeight="bold" color="white">{group.title}</Text>
-                    {group.links.map((link, i) => (
-                      <Link key={i} href="#" color="gray.400" _hover={{ color: 'white' }} fontSize="sm">
-                        {link}
-                      </Link>
-                    ))}
-                  </VStack>
-                ))}
-              </SimpleGrid>
-            </Stack>
-
-            <Divider borderColor="gray.800" />
-
-            <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align="center" pt={8}>
-              <Text color="gray.400" fontSize="sm" mb={{ base: 4, md: 0 }}>
-                © {new Date().getFullYear()} RestoAI. All rights reserved.
-              </Text>
-              <Text color="gray.500" fontSize="sm">
-                Made with ❤️ for restaurateurs worldwide
-              </Text>
+              ))}
             </Flex>
-          </Container>
+            <Text fontFamily="'Cormorant Garamond', serif" fontSize="19px" fontWeight="300" fontStyle="italic" lineHeight="1.65" color="rgba(255,255,255,0.82)" mb="28px">"{q}"</Text>
+            <Box borderTop="1px solid rgba(255,255,255,0.07)" pt="20px">
+              <Flex align="center" gap="12px">
+                <Box
+                  w="36px" h="36px" bg="rgba(184,131,42,0.15)"
+                  display="flex" alignItems="center" justifyContent="center"
+                  fontFamily="'Cormorant Garamond', serif" fontSize="14px" color={C.gold} fontWeight="500" flexShrink={0}
+                >
+                  {name.split(' ').map(w => w[0]).join('')}
+                </Box>
+                <Box>
+                  <Text fontSize="12px" fontWeight="600" letterSpacing="0.03em" color={C.white}>{name}</Text>
+                  <Text fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.07em" color="rgba(255,255,255,0.26)" mt="2px">{role}</Text>
+                </Box>
+              </Flex>
+            </Box>
+          </MB>
+        ))}
+      </MB>
+    </Box>
+  );
+}
+
+// ─── PRICING ─────────────────────────────────────────────────────────────────
+function Pricing({ navigate }) {
+  const plans = [
+    {
+      name: 'Starter', price: '0', period: 'Free forever',
+      desc: 'For single-location restaurants getting started.',
+      features: ['Basic inventory tracking','Weekly email reports','Up to 3 staff accounts','Community support'],
+      cta: 'Start Free', featured: false, action: () => navigate('/register'),
+    },
+    {
+      name: 'Professional', price: '49', period: 'per month',
+      desc: 'For growing restaurants that take operations seriously.',
+      features: ['AI demand forecasting','Voice input for kitchen','Multi-location support','Priority support','Advanced analytics','Menu intelligence'],
+      cta: 'Start Free Trial', featured: true, action: () => navigate('/register'),
+    },
+    {
+      name: 'Enterprise', price: '199', period: 'per month',
+      desc: 'For chains and groups needing custom solutions.',
+      features: ['Everything in Professional','Custom API integrations','Dedicated account manager','On-premise deployment','SLA guarantee'],
+      cta: 'Talk to Sales', featured: false, action: () => navigate('/contact'),
+    },
+  ];
+  return (
+    <Box as="section" id="pricing" borderBottom={`1px solid ${C.border}`}>
+      <MB
+        initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}
+        px={{ base: '24px', md: '64px' }} pt={{ base: '64px', md: '96px' }} pb="48px"
+        display="flex" alignItems="flex-end" justifyContent="space-between" flexWrap="wrap" gap="24px"
+        borderBottom={`1px solid ${C.border}`}
+      >
+        <Box>
+          <MB variants={fadeL}><MonoLabel>05 — Pricing</MonoLabel></MB>
+          <MB variants={fadeL}>
+            <Text fontFamily="'Cormorant Garamond', serif" fontSize={{ base: '44px', md: '64px' }} fontWeight="300" lineHeight="0.95" letterSpacing="-0.025em" color={C.ink}>
+              Plans for every<br />size of operation.
+            </Text>
+          </MB>
         </Box>
-      </Box>
+        <MB variants={fadeR}>
+          <Text fontSize="14px" color={C.muted} lineHeight="1.8">Start free and scale as your restaurant grows.</Text>
+        </MB>
+      </MB>
+      <MB
+        initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} variants={stagger}
+        display="grid" gridTemplateColumns={{ base: '1fr', md: 'repeat(3,1fr)' }}
+      >
+        {plans.map(({ name, price, period, desc, features, cta, featured, action }, i) => (
+          <MB
+            key={name} variants={fadeUp}
+            bg={featured ? C.gold : C.cream}
+            px={{ base: '24px', md: '40px' }} py="48px"
+            borderRight={{ md: i < 2 ? `1px solid ${featured ? 'rgba(255,255,255,0.15)' : C.border}` : 'none' }}
+            display="flex" flexDirection="column" position="relative"
+          >
+            {featured && (
+              <Text
+                position="absolute" top="20px" right="20px"
+                fontFamily="'DM Mono', monospace" fontSize="8px"
+                letterSpacing="0.12em" textTransform="uppercase"
+                color="rgba(255,255,255,0.55)"
+              >Most Popular</Text>
+            )}
+            <Text fontFamily="'Cormorant Garamond', serif" fontSize="28px" fontWeight="400" letterSpacing="-0.01em" color={featured ? C.white : C.ink} mb="6px">{name}</Text>
+            <Text fontSize="12px" color={featured ? 'rgba(255,255,255,0.65)' : C.muted} mb="28px" lineHeight="1.6">{desc}</Text>
+            <Text fontFamily="'Cormorant Garamond', serif" fontSize="56px" fontWeight="300" letterSpacing="-0.03em" lineHeight="1" color={featured ? C.white : C.ink}>${price}</Text>
+            <Text fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.1em" textTransform="uppercase" color={featured ? 'rgba(255,255,255,0.5)' : C.muted} mb="28px" mt="4px">{period}</Text>
+            <VStack align="stretch" gap="0" flex="1" mb="28px">
+              {features.map((f, fi) => (
+                <Flex key={fi} align="flex-start" gap="12px" py="12px" borderBottom={`1px solid ${featured ? 'rgba(255,255,255,0.12)' : C.border}`}>
+                  <Box w="14px" h="14px" bg={featured ? 'rgba(255,255,255,0.18)' : 'rgba(184,131,42,0.15)'} display="flex" alignItems="center" justifyContent="center" flexShrink={0} mt="1px">
+                    <Icon as={CheckCircle} boxSize="8px" color={featured ? C.white : C.gold} />
+                  </Box>
+                  <Text fontSize="12px" color={featured ? 'rgba(255,255,255,0.8)' : C.ink} lineHeight="1.5">{f}</Text>
+                </Flex>
+              ))}
+            </VStack>
+            <Button
+              onClick={action} borderRadius="0"
+              bg={featured ? C.ink : C.ink} color={C.cream}
+              fontSize="10px" fontWeight="600" letterSpacing="0.09em" textTransform="uppercase"
+              h="44px" w="100%"
+              _hover={{ bg: featured ? C.white : C.ink, color: C.ink }}
+            >{cta}</Button>
+          </MB>
+        ))}
+      </MB>
+    </Box>
+  );
+}
+
+// ─── CTA ─────────────────────────────────────────────────────────────────────
+function CTABand({ navigate }) {
+  return (
+    <Box as="section" display="grid" gridTemplateColumns={{ base: '1fr', lg: '1fr 1fr' }} borderBottom={`1px solid ${C.border}`}>
+      <MB
+        initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} variants={stagger}
+        bg={C.ink} px={{ base: '24px', md: '64px' }} py={{ base: '64px', md: '96px' }}
+        position="relative" overflow="hidden"
+        borderRight={{ lg: '1px solid rgba(255,255,255,0.06)' }}
+      >
+        <Box position="absolute" top="-20%" right="-10%" w="500px" h="500px" borderRadius="full"
+          style={{ background: 'radial-gradient(circle, rgba(184,131,42,0.12) 0%, transparent 65%)' }} pointerEvents="none" />
+        <MB variants={fadeL}><MonoLabel light>06 — Start Today</MonoLabel></MB>
+        <MB variants={fadeL}>
+          <Text fontFamily="'Cormorant Garamond', serif" fontSize={{ base: '48px', md: '72px' }} fontWeight="300" lineHeight="0.95" letterSpacing="-0.025em" color={C.white} position="relative" zIndex={1}>
+            Ready to transform<br />how your restaurant<br /><Text as="em" color={C.gold} fontStyle="italic">operates?</Text>
+          </Text>
+        </MB>
+      </MB>
+      <MB
+        initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} variants={stagger}
+        px={{ base: '24px', md: '64px' }} py={{ base: '64px', md: '96px' }}
+        display="flex" flexDirection="column" justifyContent="center"
+      >
+        <MB variants={fadeR} mb="16px">
+          <Text fontSize="15px" lineHeight="1.85" color={C.muted} maxW="400px">
+            Join hundreds of restaurants already using RestoAI to reduce waste, boost margins, and run smarter every single day.
+          </Text>
+        </MB>
+        <MB variants={fadeR} mb="28px">
+          <VStack align="stretch" gap="10px" maxW="320px">
+            <Button
+              onClick={() => navigate('/register')}
+              bg={C.ink} color={C.cream} borderRadius="0"
+              fontSize="10px" fontWeight="600" letterSpacing="0.09em" textTransform="uppercase"
+              h="48px" _hover={{ bg: C.gold }}
+            >
+              Start Your Free Trial <Icon as={ArrowRight} boxSize="13px" ml="8px" />
+            </Button>
+            <Button
+              bg="transparent" color={C.muted}
+              border={`1px solid ${C.border}`} borderRadius="0"
+              fontSize="10px" fontWeight="600" letterSpacing="0.09em" textTransform="uppercase"
+              h="48px" _hover={{ bg: C.surf, color: C.ink }}
+            >
+              Schedule a Demo
+            </Button>
+          </VStack>
+        </MB>
+        <MB variants={fadeR}>
+          <VStack align="start" gap="10px">
+            {[
+              { text: 'No credit card required' },
+              { text: '14-day free trial'       },
+              { text: 'Expert support included' },
+            ].map(({ text }) => (
+              <Flex key={text} align="center" gap="10px">
+                <Box w="4px" h="4px" bg={C.gold} />
+                <Text fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.1em" textTransform="uppercase" color={C.muted}>{text}</Text>
+              </Flex>
+            ))}
+          </VStack>
+        </MB>
+      </MB>
+    </Box>
+  );
+}
+
+// ─── FOOTER ──────────────────────────────────────────────────────────────────
+function Footer() {
+  const cols = [
+    { title: 'Product', links: ['Features','Process','Pricing','Demo'] },
+    { title: 'Company', links: ['About','Blog','Careers','Contact'] },
+    { title: 'Legal',   links: ['Privacy','Terms','Cookies','Compliance'] },
+  ];
+  return (
+    <Box as="footer" bg={C.ink} pt={{ base: '48px', md: '64px' }} pb="32px">
+      <Grid
+        templateColumns={{ base: '1fr', sm: 'repeat(2,1fr)', md: 'repeat(4,1fr)' }}
+        gap="40px" px={{ base: '24px', md: '64px' }}
+        mb="40px" pb="40px" borderBottom="1px solid rgba(255,255,255,0.06)"
+      >
+        <Box>
+          <Flex align="center" gap="10px" mb="14px">
+            <Box w="28px" h="28px" bg="#1e1b16" border="1px solid rgba(255,255,255,0.08)" display="flex" alignItems="center" justifyContent="center">
+              <Icon as={ChefHat} boxSize="12px" color={C.gold} />
+            </Box>
+            <Text fontFamily="'Cormorant Garamond', serif" fontSize="18px" fontWeight="400" color={C.white}>
+              Resto<Text as="em" color={C.gold} fontStyle="italic">AI</Text>
+            </Text>
+          </Flex>
+          <Text fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.07em" color="rgba(255,255,255,0.2)" lineHeight="1.9" maxW="200px">
+            AI-powered restaurant management for operations that actually work.
+          </Text>
+        </Box>
+        {cols.map(({ title, links }) => (
+          <Box key={title}>
+            <Text fontFamily="'DM Mono', monospace" fontSize="8px" letterSpacing="0.15em" textTransform="uppercase" color="rgba(255,255,255,0.22)" mb="16px">{title}</Text>
+            <VStack align="start" gap="10px">
+              {links.map(l => (
+                <Text key={l} as="a" href="#" fontSize="12px" color="rgba(255,255,255,0.4)" _hover={{ color: C.white }} transition="color 0.2s">{l}</Text>
+              ))}
+            </VStack>
+          </Box>
+        ))}
+      </Grid>
+      <Flex px={{ base: '24px', md: '64px' }} justify="space-between" align="center" flexWrap="wrap" gap="8px">
+        <Text fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.06em" color="rgba(255,255,255,0.18)">
+          © {new Date().getFullYear()} RestoAI. All rights reserved.
+        </Text>
+        <Text fontFamily="'DM Mono', monospace" fontSize="9px" letterSpacing="0.06em" color="rgba(255,255,255,0.1)">
+          Made for restaurateurs worldwide
+        </Text>
+      </Flex>
+    </Box>
+  );
+}
+
+// ─── ROOT ────────────────────────────────────────────────────────────────────
+function HomePageInner() {
+  const navigate = useNavigate?.() ?? (() => {});
+  return (
+    <Box bg={C.cream} minH="100vh" overflowX="hidden">
+      {/* Font imports — move to index.html or _document for production */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,600&family=Syne:wght@400;500;600;700&family=DM+Mono:ital,wght@0,300;1,300&display=swap"
+        rel="stylesheet"
+      />
+      <Navbar navigate={navigate} />
+      <Hero navigate={navigate} />
+      <Marquee />
+      <About />
+      <Features />
+      <Process />
+      <Testimonials />
+      <Pricing navigate={navigate} />
+      <CTABand navigate={navigate} />
+      <Footer />
+    </Box>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <ChakraProvider theme={theme}>
+      <HomePageInner />
     </ChakraProvider>
   );
-};
-
-export default HomePage;
+}

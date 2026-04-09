@@ -154,7 +154,40 @@ router.put('/customer/:orderId/cancel', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Failed to cancel order' });
   }
 });
+// Add this route to orderRoutes.js
 
+// Get urgent orders (orders that haven't been received within 10 minutes)
+router.get('/urgent', authMiddleware, async (req, res) => {
+  try {
+    const restaurantId = req.user.restaurant?._id || req.user.restaurant;
+    
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Restaurant ID not found' });
+    }
+    
+    // Find orders that are:
+    // 1. Not completed or cancelled
+    // 2. Not yet received
+    // 3. Older than 10 minutes
+    const urgentOrders = await Order.find({
+      restaurant: restaurantId,
+      status: { $nin: ['completed', 'cancelled', 'received'] },
+      createdAt: { 
+        $lt: new Date(Date.now() - 10 * 60 * 1000) // Older than 10 minutes
+      }
+    })
+    .populate('restaurant', 'name')
+    .populate('customer', 'name email phone')
+    .populate('items.dish', 'name')
+    .sort({ createdAt: 1 }); // Oldest first
+    
+    res.json(urgentOrders);
+    
+  } catch (error) {
+    console.error('Error fetching urgent orders:', error);
+    res.status(500).json({ error: 'Failed to fetch urgent orders' });
+  }
+});
 // Reorder from previous order
 router.post('/customer/:orderId/reorder', authMiddleware, async (req, res) => {
   try {

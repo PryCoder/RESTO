@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 export default function WasteAnalysis({ restaurantId, userRole }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,24 +22,38 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
     
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       const headers = { 
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
       };
+      
+      // Fixed API endpoint - using the correct route
       const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/orders/wasteanalyze`, // Use environment variable
+        `${API_URL}/api/ai/waste-analysis`, // Changed from /api/orders/wasteanalyze
         {
           voiceInput: "Analyze food waste patterns and provide recommendations",
           weather: "sunny"
         },
         { 
           headers,
-          timeout: 15000 // 15 second timeout
+          timeout: 15000
         }
       );
 
-      if (response.data && (response.data.wastePrediction || response.data.doNotMake)) {
-        setAnalysis(response.data);
+      // Validate response structure
+      if (response.data) {
+        // Ensure data has the expected structure
+        const validatedData = {
+          wastePrediction: Array.isArray(response.data.wastePrediction) ? response.data.wastePrediction : [],
+          doNotMake: Array.isArray(response.data.doNotMake) ? response.data.doNotMake : [],
+          generalTips: Array.isArray(response.data.generalTips) ? response.data.generalTips : []
+        };
+        
+        setAnalysis(validatedData);
       } else {
         throw new Error('Invalid response format from server');
       }
@@ -119,7 +135,6 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
   const handleAction = (action, item) => {
     console.log(`${action} for ${item.name || item.item}`);
     
-    // Show confirmation for actions
     const actionMessages = {
       reduce: `Reduced preparation quantity for ${item.name}`,
       substitute: `Finding substitutes for ${item.name}`,
@@ -128,9 +143,6 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
     };
     
     alert(actionMessages[action] || `Action taken for ${item.name}`);
-    
-    // Here you would implement the actual action logic
-    // For example, update inventory, modify preparation plans, etc.
   };
 
   const getAlertIcon = (type) => {
@@ -238,6 +250,11 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
                     item: "High-risk items",
                     reason: "Temporary system issue - proceed with caution"
                   }
+                ],
+                generalTips: [
+                  "Monitor inventory daily",
+                  "Use older stock first",
+                  "Train staff on portion control"
                 ]
               };
               setAnalysis(fallbackAnalysis);
@@ -339,7 +356,6 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
         }}>
           {alerts[currentSlide] && (
             <div>
-              {/* Alert Header */}
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -372,7 +388,6 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
                 </div>
               </div>
 
-              {/* Suggested Action */}
               {alerts[currentSlide].action && (
                 <div style={{ 
                   background: '#f0f9ff',
@@ -398,7 +413,6 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
                 </div>
               )}
 
-              {/* Alert Content */}
               <div style={{ 
                 background: getAlertBackground(alerts[currentSlide].type),
                 borderRadius: 8,
@@ -415,7 +429,6 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
                 </div>
               </div>
 
-              {/* Action Buttons */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button 
                   onClick={() => handleAction('reduce', alerts[currentSlide])}
@@ -427,8 +440,7 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
                     borderRadius: 6,
                     cursor: 'pointer',
                     fontSize: '11px',
-                    fontWeight: 'bold',
-                    boxShadow: '0 2px 4px rgba(99, 102, 241, 0.2)'
+                    fontWeight: 'bold'
                   }}
                 >
                   📉 Reduce Quantity
@@ -443,8 +455,7 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
                     borderRadius: 6,
                     cursor: 'pointer',
                     fontSize: '11px',
-                    fontWeight: 'bold',
-                    boxShadow: '0 2px 4px rgba(251, 191, 36, 0.2)'
+                    fontWeight: 'bold'
                   }}
                 >
                   🔄 Find Substitute
@@ -459,8 +470,7 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
                     borderRadius: 6,
                     cursor: 'pointer',
                     fontSize: '11px',
-                    fontWeight: 'bold',
-                    boxShadow: '0 2px 4px rgba(34, 197, 94, 0.2)'
+                    fontWeight: 'bold'
                   }}
                 >
                   ✅ Implement

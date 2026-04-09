@@ -16,6 +16,7 @@ import QRCode from 'react-qr-code';
 import MonthlySalesGraph from '../components/MonthlySalesGraph.jsx';
 import FaceAttendanceScanner from '../components/FaceAttendanceScanner';
 import io from 'socket.io-client';
+import NotificationBell from '../components/notification.jsx';
 
 const SOCKET_URL = 'http://localhost:4000'; // Change to your backend URL
 
@@ -1924,10 +1925,12 @@ const openUPIApp = (amount, tableNo) => {
                 <div style={{fontFamily:'DM Sans,sans-serif',color:'#64748b',fontSize:'1.08rem'}}>Welcome back, manage your restaurant with insights and control.</div>
               </div>
               <div className="dashboard-actions-premium">
+             
                 <button className="dashboard-action-btn-premium" onClick={handleViewQR}>View QR</button>
                 <button className="dashboard-action-btn-premium" onClick={handleViewUsers}>Manage Users</button>
                 <button className="dashboard-action-btn-premium" onClick={handleInventoryManagement}>Inventory</button>
                 <button className="dashboard-action-btn-premium" onClick={handleViewProfile}>My Profile</button>
+                <NotificationBell className="relative z-30" restaurantId={restaurantId} />
               </div>
             </div>
             

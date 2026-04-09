@@ -11,22 +11,64 @@ import {
 } from '@chakra-ui/react';
 import {
   MapPin, Navigation, Star, Clock, IndianRupee, Search,
-  Filter, Maximize2, Minimize2, Locate, Users, Percent,
-  Heart, RefreshCw,
+  Filter, Maximize2, Locate, Users, Percent,
+  Heart, RefreshCw, AlertCircle,
 } from 'lucide-react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MotionBox = motion(Box);
 
-const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY || 'aa5340f7ea7246bf862e89964c901398';
-const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+// Free API Keys and Endpoints
+const APIS = {
+  // OpenStreetMap Nominatim (Free, no key required)
+  nominatim: {
+    url: 'https://nominatim.openstreetmap.org/search',
+    format: 'json',
+    limit: 50
+  },
+  // Geoapify (Free tier with key)
+  geoapify: {
+    url: 'https://api.geoapify.com/v2/places',
+    key: import.meta.env.VITE_GEOAPIFY_API_KEY || 'aa5340f7ea7246bf862e89964c901398'
+  },
+  // OpenCage Geocoder (Free with key)
+  opencage: {
+    url: 'https://api.opencagedata.com/geocode/v1/json',
+    key: import.meta.env.VITE_OPENCAGE_API_KEY || ''
+  },
+  // Foursquare (Free tier)
+  foursquare: {
+    url: 'https://api.foursquare.com/v3/places/search',
+    key: import.meta.env.VITE_FOURSQUARE_API_KEY || ''
+  }
+};
 
-// --- Load Leaflet CSS & JS dynamically ---
+// Popular Indian cities with coordinates
+const POPULAR_CITIES = [
+  { name: 'Mumbai', lat: 19.0760, lng: 72.8777, state: 'Maharashtra' },
+  { name: 'Delhi', lat: 28.7041, lng: 77.1025, state: 'Delhi' },
+  { name: 'Bangalore', lat: 12.9716, lng: 77.5946, state: 'Karnataka' },
+  { name: 'Hyderabad', lat: 17.3850, lng: 78.4867, state: 'Telangana' },
+  { name: 'Chennai', lat: 13.0827, lng: 80.2707, state: 'Tamil Nadu' },
+  { name: 'Kolkata', lat: 22.5726, lng: 88.3639, state: 'West Bengal' },
+  { name: 'Pune', lat: 18.5204, lng: 73.8567, state: 'Maharashtra' },
+  { name: 'Ahmedabad', lat: 23.0225, lng: 72.5714, state: 'Gujarat' },
+  { name: 'Jaipur', lat: 26.9124, lng: 75.7873, state: 'Rajasthan' },
+  { name: 'Lucknow', lat: 26.8467, lng: 80.9462, state: 'Uttar Pradesh' },
+];
+
+const DEFAULT_LOCATION = {
+  lat: 19.265929,
+  lng: 73.238978,
+  name: 'Kalyan',
+  state: 'Maharashtra'
+};
+
+// Load Leaflet CSS & JS dynamically
 const loadLeaflet = () => new Promise((resolve, reject) => {
   if (window.L) return resolve(window.L);
 
-  // Load CSS
   if (!document.querySelector('link[href*="leaflet"]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
@@ -34,7 +76,6 @@ const loadLeaflet = () => new Promise((resolve, reject) => {
     document.head.appendChild(link);
   }
 
-  // Load JS
   if (!document.querySelector('script[src*="leaflet"]')) {
     const script = document.createElement('script');
     script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
@@ -43,75 +84,112 @@ const loadLeaflet = () => new Promise((resolve, reject) => {
     document.head.appendChild(script);
   } else {
     const interval = setInterval(() => {
-      if (window.L) { clearInterval(interval); resolve(window.L); }
+      if (window.L) { 
+        clearInterval(interval); 
+        resolve(window.L); 
+      }
     }, 100);
   }
 });
 
-const MapWithNearbyRestaurants = ({ apiKey }) => {
+const MapWithNearbyRestaurants = () => {
   const [loading, setLoading] = useState(true);
   const [userCoords, setUserCoords] = useState(null);
   const [userAddress, setUserAddress] = useState(null);
   const [nearbyRestaurants, setNearbyRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
-  const [error, setError] = useState('');
   const [searchRadius, setSearchRadius] = useState(5);
   const [showFilters, setShowFilters] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const [showCitySelector, setShowCitySelector] = useState(false);
+  const [selectedCity, setSelectedCity] = useState(DEFAULT_LOCATION);
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+  const [apiSource, setApiSource] = useState('backend'); // backend, nominatim, geoapify, foursquare, sample
   const [filters, setFilters] = useState({
-    minRating: 0, maxPrice: 1000, vegOnly: false, openNow: true, cuisine: '',
+    minRating: 0, 
+    maxPrice: 1000, 
+    vegOnly: false, 
+    openNow: true, 
+    cuisine: '',
   });
   const [stats, setStats] = useState({
-    totalRestaurants: 0, avgRating: 0, avgDeliveryTime: 0, restaurantsWithOffers: 0,
+    totalRestaurants: 0, 
+    avgRating: 0, 
+    avgDeliveryTime: 0, 
+    restaurantsWithOffers: 0,
   });
 
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
   const userMarkerRef = useRef(null);
+  const radiusCircleRef = useRef(null);
 
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  // --- Initialize map with Leaflet ---
-  const initMap = async (lat, lng) => {
+  // Calculate distance between coordinates
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon / 2) ** 2;
+    return Number((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1));
+  };
+
+  // Initialize map
+  const initMap = async (lat, lng, locationName) => {
     const L = await loadLeaflet();
     if (!mapContainerRef.current) return;
 
-    // Destroy existing map instance before creating new one
     if (mapRef.current) {
       mapRef.current.remove();
       mapRef.current = null;
     }
 
-    const map = L.map(mapContainerRef.current).setView([lat, lng], 14);
+    const map = L.map(mapContainerRef.current).setView([lat, lng], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
     }).addTo(map);
 
-    // User location marker (orange circle)
     const userIcon = L.divIcon({
       html: `<div style="background:#f97316;border:3px solid white;border-radius:50%;width:18px;height:18px;box-shadow:0 2px 10px rgba(0,0,0,0.4);"></div>`,
       iconSize: [18, 18],
       iconAnchor: [9, 9],
       className: '',
     });
+    
     userMarkerRef.current = L.marker([lat, lng], { icon: userIcon })
       .addTo(map)
-      .bindPopup('📍 Your Location');
+      .bindPopup(`📍 ${locationName || 'Selected Location'}`);
 
-    // Radius circle
-    L.circle([lat, lng], {
+    radiusCircleRef.current = L.circle([lat, lng], {
       radius: searchRadius * 1000,
-      color: '#f97316', fillColor: '#f97316', fillOpacity: 0.08, weight: 2,
+      color: '#f97316', 
+      fillColor: '#f97316', 
+      fillOpacity: 0.08, 
+      weight: 2,
     }).addTo(map);
 
     mapRef.current = map;
     return map;
   };
 
-  // --- Add restaurant marker to Leaflet map ---
+  // Update radius circle
+  const updateRadiusCircle = () => {
+    if (!mapRef.current || !userCoords) return;
+    if (radiusCircleRef.current) {
+      radiusCircleRef.current.setRadius(searchRadius * 1000);
+    }
+  };
+
+  // Add restaurant marker
   const addRestaurantMarker = (L, restaurant) => {
     if (!mapRef.current || !L) return;
+    
     const lat = restaurant.location?.latitude;
     const lng = restaurant.location?.longitude;
     if (!lat || !lng) return;
@@ -139,97 +217,266 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
     markersRef.current.push(marker);
   };
 
-  // --- Reverse geocode to get address from coords ---
-  const reverseGeocode = async (lat, lng) => {
+  // --- FREE API: OpenStreetMap Nominatim (No API key required) ---
+  const fetchFromNominatim = async (lat, lng) => {
     try {
-      const res = await axios.get(
-        `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lng}&apiKey=${GEOAPIFY_API_KEY}`
-      );
-      if (res.data.features?.length > 0) {
-        setUserAddress(res.data.features[0].properties);
+      const response = await axios.get(`${APIS.nominatim.url}`, {
+        params: {
+          q: `restaurant near ${lat},${lng}`,
+          format: APIS.nominatim.format,
+          limit: APIS.nominatim.limit,
+          lat: lat,
+          lon: lng,
+          radius: searchRadius * 1000,
+          addressdetails: 1
+        },
+        headers: {
+          'User-Agent': 'RestaurantFinderApp/1.0'
+        }
+      });
+      
+      if (response.data && response.data.length > 0) {
+        return response.data.map(place => ({
+          _id: place.place_id,
+          name: place.display_name.split(',')[0],
+          address: place.display_name,
+          location: {
+            latitude: parseFloat(place.lat),
+            longitude: parseFloat(place.lon),
+            city: place.address?.city || place.address?.town || place.address?.village,
+            state: place.address?.state
+          },
+          cuisine: ['Various'],
+          rating: (3.5 + Math.random() * 1.5).toFixed(1),
+          deliveryTime: Math.floor(20 + Math.random() * 40),
+          avgPrice: Math.floor(200 + Math.random() * 800),
+          image: `https://source.unsplash.com/featured/400x300/?restaurant,food`,
+          isVeg: Math.random() > 0.6,
+          isOpen: true,
+          offers: Math.random() > 0.7 ? [{ text: 'Special offer available', code: 'SPECIAL' }] : []
+        }));
       }
-    } catch (err) {
-      console.warn('Reverse geocode failed:', err.message);
+      return [];
+    } catch (error) {
+      console.warn('Nominatim API failed:', error.message);
+      return [];
     }
   };
 
-  // --- Fetch restaurants by coords ---
-  const fetchRestaurants = async (lat, lng) => {
-    setLoading(true);
-    setError('');
+  // --- FREE API: Geoapify Places (Requires key, but has generous free tier) ---
+  const fetchFromGeoapify = async (lat, lng) => {
+    if (!APIS.geoapify.key || APIS.geoapify.key === 'aa5340f7ea7246bf862e89964c901398') {
+      console.log('Geoapify key not configured');
+      return [];
+    }
 
-    // Clear existing markers
+    try {
+      const response = await axios.get(APIS.geoapify.url, {
+        params: {
+          categories: 'catering.restaurant,catering.cafe',
+          filter: `circle:${lng},${lat},${searchRadius * 1000}`,
+          limit: 30,
+          apiKey: APIS.geoapify.key
+        }
+      });
+      
+      if (response.data.features && response.data.features.length > 0) {
+        return response.data.features.map(place => ({
+          _id: place.properties.place_id,
+          name: place.properties.name,
+          address: place.properties.formatted,
+          location: {
+            latitude: place.geometry.coordinates[1],
+            longitude: place.geometry.coordinates[0],
+            city: place.properties.city,
+            state: place.properties.state
+          },
+          cuisine: place.properties.categories?.map(c => c.split('.')[1]) || ['Restaurant'],
+          rating: place.properties.rating || (3.8 + Math.random() * 1.2).toFixed(1),
+          deliveryTime: Math.floor(20 + Math.random() * 40),
+          avgPrice: Math.floor(250 + Math.random() * 750),
+          image: `https://source.unsplash.com/400x300/?${place.properties.name.split(' ')[0]}`,
+          isVeg: Math.random() > 0.7,
+          isOpen: place.properties.opening_hours ? true : Math.random() > 0.2,
+          offers: []
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.warn('Geoapify API failed:', error.message);
+      return [];
+    }
+  };
+
+  // --- FREE API: Foursquare Places (Free tier with 50k requests/month) ---
+  const fetchFromFoursquare = async (lat, lng) => {
+    if (!APIS.foursquare.key) {
+      console.log('Foursquare key not configured');
+      return [];
+    }
+
+    try {
+      const response = await axios.get(APIS.foursquare.url, {
+        params: {
+          ll: `${lat},${lng}`,
+          radius: searchRadius * 1000,
+          limit: 30,
+          categories: '13000,13003,13065', // Restaurant categories
+          sort: 'relevance'
+        },
+        headers: {
+          'Authorization': APIS.foursquare.key
+        }
+      });
+      
+      if (response.data.results && response.data.results.length > 0) {
+        return response.data.results.map(place => ({
+          _id: place.fsq_id,
+          name: place.name,
+          address: place.location?.formatted_address || place.location?.address,
+          location: {
+            latitude: place.geocodes?.main?.latitude || lat + (Math.random() - 0.5) * 0.02,
+            longitude: place.geocodes?.main?.longitude || lng + (Math.random() - 0.5) * 0.02,
+            city: place.location?.locality,
+            state: place.location?.region
+          },
+          cuisine: place.categories?.map(c => c.name) || ['Restaurant'],
+          rating: place.rating || (3.8 + Math.random() * 1.2).toFixed(1),
+          deliveryTime: Math.floor(20 + Math.random() * 40),
+          avgPrice: Math.floor(200 + Math.random() * 800),
+          image: place.photos?.[0]?.prefix + '200x200' + place.photos?.[0]?.suffix || 
+                 `https://source.unsplash.com/400x300/?restaurant,food`,
+          isVeg: Math.random() > 0.7,
+          isOpen: true,
+          offers: []
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.warn('Foursquare API failed:', error.message);
+      return [];
+    }
+  };
+
+  // Sample data as ultimate fallback
+  const getSampleRestaurants = (lat, lng) => {
+    const cuisineTypes = [
+      { name: 'North Indian', veg: false, price: 450 },
+      { name: 'South Indian', veg: true, price: 300 },
+      { name: 'Chinese', veg: false, price: 400 },
+      { name: 'Italian', veg: true, price: 600 },
+      { name: 'Fast Food', veg: true, price: 350 },
+      { name: 'Biryani', veg: false, price: 500 },
+    ];
+    
+    const names = [
+      'The Spice Garden', 'Pizza Paradise', 'Biryani Blues', 
+      'South Indian Cafe', 'China Town', 'Urban Diner',
+      'Cafe Coffee Day', 'Tandoori Nights', 'Sushi House',
+      'Mediterranean Grill'
+    ];
+    
+    return names.slice(0, 8).map((name, index) => {
+      const cuisine = cuisineTypes[index % cuisineTypes.length];
+      const latOffset = (Math.random() - 0.5) * 0.01;
+      const lngOffset = (Math.random() - 0.5) * 0.01;
+      
+      return {
+        _id: `sample_${index}`,
+        name: name,
+        address: `${Math.floor(100 + Math.random() * 900)} Main Road, ${selectedCity.name}`,
+        location: {
+          latitude: lat + latOffset,
+          longitude: lng + lngOffset,
+          city: selectedCity.name
+        },
+        cuisine: [cuisine.name],
+        rating: (3.5 + Math.random() * 1.5).toFixed(1),
+        deliveryTime: Math.floor(20 + Math.random() * 40),
+        avgPrice: cuisine.price,
+        image: `https://source.unsplash.com/400x300/?restaurant,${cuisine.name.toLowerCase()}`,
+        isVeg: cuisine.veg,
+        isOpen: true,
+        offers: Math.random() > 0.7 ? [{ text: '20% off on first order', code: 'FIRST20' }] : []
+      };
+    });
+  };
+
+  // Fetch restaurants with API fallback chain
+  const fetchRestaurants = async (lat, lng, locationName = '') => {
+    setLoading(true);
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
 
     let restaurants = [];
+    let usedApi = '';
 
-    try {
-      // Try backend first
-      const res = await axios.get(`${VITE_API_URL}/api/restaurants/nearby`, {
-        params: { latitude: lat, longitude: lng, maxDistance: searchRadius * 1000 },
-      });
-      restaurants = res.data || [];
-    } catch (backendErr) {
-      console.log('Backend unavailable, falling back to Geoapify Places API');
-    }
+    // Try different APIs in sequence
+    const apiAttempts = [
+      { name: 'backend', fn: async () => {
+        try {
+          const res = await axios.get(`${VITE_API_URL}/api/restaurants/nearby`, {
+            params: { latitude: lat, longitude: lng, maxDistance: searchRadius * 1000 },
+            timeout: 5000
+          });
+          return res.data || [];
+        } catch (e) { return []; }
+      }},
+      { name: 'foursquare', fn: () => fetchFromFoursquare(lat, lng) },
+      { name: 'geoapify', fn: () => fetchFromGeoapify(lat, lng) },
+      { name: 'nominatim', fn: () => fetchFromNominatim(lat, lng) },
+    ];
 
-    // Fallback to Geoapify Places API
-    if (restaurants.length === 0) {
+    for (const attempt of apiAttempts) {
       try {
-        const placesRes = await axios.get(
-          `https://api.geoapify.com/v2/places?categories=catering.restaurant&filter=circle:${lng},${lat},${searchRadius * 1000}&limit=40&apiKey=${GEOAPIFY_API_KEY}`
-        );
-        restaurants = placesRes.data.features
-          .filter(p => p.properties.name) // Only named places
-          .map(place => ({
-            _id: place.properties.place_id,
-            name: place.properties.name,
-            address: place.properties.formatted,
-            location: {
-              latitude: place.geometry.coordinates[1],
-              longitude: place.geometry.coordinates[0],
-              city: place.properties.city || place.properties.county,
-            },
-            cuisine: (place.properties.datasource?.raw?.cuisine || 'Various')
-              .split(';').map(c => c.trim()),
-            rating: (3.8 + Math.random() * 1.2).toFixed(1),
-            deliveryTime: Math.floor(20 + Math.random() * 30),
-            avgPrice: Math.floor(150 + Math.random() * 700),
-            image: `https://source.unsplash.com/400x300/?${encodeURIComponent('restaurant food')}`,
-            isVeg: Math.random() > 0.65,
-            isOpen: place.properties.opening_hours ? true : Math.random() > 0.2,
-            offers: Math.random() > 0.5 ? [{ text: '20% off on first order', code: 'FIRST20' }] : [],
-          }));
-      } catch (placesErr) {
-        console.error('Geoapify Places API failed:', placesErr.message);
-        // Final fallback: sample data
-        restaurants = getSampleRestaurants(lat, lng);
+        const result = await attempt.fn();
+        if (result && result.length > 0) {
+          restaurants = result;
+          usedApi = attempt.name;
+          break;
+        }
+      } catch (error) {
+        console.log(`${attempt.name} API failed, trying next...`);
       }
     }
 
-    // Compute distances
-    const L = window.L;
-    const withDistance = restaurants.map(r => ({
+    // If all APIs failed, use sample data
+    if (restaurants.length === 0) {
+      restaurants = getSampleRestaurants(lat, lng);
+      usedApi = 'sample';
+      toast({
+        title: 'Using demo data',
+        description: 'Connected to demo restaurant data',
+        status: 'info',
+        duration: 3000,
+      });
+    }
+
+    setApiSource(usedApi);
+
+    const processedRestaurants = restaurants.map(r => ({
       ...r,
-      distance: calculateDistance(lat, lng, r.location?.latitude, r.location?.longitude).toFixed(1),
+      distance: calculateDistance(lat, lng, r.location?.latitude, r.location?.longitude) || 'N/A',
+      rating: r.rating ? parseFloat(r.rating).toFixed(1) : '3.5',
+      cuisine: Array.isArray(r.cuisine) ? r.cuisine : [r.cuisine],
+      deliveryTime: r.deliveryTime || 30,
+      avgPrice: r.avgPrice || 300,
+      isVeg: r.isVeg || false,
+      isOpen: r.isOpen !== undefined ? r.isOpen : true,
+      offers: r.offers || [],
+      image: r.image || 'https://via.placeholder.com/400x300?text=Restaurant'
     }));
 
-    // Apply filters
-    const filtered = applyFilters(withDistance);
+    const filtered = applyFilters(processedRestaurants);
     setNearbyRestaurants(filtered);
     computeStats(filtered);
 
-    // Add markers
+    const L = window.L;
     if (L && mapRef.current) {
       filtered.forEach(r => addRestaurantMarker(L, r));
-
-      // Fit bounds if we have results
-      if (filtered.length > 0) {
-        const group = L.featureGroup([
-          userMarkerRef.current,
-          ...markersRef.current,
-        ]);
+      if (filtered.length > 0 && userMarkerRef.current) {
+        const allMarkers = [userMarkerRef.current, ...markersRef.current];
+        const group = L.featureGroup(allMarkers);
         mapRef.current.fitBounds(group.getBounds().pad(0.1));
       }
     }
@@ -237,45 +484,7 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
     setLoading(false);
   };
 
-  // --- Trigger full location + map init + fetch ---
-  const handleLocateMe = () => {
-    setLoading(true);
-    setError('');
-
-    if (!navigator.geolocation) {
-      toast({ title: 'Geolocation not supported', status: 'error', duration: 4000 });
-      useFallbackLocation();
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setUserCoords({ latitude, longitude });
-        await reverseGeocode(latitude, longitude);
-        await initMap(latitude, longitude);
-        await fetchRestaurants(latitude, longitude);
-      },
-      (err) => {
-        toast({
-          title: 'Location access denied',
-          description: 'Using default location (Kalyan, Maharashtra)',
-          status: 'warning', duration: 5000, isClosable: true,
-        });
-        useFallbackLocation();
-      },
-      { timeout: 10000, enableHighAccuracy: true }
-    );
-  };
-
-  const useFallbackLocation = async () => {
-    const lat = 19.265929, lng = 73.238978; // Kalyan, Maharashtra
-    setUserCoords({ latitude: lat, longitude: lng });
-    await initMap(lat, lng);
-    await fetchRestaurants(lat, lng);
-  };
-
-  // --- Filters ---
+  // Apply filters
   const applyFilters = (restaurants) => {
     return restaurants
       .filter(r => {
@@ -283,12 +492,15 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
         if (r.avgPrice > filters.maxPrice) return false;
         if (filters.vegOnly && !r.isVeg) return false;
         if (filters.openNow && !r.isOpen) return false;
-        if (filters.cuisine && !r.cuisine?.some(c => c.toLowerCase().includes(filters.cuisine.toLowerCase()))) return false;
+        if (filters.cuisine && !r.cuisine?.some(c => 
+          c.toLowerCase().includes(filters.cuisine.toLowerCase())
+        )) return false;
         return true;
       })
       .sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
   };
 
+  // Calculate statistics
   const computeStats = (list) => {
     const n = list.length || 1;
     setStats({
@@ -299,33 +511,183 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
     });
   };
 
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    if (!lat1 || !lon1 || !lat2 || !lon2) return 99;
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  // Handle location detection
+  const handleLocateMe = () => {
+    setLoading(true);
+    setLocationError(null);
+    setLocationPermissionDenied(false);
+
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser');
+      toast({
+        title: 'Geolocation not supported',
+        description: 'Please select a city manually',
+        status: 'error',
+        duration: 5000,
+      });
+      showCitySelection();
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setUserCoords({ latitude, longitude });
+        await initMap(latitude, longitude, 'Your Location');
+        await fetchRestaurants(latitude, longitude);
+        setLocationError(null);
+        setLocationPermissionDenied(false);
+        
+        toast({
+          title: 'Location detected!',
+          description: 'Showing restaurants near you',
+          status: 'success',
+          duration: 3000,
+        });
+      },
+      (err) => {
+        console.error('Geolocation error:', err);
+        
+        if (err.code === 1) {
+          setLocationPermissionDenied(true);
+          setLocationError('Location permission denied. Please select a city manually.');
+          toast({
+            title: 'Location access denied',
+            description: 'Please select a city to see restaurants',
+            status: 'warning',
+            duration: 6000,
+            isClosable: true,
+          });
+          showCitySelection();
+        } else {
+          setLocationError('Unable to get your location. Using default location.');
+          toast({
+            title: 'Location unavailable',
+            description: 'Using default location',
+            status: 'info',
+            duration: 4000,
+          });
+          useDefaultLocation();
+        }
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
   };
 
-  // --- Sample data fallback ---
-  const getSampleRestaurants = (lat, lng) => [
-    { _id: 's1', name: 'The Spice House', address: 'Sai Complex, Kalyan West', location: { latitude: lat + 0.005, longitude: lng + 0.003 }, cuisine: ['North Indian', 'Mughlai'], rating: '4.5', deliveryTime: 35, avgPrice: 450, image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400', isVeg: false, isOpen: true, offers: [{ text: '50% off up to ₹150', code: 'SPICE50' }] },
-    { _id: 's2', name: 'Pizza Paradise', address: 'MIDC Road, Kalyan East', location: { latitude: lat - 0.003, longitude: lng + 0.006 }, cuisine: ['Italian', 'Fast Food'], rating: '4.3', deliveryTime: 30, avgPrice: 600, image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400', isVeg: true, isOpen: true, offers: [{ text: 'Free delivery', code: 'FREEDEL' }] },
-    { _id: 's3', name: 'Biryani Blues', address: 'Shahad Station Road', location: { latitude: lat - 0.008, longitude: lng - 0.005 }, cuisine: ['Biryani', 'Hyderabadi'], rating: '4.7', deliveryTime: 40, avgPrice: 500, image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=400', isVeg: false, isOpen: true, offers: [] },
-    { _id: 's4', name: 'South Indian Cafe', address: 'Mharal Village', location: { latitude: lat + 0.002, longitude: lng - 0.007 }, cuisine: ['South Indian'], rating: '4.4', deliveryTime: 25, avgPrice: 300, image: 'https://images.unsplash.com/photo-1553621042-f6e147245754?w=400', isVeg: true, isOpen: true, offers: [] },
-  ];
+  const showCitySelection = () => {
+    setShowCitySelector(true);
+    setLoading(false);
+  };
 
-  // On mount — get location
+  const useDefaultLocation = async () => {
+    const lat = DEFAULT_LOCATION.lat;
+    const lng = DEFAULT_LOCATION.lng;
+    setUserCoords({ latitude: lat, longitude: lng });
+    setUserAddress({ city: DEFAULT_LOCATION.name, state: DEFAULT_LOCATION.state });
+    await initMap(lat, lng, DEFAULT_LOCATION.name);
+    await fetchRestaurants(lat, lng, DEFAULT_LOCATION.name);
+  };
+
+  const handleCitySelect = async (city) => {
+    setSelectedCity(city);
+    setShowCitySelector(false);
+    setLoading(true);
+    setLocationPermissionDenied(false);
+    
+    const lat = city.lat;
+    const lng = city.lng;
+    
+    setUserCoords({ latitude: lat, longitude: lng });
+    setUserAddress({ city: city.name, state: city.state });
+    await initMap(lat, lng, city.name);
+    await fetchRestaurants(lat, lng, city.name);
+    
+    toast({
+      title: `Location set to ${city.name}`,
+      description: `Showing restaurants in ${city.name}`,
+      status: 'success',
+      duration: 3000,
+    });
+  };
+
+  // Update radius when changed
+  useEffect(() => {
+    if (userCoords) {
+      updateRadiusCircle();
+      fetchRestaurants(userCoords.latitude, userCoords.longitude);
+    }
+  }, [searchRadius]);
+
+  // Initial load
   useEffect(() => {
     handleLocateMe();
     return () => {
-      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
     };
   }, []);
 
-  // --- Restaurant Modal ---
+  // City Selector Modal
+  const CitySelectorModal = () => (
+    <Modal isOpen={showCitySelector} onClose={() => setShowCitySelector(false)} size="lg">
+      <ModalOverlay />
+      <ModalContent borderRadius="2xl" maxW="600px">
+        <ModalHeader fontSize="xl">Select Your City</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody pb={6}>
+          <VStack spacing={4} align="stretch">
+            <Alert status="info" borderRadius="lg">
+              <AlertIcon />
+              <Box>
+                <AlertTitle fontSize="sm">Location access required</AlertTitle>
+                <AlertDescription fontSize="xs">
+                  Please select a city to see restaurants near you
+                </AlertDescription>
+              </Box>
+            </Alert>
+            
+            <Text fontWeight="semibold" fontSize="sm" mt={2}>Popular Cities</Text>
+            <Grid templateColumns="repeat(2, 1fr)" gap={3}>
+              {POPULAR_CITIES.map((city) => (
+                <Button
+                  key={city.name}
+                  onClick={() => handleCitySelect(city)}
+                  variant="outline"
+                  colorScheme="orange"
+                  size="md"
+                  justifyContent="flex-start"
+                  leftIcon={<MapPin size={16} />}
+                  py={6}
+                >
+                  <Box textAlign="left">
+                    <Text fontWeight="medium">{city.name}</Text>
+                    <Text fontSize="xs" color="gray.500">{city.state}</Text>
+                  </Box>
+                </Button>
+              ))}
+            </Grid>
+            
+            <Divider my={2} />
+            
+            <Button
+              colorScheme="orange"
+              variant="ghost"
+              onClick={() => {
+                setShowCitySelector(false);
+                useDefaultLocation();
+              }}
+            >
+              Use Default Location (Kalyan)
+            </Button>
+          </VStack>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
+  );
+
+  // Restaurant Modal
   const RestaurantModal = () => {
     if (!selectedRestaurant) return null;
     const r = selectedRestaurant;
@@ -333,17 +695,25 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
       <Modal isOpen={isOpen} onClose={onClose} size="lg" scrollBehavior="inside">
         <ModalOverlay />
         <ModalContent borderRadius="2xl">
-          <ModalHeader fontFamily="ClashDisplay, sans-serif">{r.name}</ModalHeader>
+          <ModalHeader>{r.name}</ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
             <VStack spacing={4} align="stretch">
-              <Image src={r.image} alt={r.name} borderRadius="xl" h="200px" objectFit="cover"
-                fallbackSrc="https://via.placeholder.com/400x200?text=Restaurant" />
+              <Image 
+                src={r.image} 
+                alt={r.name} 
+                borderRadius="xl" 
+                h="200px" 
+                objectFit="cover"
+                fallbackSrc="https://via.placeholder.com/400x200?text=Restaurant" 
+              />
               <Text color="gray.500" fontSize="sm">{r.address}</Text>
               <Flex justify="space-between" align="center">
                 <HStack spacing={2} flexWrap="wrap">
                   {r.cuisine?.map((c, i) => (
-                    <Badge key={i} colorScheme="orange" borderRadius="full" px={3} py={1}>{c}</Badge>
+                    <Badge key={i} colorScheme="orange" borderRadius="full" px={3} py={1}>
+                      {c}
+                    </Badge>
                   ))}
                 </HStack>
                 <Badge fontSize="lg" px={3} py={1} borderRadius="lg" bg="green.50" color="green.700">
@@ -352,14 +722,33 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
               </Flex>
               <Divider />
               <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-                <Box><Text fontSize="sm" color="gray.500">Delivery Time</Text>
-                  <HStack><Clock size={16} /><Text fontWeight="bold">{r.deliveryTime} min</Text></HStack></Box>
-                <Box><Text fontSize="sm" color="gray.500">Avg Price</Text>
-                  <HStack><IndianRupee size={16} /><Text fontWeight="bold">₹{r.avgPrice}</Text></HStack></Box>
-                <Box><Text fontSize="sm" color="gray.500">Distance</Text>
-                  <HStack><Navigation size={16} /><Text fontWeight="bold">{r.distance} km</Text></HStack></Box>
-                <Box><Text fontSize="sm" color="gray.500">Status</Text>
-                  <Badge colorScheme={r.isOpen ? 'green' : 'red'}>{r.isOpen ? 'Open' : 'Closed'}</Badge></Box>
+                <Box>
+                  <Text fontSize="sm" color="gray.500">Delivery Time</Text>
+                  <HStack>
+                    <Clock size={16} />
+                    <Text fontWeight="bold">{r.deliveryTime} min</Text>
+                  </HStack>
+                </Box>
+                <Box>
+                  <Text fontSize="sm" color="gray.500">Avg Price</Text>
+                  <HStack>
+                    <IndianRupee size={16} />
+                    <Text fontWeight="bold">₹{r.avgPrice}</Text>
+                  </HStack>
+                </Box>
+                <Box>
+                  <Text fontSize="sm" color="gray.500">Distance</Text>
+                  <HStack>
+                    <Navigation size={16} />
+                    <Text fontWeight="bold">{r.distance} km</Text>
+                  </HStack>
+                </Box>
+                <Box>
+                  <Text fontSize="sm" color="gray.500">Status</Text>
+                  <Badge colorScheme={r.isOpen ? 'green' : 'red'}>
+                    {r.isOpen ? 'Open' : 'Closed'}
+                  </Badge>
+                </Box>
               </Grid>
               {r.offers?.length > 0 && (
                 <Box>
@@ -375,12 +764,23 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
                 </Box>
               )}
               <HStack spacing={3} pt={2}>
-                <Button flex={1} colorScheme="orange" leftIcon={<Navigation size={16} />}
-                  onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${r.location?.latitude},${r.location?.longitude}`, '_blank')}
-                  borderRadius="xl">
+                <Button 
+                  flex={1} 
+                  colorScheme="orange" 
+                  leftIcon={<Navigation size={16} />}
+                  onClick={() => window.open(
+                    `https://www.google.com/maps/dir/?api=1&destination=${r.location?.latitude},${r.location?.longitude}`,
+                    '_blank'
+                  )}
+                  borderRadius="xl"
+                >
                   Directions
                 </Button>
-                <IconButton icon={<Heart size={16} />} borderRadius="xl" aria-label="Favourite" />
+                <IconButton 
+                  icon={<Heart size={16} />} 
+                  borderRadius="xl" 
+                  aria-label="Favourite" 
+                />
               </HStack>
             </VStack>
           </ModalBody>
@@ -389,9 +789,18 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
     );
   };
 
-  // --- Stat Card ---
+  // Stat Card
   const StatCard = ({ icon, label, value }) => (
-    <HStack spacing={2} bg="white" px={3} py={2} borderRadius="xl" boxShadow="sm" borderWidth={1} borderColor="gray.100">
+    <HStack 
+      spacing={2} 
+      bg="white" 
+      px={3} 
+      py={2} 
+      borderRadius="xl" 
+      boxShadow="sm" 
+      borderWidth={1} 
+      borderColor="gray.100"
+    >
       <Box color="orange.500">{icon}</Box>
       <Box>
         <Text fontSize="xs" color="gray.500">{label}</Text>
@@ -400,25 +809,63 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
     </HStack>
   );
 
-  if (loading) return (
-    <VStack spacing={4} py={20}>
-      <Spinner size="xl" color="orange.500" thickness="4px" />
-      <Text color="gray.600">Finding restaurants near you...</Text>
-    </VStack>
-  );
+  if (loading && !showCitySelector) {
+    return (
+      <VStack spacing={4} py={20}>
+        <Spinner size="xl" color="orange.500" thickness="4px" />
+        <Text color="gray.600">Finding restaurants near you...</Text>
+      </VStack>
+    );
+  }
 
   return (
     <Container maxW="7xl" py={4}>
+      {/* API Source Indicator */}
+      {apiSource !== 'backend' && apiSource !== 'sample' && (
+        <Alert status="info" mb={4} borderRadius="xl" size="sm">
+          <AlertIcon />
+          <AlertDescription fontSize="xs">
+            Using {apiSource} API for restaurant data
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Location Permission Alert */}
+      {locationPermissionDenied && (
+        <Alert status="warning" mb={4} borderRadius="xl">
+          <AlertCircle size={16} />
+          <AlertTitle ml={2} mr={2} fontSize="sm">Location Access Denied</AlertTitle>
+          <AlertDescription fontSize="sm">
+            Please select a city to see restaurants
+          </AlertDescription>
+          <Button 
+            size="sm" 
+            ml="auto" 
+            colorScheme="orange" 
+            onClick={() => setShowCitySelector(true)}
+          >
+            Select City
+          </Button>
+        </Alert>
+      )}
+
       {/* Header */}
-      <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'center' }} mb={4} gap={4}>
+      <Flex 
+        direction={{ base: 'column', md: 'row' }} 
+        justify="space-between" 
+        align={{ base: 'stretch', md: 'center' }} 
+        mb={4} 
+        gap={4}
+      >
         <HStack spacing={4}>
           <Box p={3} bgGradient="linear(to-br, orange.500, pink.500)" borderRadius="xl" boxShadow="lg">
             <MapPin size={24} color="white" />
           </Box>
           <Box>
-            <Heading size="lg" fontFamily="ClashDisplay, sans-serif">Restaurants Near You</Heading>
+            <Heading size="lg">Restaurants Near You</Heading>
             <Text color="gray.500" fontSize="sm">
-              {userAddress ? `${userAddress.city || ''}, ${userAddress.state || ''} — ${userAddress.postcode || ''}` : 'Getting your location...'}
+              {userAddress?.city || selectedCity.name}
+              {userAddress?.state && `, ${userAddress.state}`}
             </Text>
           </Box>
         </HStack>
@@ -433,73 +880,150 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
       {/* Search & Filter Bar */}
       <Flex direction={{ base: 'column', md: 'row' }} gap={3} mb={4} p={4} bg="white" borderRadius="2xl" boxShadow="sm">
         <InputGroup flex={1}>
-          <InputLeftElement><Search size={18} color="#718096" /></InputLeftElement>
-          <Input placeholder="Search restaurants, cuisines..."
-            value={filters.cuisine} onChange={(e) => setFilters({ ...filters, cuisine: e.target.value })}
-            borderRadius="xl" borderColor="gray.200" />
+          <InputLeftElement>
+            <Search size={18} color="#718096" />
+          </InputLeftElement>
+          <Input 
+            placeholder="Search restaurants, cuisines..."
+            value={filters.cuisine} 
+            onChange={(e) => setFilters({ ...filters, cuisine: e.target.value })}
+            borderRadius="xl" 
+            borderColor="gray.200" 
+          />
         </InputGroup>
         <HStack spacing={2}>
-          <Select w="150px" value={filters.minRating}
-            onChange={(e) => setFilters({ ...filters, minRating: parseFloat(e.target.value) })} borderRadius="xl">
+          <Select 
+            w="150px" 
+            value={filters.minRating}
+            onChange={(e) => setFilters({ ...filters, minRating: parseFloat(e.target.value) })} 
+            borderRadius="xl"
+          >
             <option value={0}>Any Rating</option>
             <option value={4.5}>4.5+ ★</option>
             <option value={4}>4.0+ ★</option>
             <option value={3.5}>3.5+ ★</option>
           </Select>
-          <IconButton icon={<Filter size={18} />} onClick={() => setShowFilters(!showFilters)}
-            variant={showFilters ? 'solid' : 'outline'} colorScheme="orange" borderRadius="xl" aria-label="Filters" />
-          <IconButton icon={<Locate size={18} />} onClick={handleLocateMe}
-            variant="outline" borderRadius="xl" aria-label="Locate Me" colorScheme="orange" />
-          <IconButton icon={<RefreshCw size={18} />}
+          <IconButton 
+            icon={<Filter size={18} />} 
+            onClick={() => setShowFilters(!showFilters)}
+            variant={showFilters ? 'solid' : 'outline'} 
+            colorScheme="orange" 
+            borderRadius="xl" 
+            aria-label="Filters" 
+          />
+          <IconButton 
+            icon={<Locate size={18} />} 
+            onClick={handleLocateMe}
+            variant="outline" 
+            borderRadius="xl" 
+            aria-label="Locate Me" 
+            colorScheme="orange" 
+          />
+          <IconButton 
+            icon={<RefreshCw size={18} />}
             onClick={() => userCoords && fetchRestaurants(userCoords.latitude, userCoords.longitude)}
-            variant="outline" borderRadius="xl" aria-label="Refresh" />
+            variant="outline" 
+            borderRadius="xl" 
+            aria-label="Refresh" 
+          />
           <IconButton
-            icon={<Maximize2 size={18} />} onClick={() => {
-              if (!document.fullscreenElement) mapContainerRef.current?.requestFullscreen();
-              else document.exitFullscreen();
+            icon={<Maximize2 size={18} />} 
+            onClick={() => {
+              if (!document.fullscreenElement) {
+                mapContainerRef.current?.requestFullscreen();
+              } else {
+                document.exitFullscreen();
+              }
             }}
-            variant="outline" borderRadius="xl" aria-label="Fullscreen" />
+            variant="outline" 
+            borderRadius="xl" 
+            aria-label="Fullscreen" 
+          />
         </HStack>
       </Flex>
 
       {/* Advanced Filters */}
       <AnimatePresence>
         {showFilters && (
-          <MotionBox initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }} overflow="hidden" mb={4}>
+          <MotionBox 
+            initial={{ opacity: 0, height: 0 }} 
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }} 
+            overflow="hidden" 
+            mb={4}
+          >
             <Box p={4} bg="white" borderRadius="2xl" boxShadow="sm">
               <VStack spacing={4} align="stretch">
                 <Flex justify="space-between" align="center">
                   <Heading size="sm">Filter Options</Heading>
-                  <Button size="sm" variant="ghost" colorScheme="orange"
-                    onClick={() => setFilters({ minRating: 0, maxPrice: 1000, vegOnly: false, openNow: true, cuisine: '' })}>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    colorScheme="orange"
+                    onClick={() => setFilters({ 
+                      minRating: 0, 
+                      maxPrice: 1000, 
+                      vegOnly: false, 
+                      openNow: true, 
+                      cuisine: '' 
+                    })}
+                  >
                     Reset All
                   </Button>
                 </Flex>
                 <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                   <FormControl>
                     <FormLabel fontSize="sm">Radius: {searchRadius}km</FormLabel>
-                    <Slider min={1} max={15} step={0.5} value={searchRadius} onChange={setSearchRadius} colorScheme="orange">
-                      <SliderTrack><SliderFilledTrack /></SliderTrack>
+                    <Slider 
+                      min={1} 
+                      max={15} 
+                      step={0.5} 
+                      value={searchRadius} 
+                      onChange={setSearchRadius} 
+                      colorScheme="orange"
+                    >
+                      <SliderTrack>
+                        <SliderFilledTrack />
+                      </SliderTrack>
                       <SliderThumb />
                     </Slider>
                   </FormControl>
                   <FormControl>
                     <FormLabel fontSize="sm">Max Price: ₹{filters.maxPrice}</FormLabel>
-                    <Slider min={100} max={2000} step={50} value={filters.maxPrice}
-                      onChange={(val) => setFilters({ ...filters, maxPrice: val })} colorScheme="orange">
-                      <SliderTrack><SliderFilledTrack /></SliderTrack>
+                    <Slider 
+                      min={100} 
+                      max={2000} 
+                      step={50} 
+                      value={filters.maxPrice}
+                      onChange={(val) => setFilters({ ...filters, maxPrice: val })} 
+                      colorScheme="orange"
+                    >
+                      <SliderTrack>
+                        <SliderFilledTrack />
+                      </SliderTrack>
                       <SliderThumb />
                     </Slider>
                   </FormControl>
                 </Grid>
                 <HStack spacing={8}>
                   <FormControl display="flex" alignItems="center" w="auto">
-                    <Switch id="veg" isChecked={filters.vegOnly} onChange={e => setFilters({ ...filters, vegOnly: e.target.checked })} colorScheme="green" mr={2} />
+                    <Switch 
+                      id="veg" 
+                      isChecked={filters.vegOnly} 
+                      onChange={e => setFilters({ ...filters, vegOnly: e.target.checked })} 
+                      colorScheme="green" 
+                      mr={2} 
+                    />
                     <FormLabel htmlFor="veg" mb={0} fontSize="sm">Pure Veg Only</FormLabel>
                   </FormControl>
                   <FormControl display="flex" alignItems="center" w="auto">
-                    <Switch id="open" isChecked={filters.openNow} onChange={e => setFilters({ ...filters, openNow: e.target.checked })} colorScheme="green" mr={2} />
+                    <Switch 
+                      id="open" 
+                      isChecked={filters.openNow} 
+                      onChange={e => setFilters({ ...filters, openNow: e.target.checked })} 
+                      colorScheme="green" 
+                      mr={2} 
+                    />
                     <FormLabel htmlFor="open" mb={0} fontSize="sm">Open Now</FormLabel>
                   </FormControl>
                 </HStack>
@@ -510,46 +1034,100 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
       </AnimatePresence>
 
       {/* Map */}
-      <Box ref={mapContainerRef} h={{ base: '380px', md: '480px' }} w="100%"
-        borderRadius="2xl" overflow="hidden" boxShadow="xl" borderWidth={1}
-        borderColor="gray.200" bg="gray.100" mb={6} />
+      <Box 
+        ref={mapContainerRef} 
+        h={{ base: '380px', md: '480px' }} 
+        w="100%"
+        borderRadius="2xl" 
+        overflow="hidden" 
+        boxShadow="xl" 
+        borderWidth={1}
+        borderColor="gray.200" 
+        bg="gray.100" 
+        mb={6} 
+      />
 
       {/* Restaurant Grid */}
       {nearbyRestaurants.length > 0 && (
         <Box>
           <Flex justify="space-between" align="center" mb={4}>
             <Heading size="md">
-              Restaurants Near {userAddress?.city || 'You'}
+              Restaurants Near {userAddress?.city || selectedCity.name}
             </Heading>
             <Text fontSize="sm" color="gray.500">{nearbyRestaurants.length} found</Text>
           </Flex>
           <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }} gap={4}>
             {nearbyRestaurants.map((r) => (
-              <Card key={r._id} borderRadius="xl" overflow="hidden" cursor="pointer"
+              <Card 
+                key={r._id} 
+                borderRadius="xl" 
+                overflow="hidden" 
+                cursor="pointer"
                 _hover={{ transform: 'translateY(-4px)', boxShadow: 'xl' }}
-                transition="all 0.2s" onClick={() => { setSelectedRestaurant(r); onOpen(); }}>
+                transition="all 0.2s" 
+                onClick={() => { 
+                  setSelectedRestaurant(r); 
+                  onOpen(); 
+                }}
+              >
                 <Box position="relative" h="140px">
-                  <Image src={r.image} alt={r.name} w="100%" h="100%" objectFit="cover"
-                    fallbackSrc="https://via.placeholder.com/400x140?text=Restaurant" />
-                  <Badge position="absolute" top={2} left={2} bg="whiteAlpha.900"
-                    backdropFilter="blur(4px)" borderRadius="full" px={2} py={1}
-                    display="flex" alignItems="center" gap={1}>
+                  <Image 
+                    src={r.image} 
+                    alt={r.name} 
+                    w="100%" 
+                    h="100%" 
+                    objectFit="cover"
+                    fallbackSrc="https://via.placeholder.com/400x140?text=Restaurant" 
+                  />
+                  <Badge 
+                    position="absolute" 
+                    top={2} 
+                    left={2} 
+                    bg="whiteAlpha.900"
+                    backdropFilter="blur(4px)" 
+                    borderRadius="full" 
+                    px={2} 
+                    py={1}
+                    display="flex" 
+                    alignItems="center" 
+                    gap={1}
+                  >
                     <Star size={12} color="#f59e0b" fill="#f59e0b" />
                     <Text fontSize="xs" fontWeight="bold">{r.rating}</Text>
                   </Badge>
                   {r.isVeg && (
-                    <Badge position="absolute" top={2} right={2} bg="green.500" color="white" fontSize="xs" px={2} borderRadius="full">
+                    <Badge 
+                      position="absolute" 
+                      top={2} 
+                      right={2} 
+                      bg="green.500" 
+                      color="white" 
+                      fontSize="xs" 
+                      px={2} 
+                      borderRadius="full"
+                    >
                       🌱 Pure Veg
                     </Badge>
                   )}
                 </Box>
                 <CardBody p={3}>
                   <Heading size="sm" mb={1} noOfLines={1}>{r.name}</Heading>
-                  <Text fontSize="xs" color="gray.500" mb={2} noOfLines={1}>{r.cuisine?.join(' • ')}</Text>
+                  <Text fontSize="xs" color="gray.500" mb={2} noOfLines={1}>
+                    {r.cuisine?.join(' • ')}
+                  </Text>
                   <HStack spacing={3} fontSize="xs" color="gray.600">
-                    <HStack spacing={1}><Clock size={12} /><Text>{r.deliveryTime} min</Text></HStack>
-                    <HStack spacing={1}><IndianRupee size={12} /><Text>₹{r.avgPrice}</Text></HStack>
-                    <HStack spacing={1}><Navigation size={12} /><Text>{r.distance} km</Text></HStack>
+                    <HStack spacing={1}>
+                      <Clock size={12} />
+                      <Text>{r.deliveryTime} min</Text>
+                    </HStack>
+                    <HStack spacing={1}>
+                      <IndianRupee size={12} />
+                      <Text>₹{r.avgPrice}</Text>
+                    </HStack>
+                    <HStack spacing={1}>
+                      <Navigation size={12} />
+                      <Text>{r.distance} km</Text>
+                    </HStack>
                   </HStack>
                 </CardBody>
               </Card>
@@ -569,6 +1147,7 @@ const MapWithNearbyRestaurants = ({ apiKey }) => {
       )}
 
       <RestaurantModal />
+      <CitySelectorModal />
     </Container>
   );
 };
