@@ -25,6 +25,14 @@ const userSchema = new mongoose.Schema({
     required: true
   },
 
+  // Optional PIN for fast approvals (e.g., manager PIN fallback).
+  // Store only the hash.
+  pinHash: {
+    type: String,
+    default: null,
+    select: false
+  },
+
   role: {
     type: String,
     enum: ['manager', 'waiter', 'kitchen', 'customer', 'vendor'],
@@ -73,6 +81,11 @@ userSchema.pre('save', async function (next) {
 // Password comparison
 userSchema.methods.comparePassword = async function (inputPassword) {
   return bcrypt.compare(inputPassword, this.password);
+};
+
+userSchema.methods.comparePin = async function (inputPin) {
+  if (!this.pinHash) return false;
+  return bcrypt.compare(String(inputPin), this.pinHash);
 };
 
 export default mongoose.model('User', userSchema);

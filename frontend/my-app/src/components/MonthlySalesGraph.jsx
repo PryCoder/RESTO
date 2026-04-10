@@ -1,8 +1,31 @@
-import { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Area, AreaChart } from 'recharts';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Box,
+  Card,
+  CardBody,
+  CardHeader,
+  Divider,
+  Heading,
+  SimpleGrid,
+  Stat,
+  StatLabel,
+  StatNumber,
+  Text,
+  useToken,
+} from '@chakra-ui/react';
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 export default function MonthlySalesGraph({ orders = [] }) {
   const [monthlyData, setMonthlyData] = useState([]);
+  const [blue500, blue600, blue50, gray600, gray200, gray900, white] = useToken('colors', [
+    'blue.500',
+    'blue.600',
+    'blue.50',
+    'gray.600',
+    'gray.200',
+    'gray.900',
+    'white',
+  ]);
 
   useEffect(() => {
     // Generate monthly sales data for the last 6 months
@@ -36,125 +59,116 @@ export default function MonthlySalesGraph({ orders = [] }) {
     generateMonthlyData();
   }, [orders]);
 
-  const totalSales = monthlyData.reduce((sum, item) => sum + item.sales, 0);
-  const avgSales = totalSales / monthlyData.length;
+  const totalSales = useMemo(() => monthlyData.reduce((sum, item) => sum + (item.sales || 0), 0), [monthlyData]);
+  const avgSales = monthlyData.length > 0 ? totalSales / monthlyData.length : 0;
+  const latestMonth = monthlyData.at(-1);
+  const previousMonth = monthlyData.length >= 2 ? monthlyData.at(-2) : null;
+
+  const insight = useMemo(() => {
+    if (!latestMonth || !previousMonth) return 'Track sales across months to spot trends early.';
+    if ((latestMonth.sales || 0) > (previousMonth.sales || 0)) return 'Sales are trending upward this month.';
+    if ((latestMonth.sales || 0) < (previousMonth.sales || 0)) return 'Sales dipped compared to last month — consider promotions.';
+    return 'Sales are steady month-over-month.';
+  }, [latestMonth, previousMonth]);
 
   return (
-    <div style={{ padding: '0' }}>
-      {/* Summary Stats */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        marginBottom: '16px',
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%)',
-        borderRadius: 12,
-        padding: 12
-      }}>
-        <div style={{ textAlign: 'center', flex: 1 }}>
-          <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#6366f1' }}>
-            ₹{totalSales.toLocaleString()}
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-            Total Sales
-          </div>
-        </div>
-        
-        <div style={{ textAlign: 'center', flex: 1 }}>
-          <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#fbbf24' }}>
-            ₹{avgSales.toLocaleString()}
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-            Avg/Month
-          </div>
-        </div>
-        
-        <div style={{ textAlign: 'center', flex: 1 }}>
-          <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#22c55e' }}>
-            {monthlyData.length}
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-            Months
-          </div>
-        </div>
-      </div>
+    <Card variant="outline" borderColor="blue.100" bg="white">
+      <CardHeader pb={3}>
+        <Heading size="sm" color="blue.700">
+          Monthly Sales
+        </Heading>
+        <Text fontSize="sm" color="gray.600">
+          Last 6 months performance
+        </Text>
+      </CardHeader>
+      <CardBody pt={0}>
+        <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={3} mb={4}>
+          <Stat bg="blue.50" borderRadius="lg" px={4} py={3} borderWidth="1px" borderColor="blue.100">
+            <StatLabel color="gray.600" fontSize="xs" fontWeight="semibold">
+              Total Sales
+            </StatLabel>
+            <StatNumber fontSize={{ base: 'lg', md: 'xl' }} color="blue.700">
+              ₹{Math.round(totalSales).toLocaleString('en-IN')}
+            </StatNumber>
+          </Stat>
 
-      {/* Monthly Sales Chart */}
-      <div style={{ 
-        background: 'linear-gradient(135deg, #6366f1 0%, #fbbf24 100%)', 
-        borderRadius: 12, 
-        padding: 16, 
-        boxShadow: '0 4px 16px rgba(99, 102, 241, 0.2)',
-        marginBottom: '12px'
-      }}>
-        <div style={{ fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 8, textAlign: 'center' }}>
-          Monthly Sales Trend
-        </div>
-        <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={monthlyData}>
-            <defs>
-              <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#fff" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#fff" stopOpacity={0.1}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.3)" />
-            <XAxis 
-              dataKey="month" 
-              tick={{ fill: '#fff', fontWeight: 600, fontSize: 12 }} 
-              axisLine={false} 
-              tickLine={false} 
-            />
-            <YAxis 
-              tick={{ fill: '#fff', fontWeight: 600, fontSize: 11 }} 
-              axisLine={false} 
-              tickLine={false} 
-              tickFormatter={v => `₹${(v/1000).toFixed(0)}k`}
-            />
-            <Tooltip 
-              formatter={v => `₹${v.toLocaleString()}`} 
-              contentStyle={{ 
-                background: '#fff', 
-                borderRadius: 8, 
-                color: '#232946', 
-                fontWeight: 600,
-                border: 'none',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-              }} 
-            />
-            <Area 
-              type="monotone" 
-              dataKey="sales" 
-              stroke="#fff" 
-              strokeWidth={3}
-              fill="url(#salesGradient)"
-              dot={{ fill: '#fff', strokeWidth: 2, r: 4 }}
-              activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+          <Stat bg="white" borderRadius="lg" px={4} py={3} borderWidth="1px" borderColor="blue.100">
+            <StatLabel color="gray.600" fontSize="xs" fontWeight="semibold">
+              Average / Month
+            </StatLabel>
+            <StatNumber fontSize={{ base: 'lg', md: 'xl' }} color="gray.900">
+              ₹{Math.round(avgSales).toLocaleString('en-IN')}
+            </StatNumber>
+          </Stat>
 
-      {/* Quick Insights */}
-      <div style={{ 
-        background: 'rgba(255,255,255,0.8)', 
-        borderRadius: 10, 
-        padding: 12,
-        border: '1px solid rgba(224,231,255,0.6)'
-      }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#6366f1', marginBottom: 6 }}>
-          📈 Quick Insights
-        </div>
-        <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.4 }}>
-          {monthlyData.length > 0 && (
-            <>
-              {monthlyData[monthlyData.length - 1].sales > monthlyData[monthlyData.length - 2].sales ? 
-                'Sales are trending upward this month' : 
-                'Consider promotional strategies to boost sales'
-              }
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+          <Stat bg="white" borderRadius="lg" px={4} py={3} borderWidth="1px" borderColor="blue.100">
+            <StatLabel color="gray.600" fontSize="xs" fontWeight="semibold">
+              Months Tracked
+            </StatLabel>
+            <StatNumber fontSize={{ base: 'lg', md: 'xl' }} color="gray.900">
+              {monthlyData.length}
+            </StatNumber>
+          </Stat>
+        </SimpleGrid>
+
+        <Box borderWidth="1px" borderColor="blue.100" borderRadius="lg" overflow="hidden">
+          <Box px={4} py={3} bg="blue.50">
+            <Text fontSize="sm" fontWeight="semibold" color="blue.700">
+              Sales trend
+            </Text>
+          </Box>
+          <Box px={2} py={2} bg="white">
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={monthlyData} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={blue600} stopOpacity={0.35} />
+                    <stop offset="95%" stopColor={blue50} stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gray200} />
+                <XAxis dataKey="month" tick={{ fill: gray600, fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis
+                  tick={{ fill: gray600, fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                />
+                <Tooltip
+                  formatter={(v) => `₹${Number(v || 0).toLocaleString('en-IN')}`}
+                  contentStyle={{
+                    background: white,
+                    borderRadius: 10,
+                    border: `1px solid ${gray200}`,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.10)',
+                    fontWeight: 600,
+                    color: gray900,
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="sales"
+                  stroke={blue500}
+                  strokeWidth={3}
+                  fill="url(#salesGradient)"
+                  dot={{ fill: blue500, strokeWidth: 0, r: 3 }}
+                  activeDot={{ r: 5, stroke: blue500, strokeWidth: 2, fill: white }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Box>
+        </Box>
+
+        <Divider my={4} />
+        <Box>
+          <Text fontSize="xs" color="gray.600" fontWeight="semibold" mb={1}>
+            Insight
+          </Text>
+          <Text fontSize="sm" color="gray.900">
+            {insight}
+          </Text>
+        </Box>
+      </CardBody>
+    </Card>
   );
 } 

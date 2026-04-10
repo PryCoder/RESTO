@@ -6,9 +6,13 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 
-// === FILL IN YOUR NUMBER AND API KEY ===
-const OWNER_JID = '919324148255@s.whatsapp.net'; // <-- Replace with your WhatsApp JID
-const API_KEY = 'Priyanshu05134'; // <-- This must match your frontend
+console.warn('[DEPRECATED] backend/whatsappApi.js is a legacy standalone server.');
+console.warn('[DEPRECATED] Use backend/index.js + /api/whatsapp/* (Manager Dashboard → WhatsApp) instead.');
+
+// === CONFIG (do not hardcode secrets) ===
+const OWNER_JID = process.env.WHATSAPP_OWNER_JID || ''; // e.g. 919xxxxxxxxx@s.whatsapp.net
+const API_KEY = process.env.WHATSAPP_API_KEY || ''; // shared secret between frontend and this service
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 
 const app = express();
 app.use(express.json());
@@ -17,7 +21,7 @@ app.use(cors());
 // Simple API key middleware
 app.use((req, res, next) => {
   console.log('API KEY RECEIVED:', req.headers['x-api-key']);
-  if (req.headers['x-api-key'] !== API_KEY) {
+  if (!API_KEY || req.headers['x-api-key'] !== API_KEY) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
@@ -47,10 +51,10 @@ async function fetchJwtForBotJid(botJid) {
   // Extract only the phone number, remove any device suffix
   const phone = botJid.split('@')[0].split(':')[0];
   try {
-    const res = await axios.post('http://localhost:5000/api/auth/whatsapp-login', { phone });
+    const res = await axios.post(`${BACKEND_URL}/api/auth/whatsapp-login`, { phone });
     // Fetch user info for logging
     const token = res.data.token;
-    const userRes = await axios.get('http://localhost:5000/api/auth/me', {
+    const userRes = await axios.get(`${BACKEND_URL}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     console.log('Fetched user for WhatsApp bot:', userRes.data);

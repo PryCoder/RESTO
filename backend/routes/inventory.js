@@ -5,11 +5,15 @@ import Supplier from '../models/Supplier.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 
 import sendPOEmail from '../services/sendPOEmail.js';
+import { redisAutoInvalidate, redisCache } from '../middleware/redisCache.js';
 
 const router = express.Router();
 
+// Auto-invalidate relevant cached GETs on POST/PUT/DELETE
+router.use(redisAutoInvalidate());
+
 // GET /api/inventory/forecast
-router.get('/forecast', async (req, res) => {
+router.get('/forecast', redisCache({ ttlSeconds: 60, scope: 'public' }), async (req, res) => {
   try {
     const items = await Inventory.find();
     const forecasts = {};
@@ -73,7 +77,7 @@ router.post('/send-po/:poId', async (req, res) => {
 });
 
 // GET /api/inventory/alerts
-router.get('/alerts', async (req, res) => {
+router.get('/alerts', redisCache({ ttlSeconds: 60, scope: 'public' }), async (req, res) => {
   try {
     // Expiry alerts: items not updated in 30+ days
     const now = new Date();

@@ -41,6 +41,21 @@ const orderSchema = new mongoose.Schema({
     }
   ],
 
+  // Inventory deduction ledger for this order
+  inventoryDeductions: [
+    {
+      item: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory', required: true },
+      quantity: { type: Number, required: true },
+      unit: {
+        type: String,
+        enum: ['kg', 'liters', 'pieces', 'gms', 'ml', 'packs'],
+        required: true,
+      },
+    },
+  ],
+  inventoryDeductedAt: { type: Date, default: null },
+  inventoryRestoredAt: { type: Date, default: null },
+
   status: {
     type: String,
     enum: ['pending', 'preparing', 'served', 'paid', 'cancelled'],

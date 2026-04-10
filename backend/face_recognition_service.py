@@ -187,7 +187,7 @@ def main():
     """Main function to handle command line arguments"""
     import argparse
     parser = argparse.ArgumentParser(description="Face Recognition Service")
-    parser.add_argument('command', choices=['register', 'recognize', 'delete', 'list'])
+    parser.add_argument('command', choices=['register', 'recognize', 'delete', 'list', 'embed'])
     parser.add_argument('arg1', nargs='?')
     parser.add_argument('arg2', nargs='?')
     parser.add_argument('--stdin', action='store_true', help='Read input from stdin as JSON')
@@ -208,6 +208,32 @@ def main():
                 base64_image = input_data.get('image')
                 result = service.recognize_face(base64_image)
                 print(json.dumps(result))
+            elif args.command == 'embed':
+                base64_image = input_data.get('image')
+                image = service.base64_to_image(base64_image)
+                if image is None:
+                    print(json.dumps({"success": False, "error": "Invalid image data"}))
+                    sys.exit(0)
+                try:
+                    img_array = np.array(image)
+                    if len(img_array.shape) == 3:
+                        img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+
+                    reps = DeepFace.represent(
+                        img_path=img_array,
+                        model_name="VGG-Face",
+                        enforce_detection=False,
+                    )
+                    if not reps:
+                        print(json.dumps({"success": False, "error": "No face embedding produced"}))
+                        sys.exit(0)
+                    embedding = reps[0].get('embedding')
+                    if embedding is None:
+                        print(json.dumps({"success": False, "error": "No embedding in result"}))
+                        sys.exit(0)
+                    print(json.dumps({"success": True, "model": "VGG-Face", "embedding": embedding}))
+                except Exception as e:
+                    print(json.dumps({"success": False, "error": f"Embedding failed: {str(e)}"}))
             else:
                 print(json.dumps({"error": f"Command '{args.command}' does not support --stdin"}))
                 sys.exit(1)
@@ -237,6 +263,34 @@ def main():
             elif args.command == "list":
                 result = service.list_registered_faces()
                 print(json.dumps(result))
+            elif args.command == "embed":
+                if not args.arg1:
+                    print(json.dumps({"error": "Usage: python face_recognition_service.py embed <base64_image>"}))
+                    sys.exit(1)
+                base64_image = args.arg1
+                image = service.base64_to_image(base64_image)
+                if image is None:
+                    print(json.dumps({"success": False, "error": "Invalid image data"}))
+                    sys.exit(0)
+                try:
+                    img_array = np.array(image)
+                    if len(img_array.shape) == 3:
+                        img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+                    reps = DeepFace.represent(
+                        img_path=img_array,
+                        model_name="VGG-Face",
+                        enforce_detection=False,
+                    )
+                    if not reps:
+                        print(json.dumps({"success": False, "error": "No face embedding produced"}))
+                        sys.exit(0)
+                    embedding = reps[0].get('embedding')
+                    if embedding is None:
+                        print(json.dumps({"success": False, "error": "No embedding in result"}))
+                        sys.exit(0)
+                    print(json.dumps({"success": True, "model": "VGG-Face", "embedding": embedding}))
+                except Exception as e:
+                    print(json.dumps({"success": False, "error": f"Embedding failed: {str(e)}"}))
             else:
                 print(json.dumps({"error": f"Unknown command: {args.command}"}))
                 sys.exit(1)

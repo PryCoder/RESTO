@@ -273,7 +273,24 @@ Format:
 `;
 
     const result = await aiService.generateJSON(prompt);
-    return res.json(Array.isArray(result) ? result : []);
+    const coerceToArray = (value) => {
+      if (Array.isArray(value)) return value;
+      if (Array.isArray(value?.suggestions)) return value.suggestions;
+      if (Array.isArray(value?.recipes)) return value.recipes;
+      if (Array.isArray(value?.items)) return value.items;
+      if (Array.isArray(value?.data)) return value.data;
+      return [];
+    };
+
+    const list = coerceToArray(result);
+    if (!Array.isArray(result) && list.length === 0) {
+      console.log('smartLeftoverReuse: AI returned non-array JSON; no usable suggestions', {
+        type: typeof result,
+        keys: result && typeof result === 'object' ? Object.keys(result).slice(0, 20) : null,
+      });
+    }
+
+    return res.json(list);
   } catch (err) {
     console.error("Smart Leftover Reuse Error:", err.message);
     return res.status(500).json([ 

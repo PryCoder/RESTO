@@ -4,7 +4,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon index.js"
+    "dev": "nodemon --ext js,mjs,cjs --ignore whatsapp_auth/** --ignore auth_info/** --ignore **/whatsapp_auth/** --ignore **/auth_info/** index.js",
+    "smoke:inventory": "node scripts/smokeInventoryDeduction.js",
+    "smoke:attendance:pin": "node scripts/smokeAttendancePin.js"
   },
   "keywords": [],
   "author": "",
@@ -27,6 +29,7 @@
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.3",
     "openai": "^6.33.0",
+    "redis": "^5.11.0",
     "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",

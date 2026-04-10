@@ -1,6 +1,37 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  Divider,
+  FormControl,
+  FormLabel,
+  Heading,
+  HStack,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalHeader,
+  ModalOverlay,
+  Progress,
+  Select,
+  SimpleGrid,
+  Spacer,
+  Stat,
+  StatHelpText,
+  StatLabel,
+  StatNumber,
+  Switch,
+  Text,
+  VStack,
+  useToken,
+} from '@chakra-ui/react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -12,6 +43,15 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
   const [showTipModal, setShowTipModal] = useState(false);
   const [timeRange, setTimeRange] = useState('today');
   const [realTimeData, setRealTimeData] = useState(true);
+  const [blue500, blue200, blue50, gray600, gray200, gray900, white] = useToken('colors', [
+    'blue.500',
+    'blue.200',
+    'blue.50',
+    'gray.600',
+    'gray.200',
+    'gray.900',
+    'white',
+  ]);
 
   // Calculate dynamic sales data from actual orders
   const calculateSalesData = () => {
@@ -318,9 +358,9 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
   };
 
   const getProfitColor = (percentage) => {
-    if (percentage >= 35) return '#22c55e';
-    if (percentage >= 20) return '#fbbf24';
-    return '#ef4444';
+    if (percentage >= 35) return 'green.500';
+    if (percentage >= 20) return 'orange.400';
+    return 'red.500';
   };
 
   const formatCurrency = (amount) => {
@@ -332,385 +372,246 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
 
   if (error && !analysis) {
     return (
-      <div style={{ 
-        padding: '16px', 
-        backgroundColor: '#fef3c7', 
-        border: '1px solid #fbbf24',
-        borderRadius: '12px',
-        textAlign: 'center'
-      }}>
-        <div style={{ fontSize: '24px', marginBottom: '8px' }}>⚠️</div>
-        <p style={{ margin: '0 0 12px 0', color: '#92400e', fontSize: '14px' }}>{error}</p>
-        <button 
-          onClick={fetchProfitAnalysis}
-          style={{ 
-            padding: '6px 12px', 
-            backgroundColor: '#6366f1', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '12px',
-            fontWeight: 600
-          }}
-        >
-          Retry Analysis
-        </button>
-      </div>
+      <Card variant="outline" borderColor="blue.100" bg="white">
+        <CardBody>
+          <VStack spacing={3} align="stretch">
+            <Heading size="sm" color="blue.700">
+              Profit Advisor
+            </Heading>
+            <Text fontSize="sm" color="gray.600">
+              {error}
+            </Text>
+            <Button colorScheme="blue" size="sm" onClick={fetchProfitAnalysis} alignSelf="flex-start">
+              Retry analysis
+            </Button>
+          </VStack>
+        </CardBody>
+      </Card>
     );
   }
 
   return (
-    <div style={{ padding: '0' }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '16px',
-        flexWrap: 'wrap',
-        gap: '8px'
-      }}>
-        <div style={{ fontWeight: 700, fontSize: 18, color: '#1e293b' }}>
-          Profit Advisor
-        </div>
-        
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <select 
+    <Box>
+      <HStack spacing={3} mb={4} flexWrap="wrap">
+        <Box>
+          <Heading size="sm" color="blue.700">
+            Profit Advisor
+          </Heading>
+          <Text fontSize="sm" color="gray.600">
+            Sales + margin overview
+          </Text>
+        </Box>
+        <Spacer />
+
+        <HStack spacing={3} flexWrap="wrap">
+          <FormControl display="flex" alignItems="center" width="auto">
+            <FormLabel htmlFor="profit-live" mb="0" fontSize="sm" color="gray.600" fontWeight="semibold">
+              Live
+            </FormLabel>
+            <Switch
+              id="profit-live"
+              colorScheme="blue"
+              isChecked={realTimeData}
+              onChange={() => setRealTimeData(!realTimeData)}
+            />
+          </FormControl>
+
+          <Select
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value)}
-            style={{
-              padding: '4px 8px',
-              border: '1px solid #e2e8f0',
-              borderRadius: '6px',
-              fontSize: '12px',
-              backgroundColor: 'white'
-            }}
+            size="sm"
+            bg="white"
+            borderColor="blue.100"
+            width={{ base: 'full', sm: '220px' }}
           >
             <option value="today">Today</option>
             <option value="week">This Week</option>
             <option value="month">Last 30 Days</option>
-          </select>
+          </Select>
+        </HStack>
+      </HStack>
 
-          <button
-            onClick={() => setRealTimeData(!realTimeData)}
-            style={{
-              padding: '4px 8px',
-              backgroundColor: realTimeData ? '#22c55e' : '#e2e8f0',
-              color: realTimeData ? 'white' : '#64748b',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '12px',
-              cursor: 'pointer'
-            }}
-          >
-            {realTimeData ? '🟢 Live' : '⚪ Paused'}
-          </button>
-        </div>
-      </div>
-
-      <div style={{ 
-        marginBottom: '20px', 
-        background: 'linear-gradient(135deg, #6366f1 0%, #fbbf24 100%)', 
-        borderRadius: 12, 
-        padding: 16, 
-        boxShadow: '0 4px 16px rgba(99, 102, 241, 0.2)',
-        position: 'relative'
-      }}>
-        {error && (
-          <div style={{
-            position: 'absolute',
-            top: 8,
-            right: 8,
-            background: 'rgba(255,255,255,0.9)',
-            padding: '4px 8px',
-            borderRadius: '12px',
-            fontSize: '10px',
-            fontWeight: 'bold',
-            color: '#dc2626'
-          }}>
-            Calculated Data
-          </div>
-        )}
-        
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: 8 
-        }}>
-          <div style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>
-            Sales Performance
-          </div>
+      <Card variant="outline" borderColor="blue.100" bg="white" mb={4} overflow="hidden">
+        <CardHeader pb={3} bg="blue.50">
+          <HStack align="start" spacing={3}>
+            <Box>
+              <Heading size="sm" color="blue.700">
+                Sales Performance
+              </Heading>
+              <Text fontSize="sm" color="gray.600">
+                {timeRange === 'today' ? 'Today vs yesterday' : timeRange === 'week' ? 'Last 7 days' : 'Last 30 days'}
+              </Text>
+            </Box>
+            <Spacer />
+            {error ? (
+              <Badge colorScheme="orange" variant="subtle">
+                Calculated data
+              </Badge>
+            ) : null}
+          </HStack>
           {salesData.comparison !== 0 && (
-            <div style={{ 
-              fontSize: '12px', 
-              color: '#fff', 
-              fontWeight: 600,
-              background: 'rgba(255,255,255,0.2)',
-              padding: '2px 8px',
-              borderRadius: '12px'
-            }}>
-              {salesData.comparison > 0 ? '↗' : '↘'} {Math.abs(salesData.comparison)}%
-            </div>
+            <Stat mt={3}>
+              <StatHelpText mb={0} color="gray.600" fontWeight="semibold">
+                {salesData.comparison > 0 ? 'Up' : 'Down'} {Math.abs(salesData.comparison)}% from yesterday
+              </StatHelpText>
+            </Stat>
           )}
-        </div>
+        </CardHeader>
 
-        <ResponsiveContainer width="100%" height={140}>
-          <BarChart data={chartData} barSize={timeRange === 'today' ? 40 : 24}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.3)" />
-            <XAxis 
-              dataKey="name" 
-              tick={{ fill: '#fff', fontWeight: 600, fontSize: 11 }} 
-              axisLine={false} 
-              tickLine={false} 
-            />
-            <YAxis 
-              tick={{ fill: '#fff', fontWeight: 600, fontSize: 10 }} 
-              axisLine={false} 
-              tickLine={false} 
-              tickFormatter={v => `₹${(v/1000).toFixed(0)}k`}
-            />
-            <Tooltip 
-              formatter={(value) => [`₹${value.toLocaleString('en-IN')}`, 'Sales']}
-              contentStyle={{ 
-                background: '#fff', 
-                borderRadius: 8, 
-                color: '#232946', 
-                fontWeight: 600,
-                border: 'none',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-              }} 
-            />
-            <Bar dataKey="Sales" radius={[4,4,0,0]} fill="#fff" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+        <CardBody pt={3}>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData} barSize={timeRange === 'today' ? 44 : 26}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gray200} />
+              <XAxis dataKey="name" tick={{ fill: gray600, fontWeight: 600, fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis
+                tick={{ fill: gray600, fontWeight: 600, fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+              />
+              <Tooltip
+                formatter={(value) => [`₹${Number(value || 0).toLocaleString('en-IN')}`, 'Sales']}
+                contentStyle={{
+                  background: white,
+                  borderRadius: 10,
+                  border: `1px solid ${gray200}`,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.10)',
+                  fontWeight: 600,
+                  color: gray900,
+                }}
+              />
+              <Bar dataKey="Sales" radius={[6, 6, 0, 0]} fill={blue500} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardBody>
+      </Card>
 
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(2, 1fr)', 
-        gap: '12px', 
-        marginBottom: '16px'
-      }}>
-        <div style={{ 
-          background: '#f8fafc', 
-          padding: '12px', 
-          borderRadius: '8px',
-          border: '1px solid #e2e8f0'
-        }}>
-          <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '4px' }}>
-            Today's Sales
-          </div>
-          <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#6366f1' }}>
-            {formatCurrency(salesData.today)}
-          </div>
-        </div>
-        
-        <div style={{ 
-          background: '#f8fafc', 
-          padding: '12px', 
-          borderRadius: '8px',
-          border: '1px solid #e2e8f0'
-        }}>
-          <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '4px' }}>
-            Daily Average
-          </div>
-          <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#f59e0b' }}>
-            {formatCurrency(salesData.lastWeekAvg)}
-          </div>
-        </div>
-      </div>
+      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={4}>
+        <Card variant="outline" borderColor="blue.100" bg="white">
+          <CardBody>
+            <Stat>
+              <StatLabel color="gray.600" fontSize="sm" fontWeight="semibold">
+                Today’s Sales
+              </StatLabel>
+              <StatNumber color="blue.700" fontSize={{ base: 'xl', md: '2xl' }}>
+                {formatCurrency(salesData.today)}
+              </StatNumber>
+              <StatHelpText color="gray.600" mb={0}>
+                Orders since midnight
+              </StatHelpText>
+            </Stat>
+          </CardBody>
+        </Card>
 
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '16px',
-        gap: '8px'
-      }}>
-        <div style={{ textAlign: 'center', flex: 1 }}>
-          <div style={{ 
-            fontSize: '20px', 
-            fontWeight: 'bold', 
-            color: getProfitColor(calculateProfitPercentage()),
-            minHeight: '28px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            {loading ? `${progress}%` : (analysis?.profit || '₹0')}
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-            {loading ? 'Analyzing...' : 'Profit'}
-          </div>
-        </div>
-        
-        <div style={{ textAlign: 'center', flex: 1 }}>
-          <div style={{ 
-            fontSize: '18px', 
-            fontWeight: 'bold', 
-            color: '#6366f1',
-            minHeight: '28px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            {analysis?.totalSales || '₹0'}
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-            Total Sales
-          </div>
-        </div>
-        
-        <div style={{ textAlign: 'center', flex: 1 }}>
-          <div style={{ 
-            fontSize: '18px', 
-            fontWeight: 'bold', 
-            color: getProfitColor(calculateProfitPercentage()),
-            minHeight: '28px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            {calculateProfitPercentage()}%
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-            Margin
-          </div>
-        </div>
-      </div>
+        <Card variant="outline" borderColor="blue.100" bg="white">
+          <CardBody>
+            <Stat>
+              <StatLabel color="gray.600" fontSize="sm" fontWeight="semibold">
+                Daily Average (7 days)
+              </StatLabel>
+              <StatNumber color="gray.900" fontSize={{ base: 'xl', md: '2xl' }}>
+                {formatCurrency(salesData.lastWeekAvg)}
+              </StatNumber>
+              <StatHelpText color="gray.600" mb={0}>
+                Rolling baseline
+              </StatHelpText>
+            </Stat>
+          </CardBody>
+        </Card>
+      </SimpleGrid>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-        {analysis?.tip && !loading && (
-          <button 
-            onClick={() => setShowTipModal(true)}
-            style={{ 
-              flex: 1,
-              padding: '8px 12px', 
-              background: 'linear-gradient(135deg, #6366f1, #fbbf24)',
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 'bold'
-            }}
-          >
-            💡 Smart Tips
-          </button>
-        )}
+      <Card variant="outline" borderColor="blue.100" bg="white" mb={4}>
+        <CardHeader pb={3}>
+          <Heading size="sm" color="blue.700">
+            Profit Snapshot
+          </Heading>
+          <Text fontSize="sm" color="gray.600">
+            Estimated from orders (cost assumed at 60%)
+          </Text>
+        </CardHeader>
+        <CardBody pt={0}>
+          {loading ? (
+            <Box mb={3}>
+              <Progress value={progress} size="sm" colorScheme="blue" borderRadius="md" />
+              <Text mt={2} fontSize="sm" color="gray.600">
+                Analyzing… {progress}%
+              </Text>
+            </Box>
+          ) : null}
 
-        <button 
-          onClick={fetchProfitAnalysis}
-          disabled={loading}
-          style={{ 
-            padding: '8px 12px', 
-            backgroundColor: loading ? '#e2e8f0' : '#6366f1', 
-            color: loading ? '#64748b' : 'white', 
-            border: 'none', 
-            borderRadius: '8px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '12px',
-            fontWeight: 'bold'
-          }}
-        >
-          {loading ? `🔄 ${progress}%` : '🔍 Analyze'}
-        </button>
-      </div>
+          <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={3}>
+            <Stat bg="blue.50" borderWidth="1px" borderColor="blue.100" borderRadius="lg" px={4} py={3}>
+              <StatLabel color="gray.600" fontSize="xs" fontWeight="semibold">
+                Profit
+              </StatLabel>
+              <StatNumber color={getProfitColor(calculateProfitPercentage())} fontSize={{ base: 'xl', md: '2xl' }}>
+                {analysis?.profit || '₹0'}
+              </StatNumber>
+            </Stat>
 
-      {showTipModal && analysis?.tip && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          background: 'rgba(0, 0, 0, 0.5)',
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '20px'
-        }}>
-          <div style={{
-            background: '#fff',
-            borderRadius: 16,
-            padding: '24px',
-            maxWidth: 450,
-            width: '100%',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-            position: 'relative',
-            maxHeight: '80vh',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <button 
-              onClick={() => setShowTipModal(false)}
-              style={{
-                position: 'absolute',
-                top: 12,
-                right: 12,
-                background: 'none',
-                border: 'none',
-                fontSize: 24,
-                cursor: 'pointer',
-                color: '#64748b',
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              ×
-            </button>
-            
-            <div style={{ marginBottom: 16 }}>
-              <h3 style={{ 
-                margin: 0, 
-                color: '#6366f1', 
-                fontSize: 18, 
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                💡 Smart Profit Tips
-              </h3>
-              <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: 12 }}>
-                Based on your current performance
-              </p>
-            </div>
-            
-            <div style={{ 
-              flex: 1,
-              maxHeight: 300, 
-              overflowY: 'auto',
-              paddingRight: '8px'
-            }}>
-              {analysis.tip.split('.').filter(point => point.trim()).map((point, index) => (
-                <div key={index} style={{ 
-                  display: 'flex', 
-                  alignItems: 'flex-start', 
-                  marginBottom: 12,
-                  gap: 8,
-                  padding: '8px',
-                  background: '#f8fafc',
-                  borderRadius: '6px'
-                }}>
-                  <span style={{ color: '#fbbf24', fontSize: 16, fontWeight: 'bold', marginTop: 2, flexShrink: 0 }}>
-                    •
-                  </span>
-                  <p style={{ margin: 0, color: '#232946', fontSize: 13, lineHeight: 1.4, fontWeight: 500 }}>
-                    {point.trim()}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+            <Stat bg="white" borderWidth="1px" borderColor="blue.100" borderRadius="lg" px={4} py={3}>
+              <StatLabel color="gray.600" fontSize="xs" fontWeight="semibold">
+                Total Sales
+              </StatLabel>
+              <StatNumber color="blue.700" fontSize={{ base: 'xl', md: '2xl' }}>
+                {analysis?.totalSales || '₹0'}
+              </StatNumber>
+            </Stat>
+
+            <Stat bg="white" borderWidth="1px" borderColor="blue.100" borderRadius="lg" px={4} py={3}>
+              <StatLabel color="gray.600" fontSize="xs" fontWeight="semibold">
+                Margin
+              </StatLabel>
+              <StatNumber color={getProfitColor(calculateProfitPercentage())} fontSize={{ base: 'xl', md: '2xl' }}>
+                {calculateProfitPercentage()}%
+              </StatNumber>
+            </Stat>
+          </SimpleGrid>
+
+          <Divider my={4} />
+
+          <HStack spacing={3} flexWrap="wrap">
+            {analysis?.tip && !loading ? (
+              <Button colorScheme="blue" variant="outline" size="sm" onClick={() => setShowTipModal(true)}>
+                View smart tips
+              </Button>
+            ) : null}
+            <Button colorScheme="blue" size="sm" onClick={fetchProfitAnalysis} isDisabled={loading}>
+              {loading ? 'Analyzing…' : 'Analyze'}
+            </Button>
+          </HStack>
+        </CardBody>
+      </Card>
+
+      <Modal isOpen={showTipModal && !!analysis?.tip} onClose={() => setShowTipModal(false)} isCentered size={{ base: 'full', sm: 'lg' }}>
+        <ModalOverlay />
+        <ModalContent borderRadius={{ base: 0, sm: 'xl' }}>
+          <ModalHeader>
+            <Heading size="sm" color="blue.700">
+              Smart profit tips
+            </Heading>
+            <Text fontSize="sm" color="gray.600" mt={1}>
+              Based on your current performance
+            </Text>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <VStack align="stretch" spacing={3} maxH={{ base: 'calc(100vh - 200px)', sm: '360px' }} overflowY="auto">
+              {(analysis?.tip || '')
+                .split('.')
+                .map((p) => p.trim())
+                .filter(Boolean)
+                .map((point, index) => (
+                  <Box key={index} borderWidth="1px" borderColor="blue.100" bg="blue.50" borderRadius="lg" px={4} py={3}>
+                    <Text fontSize="sm" color="gray.900" fontWeight="medium" lineHeight="tall">
+                      {point}
+                    </Text>
+                  </Box>
+                ))}
+            </VStack>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+    </Box>
   );
 }

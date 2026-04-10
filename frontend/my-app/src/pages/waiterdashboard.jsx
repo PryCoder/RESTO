@@ -4,1321 +4,1263 @@ import { useNavigate } from 'react-router-dom';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import FaceRegistration from '../components/FaceRegistration';
 import io from 'socket.io-client';
-import { 
-  FaUtensils, 
-  FaMicrophone, 
-  FaSignOutAlt, 
-  FaCamera, 
-  FaClock, 
-  FaCheckCircle, 
-  FaListAlt,
-  FaTable,
-  FaArrowRight,
-  FaPlus,
-  FaStar,
-  FaSpinner,
-  FaExclamationTriangle,
-  FaInbox,
-  FaCheck,
-  FaTag,
-  FaHashtag,
-  FaEdit,
-  FaPaperPlane,
-  FaTimes,
-  FaStop,
-  FaReceipt,
-  FaRedo,
-  FaCrown,
-  FaBolt,
-  FaGem,
-  FaShieldAlt,
-  FaRocket
+import {
+  FaUtensils, FaMicrophone, FaSignOutAlt, FaCamera,
+  FaClock, FaCheckCircle, FaListAlt, FaTable, FaArrowRight,
+  FaPlus, FaStar, FaSpinner, FaInbox, FaCheck, FaTag,
+  FaEdit, FaTimes, FaStop, FaRedo, FaCrown, FaBolt,
+  FaBell, FaChartLine, FaSearch, FaFilter
 } from 'react-icons/fa';
-import { 
-  GiChefToque, 
-  GiHotSpices,
-  GiForkKnifeSpoon
-} from 'react-icons/gi';
+import { GiChefToque, GiForkKnifeSpoon } from 'react-icons/gi';
+import {
+  ChakraProvider,
+  extendTheme,
+  Box, Flex, Text, Heading, Button, Input, Select,
+  Table, Thead, Tbody, Tr, Th, Td, Modal, ModalOverlay,
+  ModalContent, ModalHeader, ModalBody, ModalFooter,
+  FormControl, FormLabel, Image, Badge, Tabs, TabList,
+  TabPanels, Tab, TabPanel, Grid, GridItem, Card, CardBody,
+  CardHeader, Avatar, Icon, IconButton, useDisclosure,
+  useToast, Skeleton, SkeletonText, Alert, AlertIcon,
+  AlertTitle, AlertDescription, SimpleGrid, Stat, StatLabel,
+  StatNumber, StatHelpText, StatArrow, Divider, HStack,
+  VStack, Wrap, WrapItem, Spinner, Center, Container,
+  Circle, Progress, Tooltip, Menu, MenuButton, MenuList,
+  MenuItem, MenuDivider, Drawer, DrawerBody, DrawerHeader,
+  DrawerOverlay, DrawerContent, DrawerCloseButton,
+  useBreakpointValue, InputGroup, InputLeftElement,
+  Tag, TagLabel, Textarea, Switch, FormHelperText,
+  useColorModeValue
+} from '@chakra-ui/react';
 
-const SOCKET_URL = 'http://localhost:4000';
+const theme = extendTheme({
+  fonts: {
+    heading: `'Space Grotesk', 'Plus Jakarta Sans', sans-serif`,
+    body: `'Plus Jakarta Sans', 'DM Sans', sans-serif`,
+  },
+  colors: {
+    brand: {
+      50: '#E6F1FB',
+      100: '#B5D4F4',
+      200: '#85B7EB',
+      300: '#55A0E2',
+      400: '#378ADD',
+      500: '#2475C8',
+      600: '#185FA5',
+      700: '#114A82',
+      800: '#0C447C',
+      900: '#042C53',
+    },
+  },
+  components: {
+    Button: {
+      baseStyle: {
+        fontFamily: `'Plus Jakarta Sans', sans-serif`,
+        fontWeight: '600',
+        borderRadius: '10px',
+        letterSpacing: '0.01em',
+      },
+    },
+    Tab: {
+      baseStyle: {
+        fontFamily: `'Plus Jakarta Sans', sans-serif`,
+        fontWeight: '500',
+      },
+    },
+    Badge: {
+      baseStyle: {
+        fontFamily: `'Plus Jakarta Sans', sans-serif`,
+      },
+    },
+  },
+  styles: {
+    global: {
+      '@import': `url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap')`,
+      body: {
+        bg: 'linear-gradient(160deg, #eef4ff 0%, #f5f0ff 50%, #eef8ff 100%)',
+        color: 'gray.800',
+      },
+    },
+  },
+});
 
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000')
+  .replace('localhost', window.location.hostname);
+const SOCKET_URL = API_URL;
+
+/* ─── Design tokens ─── */
+const T = {
+  cardBg: 'white',
+  cardBorder: 'rgba(24,95,165,0.10)',
+  pageBg: 'linear-gradient(160deg,#eef4ff 0%,#f5f0ff 50%,#eef8ff 100%)',
+  topbarBg: 'rgba(255,255,255,0.92)',
+  tabBarBg: '#f7f9ff',
+  inputBg: '#f0f4ff',
+  blue50: '#E6F1FB',
+  blue100: '#B5D4F4',
+  blue400: '#378ADD',
+  blue600: '#185FA5',
+  blue800: '#0C447C',
+  blue900: '#042C53',
+  teal50: '#E1F5EE',
+  teal600: '#0F6E56',
+  amber50: '#FAEEDA',
+  amber600: '#BA7517',
+  purple50: '#EEEDFE',
+  purple600: '#534AB7',
+  green50: '#EAF3DE',
+  green600: '#3B6D11',
+  red50: '#FCEBEB',
+  red600: '#A32D2D',
+};
+
+/* ─── Status helpers ─── */
+const statusMap = {
+  pending:   { color: 'orange', label: 'Pending',   next: 'preparing', nextLabel: 'Preparing',  bg: T.amber50,  fg: T.amber600 },
+  preparing: { color: 'blue',   label: 'Preparing', next: 'served',    nextLabel: 'Served',     bg: T.blue50,   fg: T.blue600  },
+  served:    { color: 'green',  label: 'Served',     next: 'paid',      nextLabel: 'Paid',       bg: T.teal50,   fg: T.teal600  },
+  paid:      { color: 'gray',   label: 'Paid',       next: null,        nextLabel: null,         bg: '#F1EFE8',  fg: '#5F5E5A'  },
+};
+
+/* ─── Fuzzy helpers ─── */
+function levenshtein(a, b) {
+  const an = a?.length ?? 0;
+  const bn = b?.length ?? 0;
+  if (!an) return bn;
+  if (!bn) return an;
+  const m = [];
+  for (let i = 0; i <= bn; i++) m[i] = [i];
+  for (let j = 0; j <= an; j++) m[0][j] = j;
+  for (let i = 1; i <= bn; i++)
+    for (let j = 1; j <= an; j++)
+      m[i][j] = b[i - 1] === a[j - 1]
+        ? m[i - 1][j - 1]
+        : 1 + Math.min(m[i - 1][j - 1], m[i][j - 1], m[i - 1][j]);
+  return m[bn][an];
+}
+
+function jaroWinkler(s1, s2) {
+  let matches = 0, transpositions = 0;
+  const s1m = Array(s1.length).fill(false);
+  const s2m = Array(s2.length).fill(false);
+  const win = Math.max(s1.length, s2.length) / 2 - 1;
+  for (let i = 0; i < s1.length; i++) {
+    const lo = Math.max(0, i - win);
+    const hi = Math.min(i + win + 1, s2.length);
+    for (let j = lo; j < hi; j++) {
+      if (!s2m[j] && s1[i] === s2[j]) { s1m[i] = s2m[j] = true; matches++; break; }
+    }
+  }
+  if (!matches) return 0;
+  let k = 0;
+  for (let i = 0; i < s1.length; i++) {
+    if (s1m[i]) { while (!s2m[k]) k++; if (s1[i] !== s2[k]) transpositions++; k++; }
+  }
+  const jaro = (matches / s1.length + matches / s2.length + (matches - transpositions / 2) / matches) / 3;
+  let prefix = 0;
+  for (let i = 0; i < Math.min(4, s1.length, s2.length); i++) {
+    if (s1[i] === s2[i]) prefix++; else break;
+  }
+  return jaro + 0.1 * prefix * (1 - jaro);
+}
+
+/* ─── Voice parser ─── */
+const wordToNumMap = { one:'1',won:'1',two:'2',to:'2',too:'2',three:'3',four:'4',for:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10' };
+const dishAliases = {
+  rice:['rise','rize'],chole:['choley','chhole','sholay','chana'],dal:['daal','dahl'],
+  idli:['idly','idlee'],dosa:['dosha','dhosa'],roti:['rotti','roty','rooti'],
+  chapati:['chapathi','chapatti'],naan:['nan','naaan'],biryani:['biriyani','biriani'],
+  chai:['tea','chaay','chay'],coffee:['cofee','kofi'],coke:['coca','coca cola'],
+  paneer:['panir'],butter:['buttar'],lassi:['lasi','lassie'],
+  samosa:['samose','samosas'],vada:['wada'],paratha:['parantha','parota','parotta'],
+  momos:['momo'],burger:['burgar'],pizza:['piza','pitsa'],sandwich:['sandwitch'],
+};
+const aliasToDish = {};
+Object.entries(dishAliases).forEach(([main, arr]) => {
+  arr.forEach(a => { aliasToDish[a] = main; });
+  aliasToDish[main] = main;
+});
+
+function parseVoiceOrder(transcript) {
+  let text = transcript.toLowerCase().replace(/\s+/g, ' ').trim();
+  text = text.replace(/\b(please|thank you|can i get|i'd like|may i have|could i get|give me|order for)\b/gi, '').trim();
+  text = text.replace(/\b(one|won|two|to|too|three|four|for|five|six|seven|eight|nine|ten)\b/g, m => wordToNumMap[m] || m);
+
+  const tableMatch = text.match(/(?:for|at|to|number)?\s*table\s*(\d+)/i);
+  let table = tableMatch ? tableMatch[1] : '';
+  if (table) text = text.replace(/(?:for|at|to|number)?\s*table\s*\w+/i, '').trim();
+
+  const phrases = text.split(/\band\b|,|\./).map(s => s.trim()).filter(Boolean);
+  const items = [];
+  for (const phrase of phrases) {
+    const m = phrase.match(/(\d+)\s+([\w\s]+)/) || phrase.match(/([\w\s]+)\s+(\d+)/);
+    let name = phrase.trim(), qty = '1';
+    if (m) { qty = m[1].match(/\d+/) ? m[1] : m[2]; name = m[2]?.match(/\d+/) ? m[1] : m[2]; }
+
+    let bestDish = null, bestScore = 0;
+    const words = name.split(' ');
+    for (let i = 0; i < words.length; i++) {
+      for (let j = i + 1; j <= words.length; j++) {
+        const cand = words.slice(i, j).join(' ');
+        const direct = aliasToDish[cand];
+        if (direct) { bestDish = direct; bestScore = 1; }
+        else {
+          for (const alias in aliasToDish) {
+            const jw = jaroWinkler(cand, alias);
+            if (jw > bestScore) { bestScore = jw; bestDish = aliasToDish[alias]; }
+          }
+        }
+      }
+    }
+    if (name) items.push({ name: bestDish || name, quantity: qty, modifications: [] });
+  }
+
+  const mods = [];
+  const modRe = /(no|extra|less|without|with)\s+([\w\s]+)/gi;
+  let mm;
+  while ((mm = modRe.exec(transcript)) !== null) mods.push(mm[0].trim());
+  if (items.length && mods.length) items[items.length - 1].modifications = mods;
+
+  return { table, items };
+}
+
+/* ═══════════════════════════════════════════════ COMPONENT ══ */
 export default function WaiterDashboard() {
-  const [dishes, setDishes] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [galleryModalDish, setGalleryModalDish] = useState(null);
-  const [galleryOrderQty, setGalleryOrderQty] = useState('');
-  const [galleryOrderMods, setGalleryOrderMods] = useState('');
-  const [galleryOrderTableNo, setGalleryOrderTableNo] = useState('');
-  const [galleryOrderSuccess, setGalleryOrderSuccess] = useState(false);
-  const [galleryOrderError, setGalleryOrderError] = useState('');
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [dishesLoading, setDishesLoading] = useState(false);
-  const [dishesError, setDishesError] = useState('');
-  const navigate = useNavigate();
-  const [voiceOrderModal, setVoiceOrderModal] = useState(false);
-  const [voiceOrderTranscript, setVoiceOrderTranscript] = useState('');
-  const [voiceOrderParsed, setVoiceOrderParsed] = useState(null);
-  const [voiceOrderError, setVoiceOrderError] = useState('');
-  const [voiceOrderLoading, setVoiceOrderLoading] = useState(false);
-  const [voiceOrderConfirmStep, setVoiceOrderConfirmStep] = useState(false);
-  const [showFaceRegistration, setShowFaceRegistration] = useState(false);
-  const [userId, setUserId] = useState(null);
-  const [activeTab, setActiveTab] = useState('menu');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL 
-  const {
-    transcript,
-    listening,
-    resetTranscript,
-    browserSupportsSpeechRecognition
-  } = useSpeechRecognition();
+  const [dishes, setDishes]                   = useState([]);
+  const [orders, setOrders]                   = useState([]);
+  const [restaurantId, setRestaurantId]       = useState('');
+  const [seatedTables, setSeatedTables]       = useState([]);
+  const [seatedTablesLoading, setSeatedTablesLoading] = useState(false);
+  const [ordersLoading, setOrdersLoading]     = useState(false);
+  const [dishesLoading, setDishesLoading]     = useState(false);
+  const [dishesError, setDishesError]         = useState('');
+  const [menuSearch, setMenuSearch]           = useState('');
 
-  // Enhanced fuzzy matching functions
-  function levenshtein(a, b) {
-    const an = a ? a.length : 0;
-    const bn = b ? b.length : 0;
-    if (an === 0) return bn;
-    if (bn === 0) return an;
-    const matrix = [];
-    for (let i = 0; i <= bn; ++i) matrix[i] = [i];
-    for (let j = 0; j <= an; ++j) matrix[0][j] = j;
-    for (let i = 1; i <= bn; ++i) {
-      for (let j = 1; j <= an; ++j) {
-        if (b.charAt(i - 1) === a.charAt(j - 1)) {
-          matrix[i][j] = matrix[i - 1][j - 1];
-        } else {
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1
-          );
-        }
-      }
-    }
-    return matrix[bn][an];
-  }
+  /* Gallery modal */
+  const [galleryDish, setGalleryDish]         = useState(null);
+  const [galleryQty, setGalleryQty]           = useState('');
+  const [galleryMods, setGalleryMods]         = useState('');
+  const [galleryTable, setGalleryTable]       = useState('');
+  const [gallerySuccess, setGallerySuccess]   = useState(false);
+  const [galleryError, setGalleryError]       = useState('');
 
-  function jaroWinkler(s1, s2) {
-    const m = (s1, s2) => {
-      let matches = 0, transpositions = 0;
-      let s1Matches = Array(s1.length).fill(false);
-      let s2Matches = Array(s2.length).fill(false);
-      let matchWindow = Math.max(s1.length, s2.length) / 2 - 1;
-      for (let i = 0; i < s1.length; i++) {
-        let start = Math.max(0, i - matchWindow);
-        let end = Math.min(i + matchWindow + 1, s2.length);
-        for (let j = start; j < end; j++) {
-          if (!s2Matches[j] && s1[i] === s2[j]) {
-            s1Matches[i] = s2Matches[j] = true;
-            matches++;
-            break;
-          }
-        }
-      }
-      if (!matches) return 0;
-      let k = 0;
-      for (let i = 0; i < s1.length; i++) {
-        if (s1Matches[i]) {
-          while (!s2Matches[k]) k++;
-          if (s1[i] !== s2[k]) transpositions++;
-          k++;
-        }
-      }
-      return (matches / s1.length + matches / s2.length + (matches - transpositions / 2) / matches) / 3;
-    };
-    let jw = m(s1, s2);
-    let prefix = 0;
-    for (let i = 0; i < Math.min(4, s1.length, s2.length); i++) {
-      if (s1[i] === s2[i]) prefix++;
-      else break;
-    }
-    return jw + 0.1 * prefix * (1 - jw);
-  }
+  /* Voice modal */
+  const [voiceModal, setVoiceModal]           = useState(false);
+  const [voiceParsed, setVoiceParsed]         = useState(null);
+  const [voiceError, setVoiceError]           = useState('');
+  const [voiceLoading, setVoiceLoading]       = useState(false);
 
-  // Enhanced voice order parsing
-  function parseVoiceOrder(transcript) {
-    const wordToNum = w => {
-      const map = {
-        one: '1', won: '1', single: '1',
-        two: '2', to: '2', too: '2', tu: '2', do: '2', du: '2',
-        three: '3', tree: '3', free: '3',
-        four: '4', for: '4',
-        five: '5', fiv: '5',
-        six: '6', sex: '6',
-        seven: '7',
-        eight: '8', ate: '8',
-        nine: '9', nain: '9',
-        ten: '10',
-      };
-      return map[w] || w;
-    };
+  /* Face */
+  const [showFace, setShowFace]               = useState(false);
+  const [userId, setUserId]                   = useState(null);
 
-    const dishAliases = {
-      rice: ['rise', 'rize', 'raice', 'rais'],
-      chole: ['choley', 'chhole', 'sholay', 'sholey', 'chana', 'chana masala'],
-      dal: ['daal', 'dahl', 'dall'],
-      idli: ['idly', 'idlee', 'idlly'],
-      dosa: ['dosha', 'dosa', 'dhosa'],
-      samosa: ['samose', 'samosa', 'samosas'],
-      roti: ['rotti', 'roty', 'roti', 'rooti'],
-      chapati: ['chapathi', 'chapatti', 'chapati', 'chappati'],
-      sabji: ['sabzi', 'sabji', 'sabjee', 'sabji'],
-      paneer: ['paneer', 'panir', 'paneeer'],
-      coke: ['coke', 'kok', 'coca', 'coca cola'],
-      pepsi: ['pepsi', 'pepsie'],
-      chai: ['chai', 'tea', 'chaay', 'chay'],
-      coffee: ['coffee', 'cofee', 'kofi'],
-      biryani: ['biryani', 'biriyani', 'biriani', 'briani'],
-      curd: ['curd', 'dahi', 'yogurt'],
-      butter: ['butter', 'buttar'],
-      naan: ['naan', 'nan', 'naaan'],
-      lassi: ['lassi', 'lasi', 'lassie'],
-      thali: ['thali', 'thaali'],
-      soup: ['soup', 'soop'],
-      salad: ['salad', 'salad'],
-      papad: ['papad', 'papadum', 'papadum'],
-      pickle: ['pickle', 'achaar', 'achar'],
-      gulab: ['gulab', 'gulaab'],
-      jamun: ['jamun', 'jamoon', 'jammun'],
-      rasgulla: ['rasgulla', 'rasgula', 'rasgoola'],
-      rasmalai: ['rasmalai', 'rasmalay'],
-      jalebi: ['jalebi', 'jaleebi'],
-      icecream: ['ice cream', 'icecream', 'ice-cream', 'ice', 'cream'],
-      vada: ['vada', 'wada', 'vadaa'],
-      poha: ['poha', 'pohaa'],
-      upma: ['upma', 'upmaa'],
-      paratha: ['paratha', 'parantha', 'parota', 'parotta'],
-      puri: ['puri', 'poori', 'poodi'],
-      bhaji: ['bhaji', 'bhajji', 'bhajee'],
-      pav: ['pav', 'pau', 'pow'],
-      misal: ['misal', 'missal'],
-      usal: ['usal', 'usal'],
-      sambar: ['sambar', 'sambhar', 'sambaar'],
-      chutney: ['chutney', 'chatni', 'chutni'],
-      halwa: ['halwa', 'halva', 'haluaa'],
-      kheer: ['kheer', 'khir', 'kheerr'],
-      payasam: ['payasam', 'paysam', 'payasum'],
-      rabri: ['rabri', 'rabdi', 'rabree'],
-      shrikhand: ['shrikhand', 'shreekhand'],
-      modak: ['modak', 'modhak'],
-      ladoo: ['ladoo', 'laddu', 'laddoo'],
-      barfi: ['barfi', 'burfi', 'barfee'],
-      sandwich: ['sandwich', 'sandwitch'],
-      burger: ['burger', 'burgar'],
-      pizza: ['pizza', 'piza', 'pitsa'],
-      fries: ['fries', 'fry', 'frize'],
-      pasta: ['pasta', 'pasta'],
-      maggi: ['maggi', 'maggie'],
-      omelette: ['omelette', 'omlet', 'omlette'],
-      egg: ['egg', 'eggs'],
-      chicken: ['chicken', 'chiken', 'chikn'],
-      mutton: ['mutton', 'matton'],
-      fish: ['fish', 'fissh'],
-      prawn: ['prawn', 'prawns'],
-      shrimp: ['shrimp', 'shrimps'],
-      crab: ['crab', 'krab'],
-      veg: ['veg', 'vegetable', 'vegetarian'],
-      nonveg: ['nonveg', 'non-veg', 'non vegetarian'],
-      springroll: ['spring roll', 'springroll', 'spring rolls'],
-      manchurian: ['manchurian', 'manchuriun'],
-      momos: ['momos', 'momo', 'momos'],
-      chowmein: ['chowmein', 'chow mein', 'chowmin'],
-      cutlet: ['cutlet', 'katlet'],
-      juice: ['juice', 'juce', 'jus'],
-      shake: ['shake', 'sheikh', 'shak'],
-      falooda: ['falooda', 'faluda'],
-      kulfi: ['kulfi', 'kulfee'],
-      milk: ['milk', 'milkk'],
-      water: ['water', 'watter', 'vater'],
-      soda: ['soda', 'sodha'],
-      thumsup: ['thums up', 'thumbs up', 'thumsup'],
-      sprite: ['sprite', 'spright'],
-      fanta: ['fanta', 'fenta'],
-      mirinda: ['mirinda', 'mirrinda'],
-      dew: ['dew', 'du', 'do'],
-      appy: ['appy', 'appie'],
-      maaza: ['maaza', 'maja', 'maza'],
-      slice: ['slice', 'slyce'],
-      limca: ['limca', 'limka'],
-      sting: ['sting', 'stink'],
-      redbull: ['red bull', 'redbull'],
-      monster: ['monster', 'monstor'],
-      '7up': ['7up', 'seven up', 'sevenup'],
-      mountain: ['mountain dew', 'mountain', 'mountain due'],
-    };
+  const navigate  = useNavigate();
+  const toast     = useToast();
+  const { isOpen: mobileOpen, onOpen: openMobile, onClose: closeMobile } = useDisclosure();
 
-    const aliasToDish = {};
-    Object.entries(dishAliases).forEach(([main, arr]) => {
-      arr.forEach(alias => { aliasToDish[alias] = main; });
-      aliasToDish[main] = main;
-    });
+  const { transcript, listening, resetTranscript, browserSupportsSpeechRecognition } = useSpeechRecognition();
 
-    let text = transcript.toLowerCase().replace(/\s+/g, ' ').trim();
-    text = text.replace(/\b(please|thank you|can i get|i'd like|i would like|may i have|could i get|give me|get me|order for|for me|for us|for table|table for|table please|table number|table is|table no|table no\.|table no:|table:)\b/gi, '').trim();
-    text = text.replace(/\b(one|won|single|two|to|too|tu|do|du|three|tree|free|four|for|five|fiv|six|sex|seven|eight|ate|nine|nain|ten)\b/g, m => wordToNum(m));
-
-    let tableMatch = text.match(/(?:for|at|to|is|number)?\s*table\s*(\d+)/i) || text.match(/table\s*(\d+)/i);
-    let table = tableMatch ? wordToNum(tableMatch[1]) : '';
-    if (table) text = text.replace(/(?:for|at|to|is|number)?\s*table\s*\w+/i, '').trim();
-
-    text = text.replace(/^(get|order|add|bring)\s+/g, '');
-    let itemPhrases = text.split(/\band\b|,|\./).map(s => s.trim()).filter(Boolean);
-    let items = [];
-
-    for (let phrase of itemPhrases) {
-      let m = phrase.match(/(\d+)\s+([\w\s]+)/) || phrase.match(/([\w\s]+)\s+(\d+)/);
-      let name = '', qty = '1';
-      if (m) {
-        qty = m[1].match(/\d+/) ? m[1] : m[2];
-        name = m[2] && m[2].match(/\d+/) ? m[1] : m[2];
-      } else if (phrase) {
-        name = phrase.trim();
-        qty = '1';
-      }
-
-      let bestDish = null, bestScore = 0;
-      let words = name.split(' ');
-      for (let i = 0; i < words.length; i++) {
-        for (let j = i + 1; j <= words.length; j++) {
-          let candidate = words.slice(i, j).join(' ');
-          let dishKey = aliasToDish[candidate];
-          if (dishKey) {
-            bestDish = dishKey;
-            bestScore = 1;
-          } else {
-            for (let alias in aliasToDish) {
-              let jw = jaroWinkler(candidate, alias);
-              let lev = levenshtein(candidate, alias);
-              if (jw > bestScore || (jw === bestScore && lev < 3)) {
-                bestScore = jw;
-                bestDish = aliasToDish[alias];
-              }
-            }
-          }
-        }
-      }
-      if (bestDish) {
-        items.push({
-          name: bestDish,
-          quantity: qty,
-          modifications: []
-        });
-      } else if (name) {
-        items.push({
-          name: name,
-          quantity: qty,
-          modifications: []
-        });
-      }
-    }
-
-    let mods = [];
-    let modRegex = /(no|extra|less|without|with)\s+([\w\s]+)/gi;
-    let modMatch;
-    while ((modMatch = modRegex.exec(transcript)) !== null) {
-      mods.push(modMatch[0].trim());
-    }
-
-    if (items.length && mods.length) {
-      items[items.length - 1].modifications = mods;
-    }
-
-    return { table, items };
-  }
-
-  // Enhanced voice order handling
-  const handleStartVoiceOrder = () => {
-    if (!browserSupportsSpeechRecognition) {
-      setVoiceOrderError('Speech recognition is not supported in this browser.');
-      return;
-    }
-
-    setVoiceOrderModal(true);
-    setVoiceOrderTranscript('');
-    setVoiceOrderParsed(null);
-    setVoiceOrderError('');
-    setVoiceOrderConfirmStep(false);
-    resetTranscript();
-    
-    SpeechRecognition.startListening({ 
-      continuous: true, 
-      language: 'en-IN',
-      interimResults: true
-    });
-  };
-
-  const handleStopVoiceOrder = () => {
-    SpeechRecognition.stopListening();
-    setVoiceOrderTranscript(transcript);
-    
-    if (transcript && transcript.trim().length > 2) {
-      try {
-        const parsed = parseVoiceOrder(transcript);
-        setVoiceOrderParsed(parsed);
-        setVoiceOrderError('');
-      } catch (error) {
-        setVoiceOrderError('Failed to parse your order. Please try again.');
-      }
-    } else {
-      setVoiceOrderError('No speech detected or input too short. Please try again.');
-    }
-  };
-
-  const handleConfirmVoiceOrder = async () => {
-    setVoiceOrderLoading(true);
-    setVoiceOrderError('');
-    
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      
-      let items = [];
-      for (let item of voiceOrderParsed.items) {
-        let bestDish = null;
-        let bestScore = 1e9;
-        for (let d of dishes) {
-          let dist = levenshtein(item.name.toLowerCase(), d.name.toLowerCase());
-          if (dist < bestScore) {
-            bestScore = dist;
-            bestDish = d;
-          }
-        }
-        
-        if (bestDish && (bestScore <= 2 || 
-            bestDish.name.toLowerCase().includes(item.name.toLowerCase()) || 
-            item.name.toLowerCase().includes(bestDish.name.toLowerCase()))) {
-          items.push({
-            dish: bestDish._id,
-            name: bestDish.name,
-            quantity: item.quantity,
-            price: bestDish.price,
-            modifications: item.modifications
-          });
-        }
-      }
-
-      if (!voiceOrderParsed.table || items.length === 0) {
-        setVoiceOrderError('Could not parse table number or valid items. Please try again.');
-        setVoiceOrderLoading(false);
-        return;
-      }
-
-      const payload = {
-        table: voiceOrderParsed.table,
-        items
-      };
-
-      await axios.post(`${API_URL}/api/orders/create`, payload, { headers });
-      setVoiceOrderLoading(false);
-      setVoiceOrderModal(false);
-      fetchOrders();
-    } catch (err) {
-      setVoiceOrderError('Failed to place order. Please try again.');
-      setVoiceOrderLoading(false);
-    }
-  };
+  /* ── fetch helpers ── */
+  const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
   const fetchOrders = async () => {
     setOrdersLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get(`${API_URL}/api/orders`, { headers });
+      const res = await axios.get(`${API_URL}/api/orders`, { headers: authHeaders() });
       setOrders(res.data);
-    } catch (err) {
-      console.error('Failed to fetch orders:', err);
-    } finally {
-      setOrdersLoading(false);
-    }
+    } catch { toast({ title: 'Error fetching orders', status: 'error', duration: 3000, isClosable: true }); }
+    finally { setOrdersLoading(false); }
   };
 
   const fetchDishes = async () => {
-    setDishesLoading(true);
-    setDishesError('');
+    setDishesLoading(true); setDishesError('');
     try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get(`${API_URL}/api/orders/dishes`, { headers });
+      const res = await axios.get(`${API_URL}/api/orders/dishes`, { headers: authHeaders() });
       setDishes(res.data);
-    } catch (err) {
-      setDishesError('Could not load dishes');
-    } finally {
-      setDishesLoading(false);
-    }
+    } catch { setDishesError('Could not load dishes'); }
+    finally { setDishesLoading(false); }
   };
 
+  const fetchSeatedTables = async (restId) => {
+    if (!restId) return;
+    setSeatedTablesLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/api/tables/tables/${restId}/status`, { headers: authHeaders() });
+      const occupied = (res.data?.tables || []).filter(t => t?.status === 'occupied' && t.isActive !== false);
+      setSeatedTables(occupied);
+    } catch { setSeatedTables([]); }
+    finally { setSeatedTablesLoading(false); }
+  };
+
+  /* ── mount ── */
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) { navigate('/'); return; }
+    try { setUserId(JSON.parse(atob(token.split('.')[1])).userId); } catch { navigate('/'); return; }
+
     fetchOrders();
     fetchDishes();
-  
-    const token = localStorage.getItem('token');
-  
-    if (!token) {
-      navigate('/');
-      return;
-    }
-  
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-  
-      setUserId(payload.userId);
-  
-      // 🚨 check restaurant id
-    
-  
-    } catch (err) {
-      console.error('Failed to decode token:', err);
-      navigate('/');
-    }
-  
+
+    (async () => {
+      try {
+        const me = await axios.get(`${API_URL}/api/auth/me`, { headers: authHeaders() });
+        const rId = me.data?.user?.restaurant?._id || me.data?.user?.restaurant || '';
+        setRestaurantId(rId);
+        if (rId) fetchSeatedTables(rId);
+      } catch {}
+    })();
+
     const socket = io(SOCKET_URL);
-    socket.on('order:new', (order) => {
-      setOrders(prev => [...prev, order]);
+    socket.on('order:new', o => {
+      setOrders(p => [...p, o]);
+      toast({ title: `New order — Table ${o.table}`, status: 'info', duration: 4000, isClosable: true });
     });
-  
-    socket.on('order:assigned', (order) => {
-      setOrders(prev => [...prev, order]);
-    });
-  
-    socket.on('order:update', (updatedOrder) => {
-      setOrders(prev =>
-        prev.map(order => order._id === updatedOrder._id ? updatedOrder : order)
-      );
-    });
-  
-    return () => {
-      socket.disconnect();
-    };
-  
+    socket.on('order:assigned', o => setOrders(p => [...p, o]));
+    socket.on('order:update', o => setOrders(p => p.map(x => x._id === o._id ? o : x)));
+    return () => socket.disconnect();
   }, []);
 
+  useEffect(() => { if (restaurantId) fetchSeatedTables(restaurantId); }, [restaurantId]);
+
   useEffect(() => {
-    if (voiceOrderParsed && voiceOrderParsed.items) {
-      const unavailable = voiceOrderParsed.items.filter(item => {
-        return !dishes.some(d => d.name.toLowerCase().includes(item.name.toLowerCase()));
-      });
-      if (unavailable.length > 0) {
-        setVoiceOrderError('Unavailable dish(es): ' + unavailable.map(u => u.name).join(', '));
-      } else {
-        setVoiceOrderError('');
+    if (!voiceParsed) return;
+    const unavailable = voiceParsed.items.filter(
+      item => !dishes.some(d => d.name.toLowerCase().includes(item.name.toLowerCase()))
+    );
+    setVoiceError(unavailable.length ? `Unavailable: ${unavailable.map(u => u.name).join(', ')}` : '');
+  }, [voiceParsed, dishes]);
+
+  /* ── voice ── */
+  const startVoice = () => {
+    if (!browserSupportsSpeechRecognition) {
+      toast({ title: 'Speech not supported', status: 'error', duration: 3000, isClosable: true });
+      return;
+    }
+    setVoiceModal(true); setVoiceParsed(null); setVoiceError('');
+    resetTranscript();
+    SpeechRecognition.startListening({ continuous: true, language: 'en-IN' });
+  };
+
+  const stopVoice = () => {
+    SpeechRecognition.stopListening();
+    if (transcript?.trim().length > 2) {
+      try { setVoiceParsed(parseVoiceOrder(transcript)); setVoiceError(''); }
+      catch { setVoiceError('Could not parse order. Please try again.'); }
+    } else {
+      setVoiceError('No speech detected. Please try again.');
+    }
+  };
+
+  const confirmVoice = async () => {
+    setVoiceLoading(true); setVoiceError('');
+    try {
+      const items = [];
+      for (const item of voiceParsed.items) {
+        let best = null, bestScore = 1e9;
+        for (const d of dishes) {
+          const dist = levenshtein(item.name.toLowerCase(), d.name.toLowerCase());
+          if (dist < bestScore) { bestScore = dist; best = d; }
+        }
+        if (best && (bestScore <= 2 || best.name.toLowerCase().includes(item.name.toLowerCase()) || item.name.toLowerCase().includes(best.name.toLowerCase()))) {
+          items.push({ dish: best._id, name: best.name, quantity: item.quantity, price: best.price, modifications: item.modifications });
+        }
       }
-    }
-  }, [voiceOrderParsed, dishes]);
+      if (!voiceParsed.table || !items.length) {
+        setVoiceError('Could not parse table or items. Please try again.'); setVoiceLoading(false); return;
+      }
+      if (seatedTables.length && !seatedTables.some(t => String(t.tableNumber) === String(voiceParsed.table))) {
+        setVoiceError('Table is not currently occupied.'); setVoiceLoading(false); return;
+      }
+      await axios.post(`${API_URL}/api/orders/create`, { table: voiceParsed.table, items }, { headers: authHeaders() });
+      setVoiceModal(false); fetchOrders();
+      toast({ title: `Order placed — Table ${voiceParsed.table}`, status: 'success', duration: 3000, isClosable: true });
+    } catch { setVoiceError('Failed to place order.'); }
+    finally { setVoiceLoading(false); }
+  };
 
+  /* ── gallery order ── */
   const handleGalleryOrder = async (e) => {
-    e.preventDefault();
-    setGalleryOrderError('');
+    e.preventDefault(); setGalleryError('');
     try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      const payload = {
-        table: galleryOrderTableNo,
-        items: [
-          {
-            dish: galleryModalDish._id,
-            name: galleryModalDish.name,
-            quantity: galleryOrderQty,
-            price: galleryModalDish.price,
-            modifications: galleryOrderMods ? galleryOrderMods.split(',').map(m => m.trim()).filter(Boolean) : []
-          }
-        ]
-      };
-      await axios.post(`${API_URL}/api/orders/create`, payload, { headers });
-      setGalleryOrderSuccess(true);
-      setGalleryOrderQty('');
-      setGalleryOrderMods('');
-      setGalleryOrderTableNo('');
+      await axios.post(`${API_URL}/api/orders/create`, {
+        table: galleryTable,
+        items: [{ dish: galleryDish._id, name: galleryDish.name, quantity: galleryQty, price: galleryDish.price, modifications: galleryMods ? galleryMods.split(',').map(m => m.trim()).filter(Boolean) : [] }]
+      }, { headers: authHeaders() });
+      setGallerySuccess(true); setGalleryQty(''); setGalleryMods(''); setGalleryTable('');
       fetchOrders();
-      setTimeout(() => {
-        setGalleryOrderSuccess(false);
-        setGalleryModalDish(null);
-      }, 2000);
-    } catch (err) {
-      setGalleryOrderError('Failed to place order');
-    }
+      toast({ title: `${galleryDish.name} ordered for Table ${galleryTable}`, status: 'success', duration: 3000, isClosable: true });
+      setTimeout(() => { setGallerySuccess(false); setGalleryDish(null); }, 1800);
+    } catch { setGalleryError('Failed to place order'); }
   };
 
-  const updateOrderStatus = async (orderId, newStatus) => {
+  /* ── status update ── */
+  const updateStatus = async (id, status) => {
     try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      await axios.put(`${API_URL}/api/orders/${orderId}`, { status: newStatus }, { headers });
+      await axios.put(`${API_URL}/api/orders/${id}`, { status }, { headers: authHeaders() });
       fetchOrders();
-    } catch (err) {
-      console.error('Failed to update order status:', err);
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return '#f59e0b';
-      case 'preparing': return '#6366f1';
-      case 'served': return '#10b981';
-      case 'paid': return '#6b7280';
-      default: return '#6b7280';
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'pending': return 'Pending';
-      case 'preparing': return 'Preparing';
-      case 'served': return 'Served';
-      case 'paid': return 'Paid';
-      default: return status;
-    }
-  };
-
-  const getNextStatus = (currentStatus) => {
-    switch (currentStatus) {
-      case 'pending': return 'preparing';
-      case 'preparing': return 'served';
-      case 'served': return 'paid';
-      default: return currentStatus;
-    }
+      toast({ title: `Status → ${status}`, status: 'info', duration: 2000, isClosable: true });
+    } catch { toast({ title: 'Could not update status', status: 'error', duration: 2000, isClosable: true }); }
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/');
+    toast({ title: 'Logged out', status: 'info', duration: 2000, isClosable: true });
   };
 
-  const activeOrders = orders.filter(o => o.status === 'pending' || o.status === 'preparing');
-  const completedOrders = orders.filter(o => o.status === 'served' || o.status === 'paid');
+  const activeOrders    = orders.filter(o => o.status === 'pending' || o.status === 'preparing');
+  const completedOrders = orders.filter(o => o.status === 'served'  || o.status === 'paid');
+  const totalRevenue    = completedOrders.reduce((s, o) => s + o.items.reduce((a, i) => a + i.price * i.quantity, 0), 0);
+  const filteredDishes  = dishes.filter(d => d.name.toLowerCase().includes(menuSearch.toLowerCase()));
+
+  /* ─── shared style shortcuts ─── */
+  const cardStyle = {
+    bg: 'white',
+    borderRadius: '18px',
+    border: '0.5px solid',
+    borderColor: 'rgba(24,95,165,0.10)',
+    overflow: 'hidden',
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 font-satoshi w-full max-w-[1920px] mx-auto">
-      {/* Custom Fonts and Styles */}
-      <style jsx>{`
-        @import url('https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Satoshi:wght@300;400;500;600;700&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        .font-clash {
-          font-family: 'Clash Display', sans-serif;
-        }
-        
-        .font-satoshi {
-          font-family: 'Satoshi', sans-serif;
-        }
-        
-        .font-inter {
-          font-family: 'Inter', sans-serif;
-        }
-        
-        @keyframes pulse {
-          0% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.2); opacity: 0.7; }
-          100% { transform: scale(1); opacity: 1; }
-        }
-        
-        .pulse-dot {
-          animation: pulse 1.5s infinite;
-        }
-        
-        .animate-scale-in {
-          animation: scaleIn 0.3s ease-out;
-        }
-        
-        @keyframes scaleIn {
-          from {
-            opacity: 0;
-            transform: scale(0.95) translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-        
-        .glass-effect {
-          background: rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        
-        .premium-gradient {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        
-        .premium-gradient-reverse {
-          background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-        }
-        
-        .gold-gradient {
-          background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FF8C00 100%);
-        }
-        
-        .premium-border {
-          border: 2px solid;
-          border-image: linear-gradient(135deg, #667eea, #764ba2) 1;
-        }
-      `}</style>
+    <ChakraProvider theme={theme}>
+      {/* Google Fonts */}
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');`}</style>
 
-      {/* Header */}
-      <header className="glass-effect border-b border-white/10 shadow-2xl sticky top-0 z-50 w-full">
-        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
-          <div className="flex items-center justify-between h-20">
-            {/* Mobile Menu Button */}
-            <button 
-              className="lg:hidden p-3 rounded-2xl text-white/80 hover:text-white hover:bg-white/10 transition-all duration-300"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
-              <GiForkKnifeSpoon className="text-xl" />
-            </button>
+      <Box minH="100vh" background={T.pageBg}>
 
-            {/* Title */}
-            <div className="flex items-center flex-1 lg:flex-none">
-              <h1 className="text-3xl lg:text-4xl xl:text-5xl font-clash font-bold text-white flex items-center gap-3">
-                <div className="p-3 rounded-2xl premium-gradient shadow-lg">
-                  <GiChefToque className="text-white text-2xl" />
-                </div>
-                <span className="bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
-                  Waiter Dashboard
-                </span>
-                <div className="flex items-center gap-1 gold-gradient px-3 py-1 rounded-full text-xs font-inter font-bold">
-                  <FaCrown className="text-amber-700" />
-                  <span className="text-amber-900">PREMIUM</span>
-                </div>
-              </h1>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-3">
-              <button 
-                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-4 sm:px-6 py-3 rounded-2xl font-semibold shadow-2xl hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 flex items-center gap-3 group font-inter"
-                onClick={() => setShowFaceRegistration(true)}
+        {/* ══ TOP BAR ══ */}
+        <Box
+          as="header"
+          bg={T.topbarBg}
+          backdropFilter="blur(16px)"
+          borderBottom="0.5px solid rgba(24,95,165,0.10)"
+          position="sticky" top={0} zIndex={100}
+          px={{ base: 4, md: 8 }} py={0} h="62px"
+        >
+          <Flex h="100%" align="center" justify="space-between">
+            {/* Brand */}
+            <Flex align="center" gap={3}>
+              <Box
+                w="36px" h="36px" bg={T.blue600}
+                borderRadius="10px" display="flex" alignItems="center" justifyContent="center"
               >
-                <FaCamera className="text-lg group-hover:scale-110 transition-transform duration-300" />
-                <span className="hidden sm:inline">Register Face</span>
-              </button>
-              <button 
-                className="premium-gradient hover:premium-gradient-reverse text-white px-4 sm:px-6 py-3 rounded-2xl font-semibold shadow-2xl hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 flex items-center gap-3 group font-inter"
-                onClick={handleStartVoiceOrder}
-              >
-                <FaMicrophone className="text-lg group-hover:scale-110 transition-transform duration-300" />
-                <span className="hidden sm:inline">Voice Order</span>
-                <FaBolt className="text-yellow-300 text-xs" />
-              </button>
-              <button 
-                className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white px-4 sm:px-6 py-3 rounded-2xl font-semibold shadow-2xl hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 flex items-center gap-3 group font-inter"
-                onClick={handleLogout}
-              >
-                <FaSignOutAlt className="text-lg group-hover:scale-110 transition-transform duration-300" />
-                <span className="hidden sm:inline">Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-8">
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <div className="glass-effect rounded-3xl p-6 sm:p-8 shadow-2xl hover:shadow-3xl transition-all duration-500 hover:-translate-y-2 border border-white/10 group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 sm:p-4 rounded-2xl bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors duration-300">
-                <FaClock className="text-xl sm:text-2xl text-blue-400" />
-              </div>
-              <div className="text-3xl sm:text-4xl lg:text-5xl font-clash font-bold text-white">{activeOrders.length}</div>
-            </div>
-            <div className="text-white/80 font-inter font-semibold text-base sm:text-lg">Active Orders</div>
-            <div className="w-0 group-hover:w-full h-1 bg-gradient-to-r from-blue-400 to-purple-500 transition-all duration-500 mt-3 rounded-full"></div>
-          </div>
-          
-          <div className="glass-effect rounded-3xl p-6 sm:p-8 shadow-2xl hover:shadow-3xl transition-all duration-500 hover:-translate-y-2 border border-white/10 group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 sm:p-4 rounded-2xl bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors duration-300">
-                <FaCheckCircle className="text-xl sm:text-2xl text-emerald-400" />
-              </div>
-              <div className="text-3xl sm:text-4xl lg:text-5xl font-clash font-bold text-white">{completedOrders.length}</div>
-            </div>
-            <div className="text-white/80 font-inter font-semibold text-base sm:text-lg">Completed Today</div>
-            <div className="w-0 group-hover:w-full h-1 bg-gradient-to-r from-emerald-400 to-teal-500 transition-all duration-500 mt-3 rounded-full"></div>
-          </div>
-          
-          <div className="glass-effect rounded-3xl p-6 sm:p-8 shadow-2xl hover:shadow-3xl transition-all duration-500 hover:-translate-y-2 border border-white/10 group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 sm:p-4 rounded-2xl bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors duration-300">
-                <FaListAlt className="text-xl sm:text-2xl text-purple-400" />
-              </div>
-              <div className="text-3xl sm:text-4xl lg:text-5xl font-clash font-bold text-white">{dishes.length}</div>
-            </div>
-            <div className="text-white/80 font-inter font-semibold text-base sm:text-lg">Menu Items</div>
-            <div className="w-0 group-hover:w-full h-1 bg-gradient-to-r from-purple-400 to-pink-500 transition-all duration-500 mt-3 rounded-full"></div>
-          </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="glass-effect rounded-3xl p-3 mb-8 w-full overflow-x-auto">
-          <div className="flex space-x-3 min-w-max">
-            <button 
-              className={`flex items-center gap-3 sm:gap-4 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl font-inter font-semibold transition-all duration-300 whitespace-nowrap group ${
-                activeTab === 'menu' 
-                  ? 'premium-gradient text-white shadow-2xl transform -translate-y-1' 
-                  : 'text-white/70 hover:text-white hover:bg-white/10'
-              }`}
-              onClick={() => setActiveTab('menu')}
-            >
-              <FaUtensils className={`text-lg ${activeTab === 'menu' ? 'text-white' : 'text-white/60 group-hover:text-white'}`} />
-              <span>Menu</span>
-            </button>
-            <button 
-              className={`flex items-center gap-3 sm:gap-4 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl font-inter font-semibold transition-all duration-300 whitespace-nowrap group ${
-                activeTab === 'orders' 
-                  ? 'premium-gradient text-white shadow-2xl transform -translate-y-1' 
-                  : 'text-white/70 hover:text-white hover:bg-white/10'
-              }`}
-              onClick={() => setActiveTab('orders')}
-            >
-              <FaClock className={`text-lg ${activeTab === 'orders' ? 'text-white' : 'text-white/60 group-hover:text-white'}`} />
-              <span>Active Orders ({activeOrders.length})</span>
-            </button>
-            <button 
-              className={`flex items-center gap-3 sm:gap-4 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl font-inter font-semibold transition-all duration-300 whitespace-nowrap group ${
-                activeTab === 'completed' 
-                  ? 'premium-gradient text-white shadow-2xl transform -translate-y-1' 
-                  : 'text-white/70 hover:text-white hover:bg-white/10'
-              }`}
-              onClick={() => setActiveTab('completed')}
-            >
-              <FaCheckCircle className={`text-lg ${activeTab === 'completed' ? 'text-white' : 'text-white/60 group-hover:text-white'}`} />
-              <span>Completed ({completedOrders.length})</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Menu Tab */}
-        {activeTab === 'menu' && (
-          <div className="w-full">
-            <h2 className="text-3xl sm:text-4xl font-clash font-bold text-white mb-8 flex items-center gap-4">
-              <div className="p-3 sm:p-4 rounded-2xl premium-gradient shadow-lg">
-                <GiHotSpices className="text-2xl text-white" />
-              </div>
-              <span>Our Premium Menu</span>
-              <FaGem className="text-purple-400 text-xl" />
-            </h2>
-            
-            {dishesLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-                {[1,2,3,4,5,6,7,8,9,10].map(i => (
-                  <div key={i} className="glass-effect rounded-3xl overflow-hidden shadow-2xl animate-pulse">
-                    <div className="h-48 sm:h-56 bg-white/10"></div>
-                    <div className="p-4 sm:p-6">
-                      <div className="h-6 bg-white/10 rounded mb-3"></div>
-                      <div className="h-4 bg-white/10 rounded mb-4"></div>
-                      <div className="h-7 bg-white/10 rounded w-24"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : dishesError ? (
-              <div className="glass-effect rounded-3xl p-6 sm:p-8 text-center border border-red-400/20">
-                <FaExclamationTriangle className="text-red-400 text-3xl sm:text-4xl mb-4 mx-auto" />
-                <div className="text-red-300 font-inter font-semibold text-lg sm:text-xl">{dishesError}</div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-                {dishes.map(dish => (
-                  <div 
-                    key={dish._id} 
-                    className="glass-effect rounded-3xl overflow-hidden shadow-2xl border border-white/10 hover:shadow-3xl transition-all duration-500 transform hover:-translate-y-3 cursor-pointer group"
-                    onClick={() => setGalleryModalDish(dish)}
-                  >
-                    <div className="relative overflow-hidden">
-                      <img 
-                        src={dish.image || '/images/chef3.png'} 
-                        alt={dish.name}
-                        className="w-full h-48 sm:h-56 object-cover transition-transform duration-500 group-hover:scale-110"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      <div className="absolute top-4 right-4">
-                        <div className="premium-gradient text-white px-3 py-2 rounded-xl font-inter font-semibold text-sm shadow-lg flex items-center gap-1">
-                          <FaTag className="text-xs" />
-                          ₹{dish.price}
-                        </div>
-                      </div>
-                      <div className="absolute top-4 left-4">
-                        <div className="gold-gradient text-amber-900 px-2 py-1 rounded-lg font-inter font-bold text-xs flex items-center gap-1">
-                          <FaRocket className="text-xs" />
-                          PREMIUM
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-4 sm:p-6">
-                      <h3 className="text-lg sm:text-xl font-clash font-bold text-white mb-3 line-clamp-1 group-hover:text-blue-200 transition-colors duration-300">{dish.name}</h3>
-                      <p className="text-white/70 text-sm font-inter mb-4 line-clamp-2">{dish.description}</p>
-                      <div className="flex items-center justify-between">
-                        <button className="premium-gradient text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-inter font-semibold text-sm hover:premium-gradient-reverse transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center gap-2">
-                          <FaPlus className="text-xs" />
-                          Order Now
-                        </button>
-                        <div className="flex items-center gap-2 text-amber-400">
-                          <FaStar className="text-sm" />
-                          <span className="font-inter font-semibold text-sm">4.8</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Active Orders Tab */}
-        {activeTab === 'orders' && (
-          <div className="glass-effect rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/10 w-full">
-            <h2 className="text-3xl sm:text-4xl font-clash font-bold text-white mb-8 flex items-center gap-4">
-              <div className="p-3 sm:p-4 rounded-2xl bg-blue-500/20 shadow-lg">
-                <FaClock className="text-2xl text-blue-400" />
-              </div>
-              <span>Active Orders</span>
-              <FaShieldAlt className="text-blue-400 text-xl" />
-            </h2>
-            
-            {ordersLoading ? (
-              <div className="text-center py-12">
-                <FaSpinner className="animate-spin text-4xl text-blue-400 mb-4 mx-auto" />
-                <div className="text-white/70 font-inter text-xl">Loading orders...</div>
-              </div>
-            ) : activeOrders.length === 0 ? (
-              <div className="text-center py-12">
-                <FaInbox className="text-6xl text-white/30 mb-6 mx-auto" />
-                <div className="text-white/70 font-inter text-2xl">No active orders</div>
-                <div className="text-white/50 font-inter text-lg mt-2">New orders will appear here</div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {[...new Set(activeOrders.map(o => o.table))].map(tableNo => {
-                  const tableOrders = activeOrders.filter(o => o.table === tableNo);
-                  let allItems = [];
-                  tableOrders.forEach(order => {
-                    order.items.forEach(item => {
-                      allItems.push({ ...item, _orderId: order._id });
-                    });
-                  });
-
-                  const groupedItems = [];
-                  allItems.forEach(item => {
-                    const key = item.name + '|' + (item.modifications ? item.modifications.join(',') : '');
-                    const existing = groupedItems.find(i => i.key === key);
-                    if (existing) {
-                      existing.quantity += Number(item.quantity);
-                    } else {
-                      groupedItems.push({
-                        key,
-                        name: item.name,
-                        modifications: item.modifications,
-                        price: item.price,
-                        quantity: Number(item.quantity)
-                      });
-                    }
-                  });
-
-                  const total = groupedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-                  return (
-                    <div key={tableNo} className="bg-white/5 rounded-3xl p-4 sm:p-6 shadow-xl border border-white/10 hover:border-white/20 transition-all duration-300">
-                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
-                        <div className="flex items-center gap-4">
-                          <div className="premium-gradient text-white px-4 sm:px-6 py-2 sm:py-3 rounded-2xl font-clash font-bold text-lg sm:text-xl flex items-center gap-3 shadow-lg">
-                            <FaTable />
-                            Table {tableNo}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                          {tableOrders.map(order => (
-                            <div key={order._id} className="flex items-center gap-3">
-                              <span 
-                                className="px-3 sm:px-4 py-2 rounded-xl text-sm font-inter font-semibold border shadow-lg"
-                                style={{
-                                  backgroundColor: getStatusColor(order.status) + '20',
-                                  color: getStatusColor(order.status),
-                                  borderColor: getStatusColor(order.status) + '40'
-                                }}
-                              >
-                                {getStatusLabel(order.status)}
-                              </span>
-                              {order.status !== 'paid' && (
-                                <button
-                                  onClick={() => updateOrderStatus(order._id, getNextStatus(order.status))}
-                                  className="premium-gradient text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-inter font-semibold hover:premium-gradient-reverse transition-all duration-300 transform hover:scale-105 flex items-center gap-2 shadow-lg hover:shadow-xl"
-                                >
-                                  <FaArrowRight className="text-xs" />
-                                  {getStatusLabel(getNextStatus(order.status))}
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="overflow-x-auto rounded-2xl">
-                        <table className="w-full min-w-full">
-                          <thead>
-                            <tr className="bg-white/10">
-                              <th className="text-left p-3 sm:p-4 font-inter font-semibold text-white/80 text-base sm:text-lg">Item</th>
-                              <th className="text-left p-3 sm:p-4 font-inter font-semibold text-white/80 text-base sm:text-lg">Qty</th>
-                              <th className="text-left p-3 sm:p-4 font-inter font-semibold text-white/80 text-base sm:text-lg">Modifications</th>
-                              <th className="text-left p-3 sm:p-4 font-inter font-semibold text-white/80 text-base sm:text-lg">Price</th>
-                              <th className="text-left p-3 sm:p-4 font-inter font-semibold text-white/80 text-base sm:text-lg">Subtotal</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {groupedItems.map((item, idx) => (
-                              <tr key={item.key + idx} className="border-b border-white/10 hover:bg-white/5 transition-colors duration-200">
-                                <td className="p-3 sm:p-4 font-inter font-semibold text-white text-base sm:text-lg">{item.name}</td>
-                                <td className="p-3 sm:p-4 font-inter text-white/70 text-base sm:text-lg">{item.quantity}</td>
-                                <td className="p-3 sm:p-4 font-inter text-white/50 text-xs sm:text-sm">
-                                  {item.modifications && item.modifications.length > 0 ? item.modifications.join(', ') : '-'}
-                                </td>
-                                <td className="p-3 sm:p-4 font-inter font-semibold text-amber-400 text-base sm:text-lg">₹{item.price}</td>
-                                <td className="p-3 sm:p-4 font-inter font-semibold text-amber-400 text-base sm:text-lg">₹{item.price * item.quantity}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      
-                      <div className="flex justify-end mt-6">
-                        <div className="text-xl sm:text-2xl font-clash font-bold text-amber-400 bg-white/5 px-4 sm:px-6 py-2 sm:py-3 rounded-2xl">
-                          Total: ₹{total}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Completed Orders Tab */}
-        {activeTab === 'completed' && (
-          <div className="glass-effect rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/10 w-full">
-            <h2 className="text-3xl sm:text-4xl font-clash font-bold text-white mb-8 flex items-center gap-4">
-              <div className="p-3 sm:p-4 rounded-2xl bg-emerald-500/20 shadow-lg">
-                <FaCheckCircle className="text-2xl text-emerald-400" />
-              </div>
-              <span>Completed Orders</span>
-              <FaGem className="text-emerald-400 text-xl" />
-            </h2>
-            
-            {completedOrders.length === 0 ? (
-              <div className="text-center py-12">
-                <FaCheck className="text-6xl text-white/30 mb-6 mx-auto" />
-                <div className="text-white/70 font-inter text-2xl">No completed orders</div>
-                <div className="text-white/50 font-inter text-lg mt-2">Completed orders will appear here</div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {completedOrders.map(order => (
-                  <div key={order._id} className="bg-white/5 rounded-3xl p-4 sm:p-6 shadow-xl border border-white/10 hover:border-white/20 transition-all duration-300">
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
-                      <div className="flex items-center gap-4">
-                        <div className="bg-emerald-500/20 text-emerald-400 px-4 sm:px-6 py-2 sm:py-3 rounded-2xl font-clash font-bold text-lg sm:text-xl flex items-center gap-3 shadow-lg">
-                          <FaTable />
-                          Table {order.table}
-                        </div>
-                      </div>
-                      <span 
-                        className="px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-inter font-semibold text-base sm:text-lg border shadow-lg"
-                        style={{
-                          backgroundColor: getStatusColor(order.status) + '20',
-                          color: getStatusColor(order.status),
-                          borderColor: getStatusColor(order.status) + '40'
-                        }}
-                      >
-                        {getStatusLabel(order.status)}
-                      </span>
-                    </div>
-                    
-                    <div className="overflow-x-auto rounded-2xl">
-                      <table className="w-full min-w-full">
-                        <thead>
-                          <tr className="bg-white/10">
-                            <th className="text-left p-3 sm:p-4 font-inter font-semibold text-white/80 text-base sm:text-lg">Item</th>
-                            <th className="text-left p-3 sm:p-4 font-inter font-semibold text-white/80 text-base sm:text-lg">Qty</th>
-                            <th className="text-left p-3 sm:p-4 font-inter font-semibold text-white/80 text-base sm:text-lg">Price</th>
-                            <th className="text-left p-3 sm:p-4 font-inter font-semibold text-white/80 text-base sm:text-lg">Subtotal</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {order.items.map((item, idx) => (
-                            <tr key={idx} className="border-b border-white/10 hover:bg-white/5 transition-colors duration-200">
-                              <td className="p-3 sm:p-4 font-inter text-white text-base sm:text-lg">{item.name}</td>
-                              <td className="p-3 sm:p-4 font-inter text-white/70 text-base sm:text-lg">{item.quantity}</td>
-                              <td className="p-3 sm:p-4 font-inter text-amber-400 text-base sm:text-lg">₹{item.price}</td>
-                              <td className="p-3 sm:p-4 font-inter font-semibold text-amber-400 text-base sm:text-lg">₹{item.price * item.quantity}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    
-                    <div className="flex justify-end mt-6">
-                      <div className="text-xl sm:text-2xl font-clash font-bold text-amber-400 bg-white/5 px-4 sm:px-6 py-2 sm:py-3 rounded-2xl">
-                        Total: ₹{order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-
-      {/* Dish Order Modal */}
-      {galleryModalDish && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 z-50">
-          <div className="glass-effect rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-white/20 animate-scale-in">
-            <form onSubmit={handleGalleryOrder} className="p-6 sm:p-8">
-              <div className="relative rounded-2xl overflow-hidden mb-6">
-                <img 
-                  src={galleryModalDish.image || '/images/chef3.png'} 
-                  alt={galleryModalDish.name}
-                  className="w-full h-48 sm:h-64 object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                <div className="absolute bottom-4 left-4">
-                  <h2 className="text-2xl sm:text-3xl font-clash font-bold text-white mb-2 flex items-center gap-3">
-                    <FaUtensils className="text-blue-400" />
-                    {galleryModalDish.name}
-                  </h2>
-                  <p className="text-2xl sm:text-3xl font-clash font-bold text-amber-400 flex items-center gap-2">
-                    <FaTag />
-                    ₹{galleryModalDish.price}
-                  </p>
-                </div>
-              </div>
-              
-              <p className="text-white/70 font-inter text-base sm:text-lg mb-8">{galleryModalDish.description}</p>
-
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-base sm:text-lg font-inter font-semibold text-white mb-3 flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-blue-500/20">
-                      <FaTable className="text-blue-400" />
-                    </div>
-                    Table Number
-                  </label>
-                  <input 
-                    required 
-                    placeholder="Enter table number"
-                    value={galleryOrderTableNo}
-                    onChange={e => setGalleryOrderTableNo(e.target.value)}
-                    className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 font-inter text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-base sm:text-lg font-inter font-semibold text-white mb-3 flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-purple-500/20">
-                      <FaHashtag className="text-purple-400" />
-                    </div>
-                    Quantity
-                  </label>
-                  <input 
-                    required 
-                    type="number" 
-                    min="1"
-                    placeholder="Enter quantity"
-                    value={galleryOrderQty}
-                    onChange={e => setGalleryOrderQty(e.target.value)}
-                    className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 font-inter text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-base sm:text-lg font-inter font-semibold text-white mb-3 flex items-center gap-3">
-                    <div className="p-2 sm:p-3 rounded-xl bg-emerald-500/20">
-                      <FaEdit className="text-emerald-400" />
-                    </div>
-                    Modifications
-                  </label>
-                  <input 
-                    placeholder="Special requests (comma separated)"
-                    value={galleryOrderMods}
-                    onChange={e => setGalleryOrderMods(e.target.value)}
-                    className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 font-inter text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                  />
-                </div>
-              </div>
-
-              {galleryOrderSuccess && (
-                <div className="bg-emerald-500/20 border border-emerald-400/30 rounded-2xl p-4 sm:p-6 mt-6 flex items-center gap-4">
-                  <FaCheckCircle className="text-xl sm:text-2xl text-emerald-400" />
-                  <span className="text-emerald-300 font-inter font-semibold text-base sm:text-lg">Order placed successfully!</span>
-                </div>
-              )}
-
-              {galleryOrderError && (
-                <div className="bg-rose-500/20 border border-rose-400/30 rounded-2xl p-4 sm:p-6 mt-6 flex items-center gap-4">
-                  <FaExclamationTriangle className="text-xl sm:text-2xl text-rose-400" />
-                  <span className="text-rose-300 font-inter text-base sm:text-lg">{galleryOrderError}</span>
-                </div>
-              )}
-
-              <div className="flex flex-col sm:flex-row gap-4 mt-8">
-                <button 
-                  type="submit" 
-                  className="flex-1 premium-gradient text-white py-3 sm:py-4 rounded-2xl font-inter font-semibold text-base sm:text-lg hover:premium-gradient-reverse transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
+                <Icon as={GiChefToque} color="white" boxSize={5} />
+              </Box>
+              <Box>
+                <Text
+                  fontFamily="'Space Grotesk', sans-serif"
+                  fontWeight="700" fontSize="17px" color={T.blue800}
+                  letterSpacing="-0.3px" lineHeight="1"
                 >
-                  <FaPaperPlane />
-                  Place Order
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setGalleryModalDish(null)}
-                  className="flex-1 bg-white/10 text-white py-3 sm:py-4 rounded-2xl font-inter font-semibold text-base sm:text-lg hover:bg-white/20 transition-all duration-300 flex items-center justify-center gap-3 border border-white/20 hover:border-white/30"
-                >
-                  <FaTimes />
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                  TableFlow <Text as="span" fontSize="11px" fontWeight="400" color="gray.400">AI</Text>
+                </Text>
+              </Box>
+              <Badge
+                bg={T.blue50} color={T.blue600}
+                fontSize="9px" fontWeight="700"
+                px={2} py={1} borderRadius="full"
+                border={`0.5px solid ${T.blue100}`}
+                letterSpacing="0.5px"
+              >
+                WAITER PRO
+              </Badge>
+            </Flex>
 
-      {/* Voice Order Modal */}
-      {voiceOrderModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 z-50">
-          <div className="glass-effect rounded-3xl max-w-2xl sm:max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-white/20 animate-scale-in">
-            <div className="p-6 sm:p-8">
-              <h2 className="text-2xl sm:text-3xl font-clash font-bold text-white mb-6 flex items-center gap-4">
-                <div className="p-3 sm:p-4 rounded-2xl premium-gradient shadow-lg">
-                  <FaMicrophone className="text-xl sm:text-2xl text-white" />
-                </div>
+            {/* Desktop actions */}
+            <Flex display={{ base: 'none', md: 'flex' }} align="center" gap={2}>
+              <Button
+                size="sm" variant="outline"
+                borderColor={T.blue100} color={T.blue600}
+                _hover={{ bg: T.blue50 }}
+                leftIcon={<FaCamera size={12} />}
+                onClick={() => setShowFace(true)}
+                borderRadius="10px" fontSize="12px" h="34px"
+              >
+                Register Face
+              </Button>
+              <Button
+                size="sm" bg={T.blue600} color="white"
+                _hover={{ bg: T.blue800 }}
+                leftIcon={<FaMicrophone size={12} />}
+                onClick={startVoice}
+                borderRadius="10px" fontSize="12px" h="34px"
+              >
                 Voice Order
-                <FaBolt className="text-yellow-300 text-lg sm:text-xl" />
-              </h2>
+              </Button>
+              <Box position="relative">
+                <IconButton
+                  icon={<FaBell size={14} />}
+                  variant="outline" size="sm" h="34px" w="34px"
+                  borderColor={T.blue100} color={T.blue600}
+                  _hover={{ bg: T.blue50 }} borderRadius="10px"
+                  aria-label="Notifications"
+                />
+                {activeOrders.length > 0 && (
+                  <Circle size="8px" bg="red.500" position="absolute" top="0" right="0"
+                    border="2px solid white" />
+                )}
+              </Box>
+              <Box w="34px" h="34px" borderRadius="full" bg={T.blue600}
+                display="flex" alignItems="center" justifyContent="center"
+                border={`2px solid ${T.blue100}`} cursor="pointer"
+              >
+                <Text color="white" fontSize="11px" fontWeight="700">WA</Text>
+              </Box>
+              <Button
+                size="sm" variant="ghost"
+                color="red.500" _hover={{ bg: 'red.50' }}
+                leftIcon={<FaSignOutAlt size={12} />}
+                onClick={handleLogout}
+                borderRadius="10px" fontSize="12px" h="34px"
+              >
+                Logout
+              </Button>
+            </Flex>
 
-              {!voiceOrderParsed ? (
-                <>
-                  <div className="flex items-center gap-4 text-blue-400 font-inter font-semibold text-lg sm:text-xl mb-6">
-                    {listening && <div className="w-3 h-3 sm:w-4 sm:h-4 bg-rose-500 rounded-full pulse-dot"></div>}
-                    <FaMicrophone className={`text-xl sm:text-2xl ${listening ? 'text-rose-400' : 'text-blue-400'}`} />
-                    {listening ? 'Listening... Speak now' : 'Ready to listen'}
-                  </div>
+            {/* Mobile hamburger */}
+            <IconButton
+              display={{ base: 'flex', md: 'none' }}
+              icon={<GiForkKnifeSpoon />}
+              variant="ghost" onClick={openMobile}
+              aria-label="Menu" color={T.blue600}
+            />
+          </Flex>
+        </Box>
 
-                  <div className="bg-white/10 border-2 border-dashed border-white/30 rounded-2xl p-4 sm:p-6 min-h-48 font-inter text-white/70 text-base sm:text-lg mb-6">
-                    {transcript || 'Your speech will appear here... Speak clearly and include table number and items.'}
-                  </div>
+        {/* ══ MOBILE DRAWER ══ */}
+        <Drawer isOpen={mobileOpen} placement="right" onClose={closeMobile}>
+          <DrawerOverlay backdropFilter="blur(8px)" />
+          <DrawerContent borderLeftRadius="20px">
+            <DrawerCloseButton />
+            <DrawerHeader
+              fontFamily="'Space Grotesk', sans-serif"
+              color={T.blue800} borderBottomWidth="0.5px"
+            >
+              Menu
+            </DrawerHeader>
+            <DrawerBody>
+              <VStack spacing={3} mt={4}>
+                {[
+                  { label: 'Register Face', icon: <FaCamera />, action: () => { setShowFace(true); closeMobile(); }, bg: T.blue50, color: T.blue600 },
+                  { label: 'Voice Order',   icon: <FaMicrophone />, action: () => { startVoice(); closeMobile(); }, bg: T.blue600, color: 'white' },
+                  { label: 'Logout',        icon: <FaSignOutAlt />, action: () => { handleLogout(); closeMobile(); }, bg: 'red.50', color: 'red.500' },
+                ].map(({ label, icon, action, bg, color }) => (
+                  <Button key={label} leftIcon={icon} onClick={action} w="full"
+                    bg={bg} color={color} borderRadius="10px" _hover={{ opacity: 0.9 }}>
+                    {label}
+                  </Button>
+                ))}
+              </VStack>
+            </DrawerBody>
+          </DrawerContent>
+        </Drawer>
 
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <button 
-                      onClick={handleStopVoiceOrder}
-                      disabled={!transcript}
-                      className="flex-1 premium-gradient text-white py-3 sm:py-4 rounded-2xl font-inter font-semibold text-base sm:text-lg hover:premium-gradient-reverse transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
-                    >
-                      <FaStop />
-                      Stop & Process
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setVoiceOrderModal(false);
-                        SpeechRecognition.stopListening();
-                      }}
-                      className="flex-1 bg-white/10 text-white py-3 sm:py-4 rounded-2xl font-inter font-semibold text-base sm:text-lg hover:bg-white/20 transition-all duration-300 flex items-center justify-center gap-3 border border-white/20 hover:border-white/30"
-                    >
-                      <FaTimes />
-                      Cancel
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="bg-blue-500/20 border-l-4 border-blue-400 rounded-2xl p-4 sm:p-6 mb-6">
-                    <h3 className="text-xl sm:text-2xl font-clash font-bold text-white mb-4 flex items-center gap-3">
-                      <FaReceipt className="text-blue-400" />
-                      Order Summary
-                    </h3>
-                    <p className="font-inter text-white text-base sm:text-lg mb-2"><strong>Table:</strong> {voiceOrderParsed.table || 'Not specified'}</p>
-                    <p className="font-inter text-white text-base sm:text-lg mt-4"><strong>Items:</strong></p>
-                    <ul className="font-inter text-white mt-2 space-y-2">
-                      {voiceOrderParsed.items.map((item, idx) => (
-                        <li key={idx} className="flex items-center gap-3">
-                          <FaCheck className="text-emerald-400 text-sm" />
-                          <span className="text-base sm:text-lg">
-                            {item.quantity}x {item.name}
-                            {item.modifications.length > 0 && (
-                              <span className="text-white/60 text-xs sm:text-sm ml-2">
-                                ({item.modifications.join(', ')})
-                              </span>
-                            )}
-                          </span>
-                        </li>
+        {/* ══ MAIN ══ */}
+        <Container maxW="1200px" px={{ base: 4, md: 8 }} py={8}>
+
+          {/* Greeting */}
+          <Box mb={8}>
+            <Heading
+              fontFamily="'Space Grotesk', sans-serif"
+              fontSize={{ base: '22px', md: '26px' }}
+              fontWeight="700" color={T.blue900}
+              letterSpacing="-0.5px"
+            >
+              Good afternoon, Alex 👋
+            </Heading>
+            <Text fontSize="13px" color="gray.400" mt={1}>
+              Friday, April 10 · Lunch shift · Active since 11:00 AM
+            </Text>
+          </Box>
+
+          {/* ── STATS ── */}
+          <SimpleGrid columns={{ base: 2, lg: 4 }} spacing={4} mb={8}>
+            {[
+              {
+                label: 'Active Orders', value: activeOrders.length,
+                sub: `${orders.filter(o=>o.status==='pending').length} pending`,
+                iconColor: T.blue600, iconBg: T.blue50, progress: Math.min(100, activeOrders.length * 20),
+                progressColor: T.blue600, Icon: FaClock,
+              },
+              {
+                label: 'Completed Today', value: completedOrders.length,
+                sub: `From ${orders.length} total`,
+                iconColor: T.teal600, iconBg: T.teal50, progress: Math.min(100, completedOrders.length * 8),
+                progressColor: '#1D9E75', Icon: FaCheckCircle,
+              },
+              {
+                label: 'Menu Items', value: dishes.length,
+                sub: 'Available now',
+                iconColor: T.amber600, iconBg: T.amber50, progress: 95,
+                progressColor: T.amber600, Icon: FaListAlt,
+              },
+              {
+                label: "Today's Revenue", value: `₹${totalRevenue.toLocaleString()}`,
+                sub: `${completedOrders.length} orders`,
+                iconColor: T.purple600, iconBg: T.purple50, progress: 72,
+                progressColor: T.purple600, Icon: FaChartLine,
+              },
+            ].map(({ label, value, sub, iconColor, iconBg, progress, progressColor, Icon: Ic }) => (
+              <Card key={label} {...cardStyle} p={0}>
+                <CardBody p={5}>
+                  <Flex justify="space-between" align="flex-start">
+                    <Box flex={1}>
+                      <Text fontSize="10px" fontWeight="600" color="gray.400"
+                        textTransform="uppercase" letterSpacing="0.8px" mb={2}>
+                        {label}
+                      </Text>
+                      <Text
+                        fontFamily="'Space Grotesk', sans-serif"
+                        fontSize={{ base: '22px', md: '28px' }}
+                        fontWeight="700" color={T.blue900} lineHeight="1" mb={1}
+                      >
+                        {value}
+                      </Text>
+                      <Text fontSize="11px" color={progressColor} fontWeight="500">{sub}</Text>
+                      <Box h="3px" bg={T.blue50} borderRadius="full" mt={3} overflow="hidden">
+                        <Box h="100%" w={`${progress}%`} bg={progressColor} borderRadius="full"
+                          transition="width 0.6s ease" />
+                      </Box>
+                    </Box>
+                    <Box w="38px" h="38px" bg={iconBg} borderRadius="12px"
+                      display="flex" alignItems="center" justifyContent="center" ml={3}>
+                      <Icon as={Ic} boxSize="16px" color={iconColor} />
+                    </Box>
+                  </Flex>
+                </CardBody>
+              </Card>
+            ))}
+          </SimpleGrid>
+
+          {/* ── TABS ── */}
+          <Box {...cardStyle}>
+            <Tabs variant="unstyled" isLazy>
+              <TabList
+                bg={T.tabBarBg}
+                borderBottom="0.5px solid rgba(24,95,165,0.08)"
+                px={2} pt={2}
+              >
+                {[
+                  { label: 'Menu Gallery',  icon: FaUtensils,     count: null             },
+                  { label: 'Active Orders', icon: FaClock,        count: activeOrders.length     },
+                  { label: 'Completed',     icon: FaCheckCircle,  count: completedOrders.length  },
+                ].map(({ label, icon: Ic, count }) => (
+                  <Tab
+                    key={label}
+                    fontSize="12px" fontWeight="500" color="gray.500"
+                    borderRadius="10px 10px 0 0" px={5} py={3} mr={1}
+                    _selected={{
+                      color: T.blue600, bg: 'white',
+                      fontWeight: '600',
+                      borderBottom: `2px solid ${T.blue600}`,
+                    }}
+                    _hover={{ color: T.blue600 }}
+                  >
+                    <Flex align="center" gap={2}>
+                      <Icon as={Ic} boxSize="12px" />
+                      <Text display={{ base: 'none', sm: 'block' }}>{label}</Text>
+                      {count !== null && (
+                        <Badge
+                          bg={count > 0 ? T.amber50 : T.blue50}
+                          color={count > 0 ? T.amber600 : T.blue600}
+                          fontSize="9px" fontWeight="700"
+                          px={2} borderRadius="full"
+                        >
+                          {count}
+                        </Badge>
+                      )}
+                    </Flex>
+                  </Tab>
+                ))}
+              </TabList>
+
+              <TabPanels>
+                {/* ── MENU TAB ── */}
+                <TabPanel p={6}>
+                  <Flex justify="space-between" align="center" mb={5}>
+                    <Heading fontFamily="'Space Grotesk',sans-serif" fontSize="15px" fontWeight="600" color={T.blue800}>
+                      Menu Gallery
+                    </Heading>
+                    <Badge bg={T.blue50} color={T.blue600} px={3} py={1} borderRadius="full" fontSize="10px" fontWeight="600">
+                      {dishes.length} items
+                    </Badge>
+                  </Flex>
+
+                  {/* Search bar */}
+                  <InputGroup mb={5} size="md">
+                    <InputLeftElement pointerEvents="none">
+                      <Icon as={FaSearch} color="gray.400" boxSize="13px" />
+                    </InputLeftElement>
+                    <Input
+                      placeholder="Search menu items…"
+                      value={menuSearch}
+                      onChange={e => setMenuSearch(e.target.value)}
+                      bg={T.inputBg} border={`0.5px solid rgba(24,95,165,0.15)`}
+                      borderRadius="10px" fontSize="13px" color={T.blue900}
+                      _focus={{ borderColor: T.blue400, boxShadow: `0 0 0 3px rgba(55,138,221,0.12)` }}
+                      _placeholder={{ color: 'gray.400' }}
+                    />
+                  </InputGroup>
+
+                  {dishesLoading ? (
+                    <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={4}>
+                      {Array(8).fill(0).map((_, i) => (
+                        <Card key={i} borderRadius="14px" overflow="hidden" border="0.5px solid rgba(24,95,165,0.08)">
+                          <Skeleton h="140px" />
+                          <CardBody><SkeletonText noOfLines={3} spacing={3} /></CardBody>
+                        </Card>
                       ))}
-                    </ul>
-                  </div>
+                    </SimpleGrid>
+                  ) : dishesError ? (
+                    <Alert status="error" borderRadius="12px">
+                      <AlertIcon /><AlertTitle>Error</AlertTitle><AlertDescription>{dishesError}</AlertDescription>
+                    </Alert>
+                  ) : (
+                    <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={4}>
+                      {filteredDishes.map(dish => (
+                        <Box
+                          key={dish._id}
+                          bg="white" borderRadius="14px"
+                          border="0.5px solid rgba(24,95,165,0.10)"
+                          overflow="hidden" cursor="pointer"
+                          transition="all 0.2s"
+                          _hover={{ transform: 'translateY(-2px)', borderColor: T.blue400, boxShadow: '0 8px 24px rgba(24,95,165,0.12)' }}
+                          onClick={() => { setGalleryDish(dish); setGallerySuccess(false); setGalleryError(''); }}
+                        >
+                          <Box position="relative">
+                            <Image
+                              src={dish.image || '/images/chef3.png'}
+                              alt={dish.name} h="140px" w="100%" objectFit="cover"
+                              fallback={
+                                <Box h="140px" bg={T.blue50} display="flex"
+                                  alignItems="center" justifyContent="center">
+                                  <Icon as={GiChefToque} boxSize={10} color={T.blue200} />
+                                </Box>
+                              }
+                            />
+                            <Badge
+                              position="absolute" top={2} right={2}
+                              bg={T.blue900} color="white"
+                              fontSize="11px" fontWeight="700" px={2} py={1} borderRadius="8px"
+                            >
+                              ₹{dish.price}
+                            </Badge>
+                          </Box>
+                          <Box p={3}>
+                            <Text fontFamily="'Space Grotesk',sans-serif" fontWeight="600"
+                              fontSize="13px" color={T.blue900} mb={1} noOfLines={1}>
+                              {dish.name}
+                            </Text>
+                            <Text fontSize="11px" color="gray.400" noOfLines={2} mb={3} lineHeight="1.5">
+                              {dish.description || 'Premium quality dish'}
+                            </Text>
+                            <Flex justify="space-between" align="center">
+                              <Button
+                                size="xs" bg={T.blue600} color="white"
+                                _hover={{ bg: T.blue800 }} borderRadius="8px"
+                                leftIcon={<FaPlus size={9} />} fontSize="11px"
+                              >
+                                Order
+                              </Button>
+                              <Flex align="center" gap={1}>
+                                <Icon as={FaStar} color="yellow.400" boxSize="11px" />
+                                <Text fontSize="11px" fontWeight="600" color="gray.500">4.8</Text>
+                              </Flex>
+                            </Flex>
+                          </Box>
+                        </Box>
+                      ))}
+                    </SimpleGrid>
+                  )}
+                </TabPanel>
 
-                  {voiceOrderError && (
-                    <div className="bg-rose-500/20 border border-rose-400/30 rounded-2xl p-4 sm:p-6 mb-6 flex items-center gap-4">
-                      <FaExclamationTriangle className="text-xl sm:text-2xl text-rose-400" />
-                      <span className="text-rose-300 font-inter text-base sm:text-lg">{voiceOrderError}</span>
-                    </div>
+                {/* ── ACTIVE ORDERS TAB ── */}
+                <TabPanel p={6}>
+                  <Flex justify="space-between" align="center" mb={5}>
+                    <Heading fontFamily="'Space Grotesk',sans-serif" fontSize="15px" fontWeight="600" color={T.blue800}>
+                      Active Orders
+                    </Heading>
+                    <Badge bg={T.amber50} color={T.amber600} px={3} py={1} borderRadius="full" fontSize="10px" fontWeight="600">
+                      {activeOrders.length} active
+                    </Badge>
+                  </Flex>
+
+                  {ordersLoading ? (
+                    <Center py={12}><Spinner size="lg" color={T.blue600} /></Center>
+                  ) : activeOrders.length === 0 ? (
+                    <Center py={14} flexDirection="column">
+                      <Icon as={FaInbox} boxSize={12} color="gray.200" mb={3} />
+                      <Text fontFamily="'Space Grotesk',sans-serif" fontWeight="600" color="gray.300">No active orders</Text>
+                      <Text fontSize="12px" color="gray.300" mt={1}>New orders will appear here</Text>
+                    </Center>
+                  ) : (
+                    <VStack spacing={4} align="stretch">
+                      {[...new Set(activeOrders.map(o => o.table))].map(tableNo => {
+                        const tOrders = activeOrders.filter(o => o.table === tableNo);
+                        const allItems = tOrders.flatMap(o => o.items.map(i => ({ ...i, _oid: o._id })));
+                        const grouped = [];
+                        allItems.forEach(item => {
+                          const key = `${item.name}|${(item.modifications||[]).join(',')}`;
+                          const ex = grouped.find(g => g.key === key);
+                          if (ex) ex.quantity += Number(item.quantity);
+                          else grouped.push({ key, name: item.name, modifications: item.modifications, price: item.price, quantity: Number(item.quantity) });
+                        });
+                        const total = grouped.reduce((s, i) => s + i.price * i.quantity, 0);
+
+                        return (
+                          <Box key={tableNo} bg="white" borderRadius="14px"
+                            border="0.5px solid rgba(24,95,165,0.10)" overflow="hidden">
+                            <Flex
+                              bg={T.tabBarBg}
+                              borderBottom="0.5px solid rgba(24,95,165,0.08)"
+                              px={4} py={3}
+                              align={{ base: 'flex-start', md: 'center' }}
+                              direction={{ base: 'column', md: 'row' }}
+                              justify="space-between" gap={3}
+                            >
+                              <Badge bg={T.blue50} color={T.blue600}
+                                fontSize="12px" fontWeight="700" px={3} py={2} borderRadius="8px">
+                                <Flex align="center" gap={2}>
+                                  <Icon as={FaTable} boxSize="11px" /> Table {tableNo}
+                                </Flex>
+                              </Badge>
+                              <Wrap spacing={2}>
+                                {tOrders.map(o => {
+                                  const s = statusMap[o.status] || statusMap.pending;
+                                  return (
+                                    <Flex key={o._id} align="center" gap={2}>
+                                      <Badge bg={s.bg} color={s.fg}
+                                        fontSize="10px" fontWeight="600" px={2} py={1} borderRadius="6px">
+                                        {s.label}
+                                      </Badge>
+                                      {s.next && (
+                                        <Button size="xs" bg={T.blue600} color="white"
+                                          _hover={{ bg: T.blue800 }} borderRadius="7px"
+                                          rightIcon={<FaArrowRight size={9} />}
+                                          onClick={() => updateStatus(o._id, s.next)}
+                                          fontSize="10px"
+                                        >
+                                          Mark {s.nextLabel}
+                                        </Button>
+                                      )}
+                                    </Flex>
+                                  );
+                                })}
+                              </Wrap>
+                            </Flex>
+                            <Box overflowX="auto" px={4} py={3}>
+                              <Table size="sm" variant="simple">
+                                <Thead>
+                                  <Tr>
+                                    {['Item','Qty','Modifications','Price','Subtotal'].map(h => (
+                                      <Th key={h}
+                                        fontSize="9px" fontWeight="600"
+                                        textTransform="uppercase" letterSpacing="0.8px"
+                                        color="gray.400" borderBottomColor="rgba(24,95,165,0.08)"
+                                        isNumeric={['Price','Subtotal','Qty'].includes(h)}
+                                      >
+                                        {h}
+                                      </Th>
+                                    ))}
+                                  </Tr>
+                                </Thead>
+                                <Tbody>
+                                  {grouped.map((item, idx) => (
+                                    <Tr key={idx} _hover={{ bg: T.blue50 }}>
+                                      <Td fontSize="12px" fontWeight="600" color={T.blue900} borderColor="rgba(24,95,165,0.06)">{item.name}</Td>
+                                      <Td isNumeric fontSize="12px" color="gray.600" borderColor="rgba(24,95,165,0.06)">{item.quantity}</Td>
+                                      <Td fontSize="11px" color="gray.400" borderColor="rgba(24,95,165,0.06)">
+                                        {item.modifications?.length ? item.modifications.join(', ') : '—'}
+                                      </Td>
+                                      <Td isNumeric fontSize="12px" color="gray.600" borderColor="rgba(24,95,165,0.06)">₹{item.price}</Td>
+                                      <Td isNumeric fontSize="12px" fontWeight="700" color={T.blue600} borderColor="rgba(24,95,165,0.06)">₹{item.price * item.quantity}</Td>
+                                    </Tr>
+                                  ))}
+                                </Tbody>
+                              </Table>
+                            </Box>
+                            <Flex justify="flex-end" px={4} pb={3}>
+                              <Badge bg={T.blue900} color="white"
+                                fontFamily="'Space Grotesk',sans-serif"
+                                fontSize="13px" fontWeight="700"
+                                px={4} py={2} borderRadius="8px">
+                                Total: ₹{total}
+                              </Badge>
+                            </Flex>
+                          </Box>
+                        );
+                      })}
+                    </VStack>
+                  )}
+                </TabPanel>
+
+                {/* ── COMPLETED ORDERS TAB ── */}
+                <TabPanel p={6}>
+                  <Flex justify="space-between" align="center" mb={5}>
+                    <Heading fontFamily="'Space Grotesk',sans-serif" fontSize="15px" fontWeight="600" color={T.blue800}>
+                      Completed Orders
+                    </Heading>
+                    <Badge bg={T.teal50} color={T.teal600} px={3} py={1} borderRadius="full" fontSize="10px" fontWeight="600">
+                      {completedOrders.length} done
+                    </Badge>
+                  </Flex>
+
+                  {completedOrders.length === 0 ? (
+                    <Center py={14} flexDirection="column">
+                      <Icon as={FaCheck} boxSize={12} color="gray.200" mb={3} />
+                      <Text fontFamily="'Space Grotesk',sans-serif" fontWeight="600" color="gray.300">No completed orders</Text>
+                    </Center>
+                  ) : (
+                    <VStack spacing={4} align="stretch">
+                      {completedOrders.map(order => {
+                        const s = statusMap[order.status] || statusMap.paid;
+                        const total = order.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+                        return (
+                          <Box key={order._id} bg="white" borderRadius="14px"
+                            border="0.5px solid rgba(24,95,165,0.10)" overflow="hidden">
+                            <Flex
+                              bg={T.tabBarBg}
+                              borderBottom="0.5px solid rgba(24,95,165,0.08)"
+                              px={4} py={3} align="center" justify="space-between"
+                            >
+                              <Badge bg={T.teal50} color={T.teal600}
+                                fontSize="12px" fontWeight="700" px={3} py={2} borderRadius="8px">
+                                <Flex align="center" gap={2}>
+                                  <Icon as={FaTable} boxSize="11px" /> Table {order.table}
+                                </Flex>
+                              </Badge>
+                              <Badge bg={s.bg} color={s.fg}
+                                fontSize="10px" fontWeight="600" px={2} py={1} borderRadius="6px">
+                                {s.label}
+                              </Badge>
+                            </Flex>
+                            <Box overflowX="auto" px={4} py={3}>
+                              <Table size="sm" variant="simple">
+                                <Thead>
+                                  <Tr>
+                                    {['Item','Qty','Price','Subtotal'].map(h => (
+                                      <Th key={h}
+                                        fontSize="9px" fontWeight="600"
+                                        textTransform="uppercase" letterSpacing="0.8px"
+                                        color="gray.400" borderBottomColor="rgba(24,95,165,0.08)"
+                                        isNumeric={['Price','Subtotal','Qty'].includes(h)}
+                                      >
+                                        {h}
+                                      </Th>
+                                    ))}
+                                  </Tr>
+                                </Thead>
+                                <Tbody>
+                                  {order.items.map((item, idx) => (
+                                    <Tr key={idx} _hover={{ bg: T.teal50 }}>
+                                      <Td fontSize="12px" fontWeight="600" color={T.blue900} borderColor="rgba(24,95,165,0.06)">{item.name}</Td>
+                                      <Td isNumeric fontSize="12px" color="gray.600" borderColor="rgba(24,95,165,0.06)">{item.quantity}</Td>
+                                      <Td isNumeric fontSize="12px" color="gray.600" borderColor="rgba(24,95,165,0.06)">₹{item.price}</Td>
+                                      <Td isNumeric fontSize="12px" fontWeight="700" color={T.teal600} borderColor="rgba(24,95,165,0.06)">₹{item.price * item.quantity}</Td>
+                                    </Tr>
+                                  ))}
+                                </Tbody>
+                              </Table>
+                            </Box>
+                            <Flex justify="flex-end" px={4} pb={3}>
+                              <Badge bg={T.blue900} color="white"
+                                fontFamily="'Space Grotesk',sans-serif"
+                                fontSize="13px" fontWeight="700"
+                                px={4} py={2} borderRadius="8px">
+                                Total: ₹{total}
+                              </Badge>
+                            </Flex>
+                          </Box>
+                        );
+                      })}
+                    </VStack>
+                  )}
+                </TabPanel>
+              </TabPanels>
+            </Tabs>
+          </Box>
+        </Container>
+
+        {/* ══ GALLERY ORDER MODAL ══ */}
+        <Modal isOpen={!!galleryDish} onClose={() => setGalleryDish(null)} size="lg" isCentered>
+          <ModalOverlay backdropFilter="blur(10px)" bg="rgba(4,44,83,0.4)" />
+          <ModalContent borderRadius="20px" border={`0.5px solid rgba(24,95,165,0.15)`}>
+            <form onSubmit={handleGalleryOrder}>
+              <ModalHeader
+                fontFamily="'Space Grotesk',sans-serif"
+                color={T.blue800} fontSize="16px" fontWeight="700"
+                borderBottom="0.5px solid rgba(24,95,165,0.08)" pb={4}
+              >
+                <Flex align="center" gap={3}>
+                  <Box w="32px" h="32px" bg={T.blue50} borderRadius="8px"
+                    display="flex" alignItems="center" justifyContent="center">
+                    <Icon as={FaUtensils} color={T.blue600} boxSize="13px" />
+                  </Box>
+                  {galleryDish?.name}
+                </Flex>
+              </ModalHeader>
+              <ModalBody py={5}>
+                {galleryDish && (
+                  <VStack spacing={4} align="stretch">
+                    <Image
+                      src={galleryDish.image || '/images/chef3.png'}
+                      alt={galleryDish.name} borderRadius="12px"
+                      h="180px" w="100%" objectFit="cover"
+                      fallback={<Box h="180px" bg={T.blue50} borderRadius="12px"
+                        display="flex" alignItems="center" justifyContent="center">
+                        <Icon as={GiChefToque} boxSize={12} color={T.blue200} />
+                      </Box>}
+                    />
+                    <Flex align="center" justify="space-between">
+                      <Text fontSize="13px" color="gray.500" flex={1} noOfLines={2}>
+                        {galleryDish.description || 'Premium quality dish'}
+                      </Text>
+                      <Badge bg={T.blue900} color="white"
+                        fontFamily="'Space Grotesk',sans-serif"
+                        fontSize="14px" fontWeight="700"
+                        px={3} py={1} borderRadius="8px" ml={3}>
+                        ₹{galleryDish.price}
+                      </Badge>
+                    </Flex>
+
+                    <FormControl isRequired>
+                      <FormLabel fontSize="10px" fontWeight="600" color="gray.400"
+                        textTransform="uppercase" letterSpacing="0.6px">
+                        Table Number
+                      </FormLabel>
+                      <Select
+                        placeholder={seatedTablesLoading ? 'Loading…' : 'Select a seated table'}
+                        value={galleryTable} onChange={e => setGalleryTable(e.target.value)}
+                        borderRadius="10px" fontSize="13px" borderColor="rgba(24,95,165,0.2)"
+                        _focus={{ borderColor: T.blue400 }}
+                        isDisabled={seatedTablesLoading || !seatedTables.length}
+                      >
+                        {seatedTables.map(t => (
+                          <option key={t.tableId} value={t.tableNumber}>
+                            Table {t.tableNumber}{t.floor ? ` · ${t.floor}` : ''}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormControl>
+
+                    <FormControl isRequired>
+                      <FormLabel fontSize="10px" fontWeight="600" color="gray.400"
+                        textTransform="uppercase" letterSpacing="0.6px">
+                        Quantity
+                      </FormLabel>
+                      <Input type="number" min="1" placeholder="Enter quantity"
+                        value={galleryQty} onChange={e => setGalleryQty(e.target.value)}
+                        borderRadius="10px" fontSize="13px" borderColor="rgba(24,95,165,0.2)"
+                        _focus={{ borderColor: T.blue400 }}
+                      />
+                    </FormControl>
+
+                    <FormControl>
+                      <FormLabel fontSize="10px" fontWeight="600" color="gray.400"
+                        textTransform="uppercase" letterSpacing="0.6px">
+                        Modifications
+                      </FormLabel>
+                      <Input placeholder="Special requests, comma separated"
+                        value={galleryMods} onChange={e => setGalleryMods(e.target.value)}
+                        borderRadius="10px" fontSize="13px" borderColor="rgba(24,95,165,0.2)"
+                        _focus={{ borderColor: T.blue400 }}
+                      />
+                    </FormControl>
+
+                    {gallerySuccess && (
+                      <Alert status="success" borderRadius="10px" bg={T.teal50}>
+                        <AlertIcon color={T.teal600} />
+                        <Text fontSize="13px" color={T.teal600} fontWeight="500">Order placed successfully!</Text>
+                      </Alert>
+                    )}
+                    {galleryError && (
+                      <Alert status="error" borderRadius="10px">
+                        <AlertIcon /><Text fontSize="13px">{galleryError}</Text>
+                      </Alert>
+                    )}
+                  </VStack>
+                )}
+              </ModalBody>
+              <ModalFooter gap={3} borderTop="0.5px solid rgba(24,95,165,0.08)">
+                <Button variant="ghost" onClick={() => setGalleryDish(null)}
+                  fontSize="13px" borderRadius="10px" color="gray.500">
+                  Cancel
+                </Button>
+                <Button type="submit" bg={T.blue600} color="white"
+                  _hover={{ bg: T.blue800 }} fontSize="13px" borderRadius="10px">
+                  Place Order
+                </Button>
+              </ModalFooter>
+            </form>
+          </ModalContent>
+        </Modal>
+
+        {/* ══ VOICE ORDER MODAL ══ */}
+        <Modal
+          isOpen={voiceModal}
+          onClose={() => { setVoiceModal(false); SpeechRecognition.stopListening(); }}
+          size="lg" isCentered
+        >
+          <ModalOverlay backdropFilter="blur(10px)" bg="rgba(4,44,83,0.4)" />
+          <ModalContent borderRadius="20px" border={`0.5px solid rgba(24,95,165,0.15)`}>
+            <ModalHeader
+              fontFamily="'Space Grotesk',sans-serif"
+              color={T.blue800} fontSize="16px" fontWeight="700"
+              borderBottom="0.5px solid rgba(24,95,165,0.08)" pb={4}
+            >
+              <Flex align="center" gap={3}>
+                <Box w="32px" h="32px" bg={T.blue50} borderRadius="8px"
+                  display="flex" alignItems="center" justifyContent="center">
+                  <Icon as={FaMicrophone} color={T.blue600} boxSize="13px" />
+                </Box>
+                Voice Order
+                <Badge bg={T.amber50} color={T.amber600} fontSize="9px" fontWeight="700"
+                  px={2} py={1} borderRadius="full" letterSpacing="0.4px">
+                  <Flex align="center" gap={1}><Icon as={FaBolt} boxSize="9px" /> PREMIUM</Flex>
+                </Badge>
+              </Flex>
+            </ModalHeader>
+            <ModalBody py={6}>
+              {!voiceParsed ? (
+                <VStack spacing={5} align="stretch">
+                  <Center>
+                    <Box
+                      w="80px" h="80px" borderRadius="full"
+                      bg={T.blue600} display="flex" alignItems="center" justifyContent="center"
+                      border={`3px solid ${T.blue100}`}
+                      position="relative"
+                      sx={listening ? {
+                        '&::after': {
+                          content: '""', position: 'absolute', inset: '-8px',
+                          borderRadius: '50%', border: `2px solid ${T.blue400}`,
+                          animation: 'ripple 2s ease-out infinite',
+                        },
+                        '@keyframes ripple': {
+                          '0%': { transform: 'scale(1)', opacity: 1 },
+                          '100%': { transform: 'scale(1.5)', opacity: 0 },
+                        },
+                      } : {}}
+                    >
+                      <Icon as={FaMicrophone} color="white" boxSize={8} />
+                    </Box>
+                  </Center>
+
+                  {listening && (
+                    <Center gap={2}>
+                      <Box w="10px" h="10px" borderRadius="full" bg="red.500"
+                        sx={{ animation: 'pulse 1.2s ease-in-out infinite',
+                          '@keyframes pulse': { '0%,100%': { transform: 'scale(1)', opacity: 1 }, '50%': { transform: 'scale(1.4)', opacity: 0.6 } } }}
+                      />
+                      <Text fontSize="13px" fontWeight="500" color="red.500">Listening…</Text>
+                    </Center>
                   )}
 
-                  <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
-                    <button 
-                      onClick={handleConfirmVoiceOrder}
-                      disabled={voiceOrderLoading || !!voiceOrderError}
-                      className="flex-1 premium-gradient text-white py-3 sm:py-4 rounded-2xl font-inter font-semibold text-base sm:text-lg hover:premium-gradient-reverse transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg hover:shadow-xl min-w-0"
-                    >
-                      {voiceOrderLoading ? (
-                        <>
-                          <FaSpinner className="animate-spin" />
-                          Placing Order...
-                        </>
-                      ) : (
-                        <>
-                          <FaCheck />
-                          Confirm Order
-                        </>
-                      )}
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setVoiceOrderParsed(null);
-                        resetTranscript();
-                        setVoiceOrderError('');
-                      }}
-                      disabled={voiceOrderLoading}
-                      className="flex-1 bg-white/10 text-white py-3 sm:py-4 rounded-2xl font-inter font-semibold text-base sm:text-lg hover:bg-white/20 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-3 border border-white/20 hover:border-white/30 min-w-0"
-                    >
-                      <FaRedo />
-                      Try Again
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setVoiceOrderModal(false);
-                        SpeechRecognition.stopListening();
-                      }}
-                      disabled={voiceOrderLoading}
-                      className="flex-1 bg-white/10 text-white py-3 sm:py-4 rounded-2xl font-inter font-semibold text-base sm:text-lg hover:bg-white/20 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-3 border border-white/20 hover:border-white/30 min-w-0"
-                    >
-                      <FaTimes />
-                      Cancel
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+                  <Box
+                    bg={T.inputBg} borderRadius="12px" p={5} minH="120px"
+                    border={`0.5px dashed rgba(24,95,165,0.2)`}
+                  >
+                    <Text fontSize="13px" color={transcript ? T.blue900 : 'gray.400'} lineHeight="1.7">
+                      {transcript || 'Your speech will appear here… Speak clearly, include table number and items.'}
+                    </Text>
+                  </Box>
 
-      {/* Face Registration Modal */}
-      {showFaceRegistration && (
-        <FaceRegistration
-          employeeId={userId || 'test-id'}
-          onClose={() => setShowFaceRegistration(false)}
-        />
-      )}
-    </div>
+                  <HStack spacing={3}>
+                    <Button flex={1} bg={T.blue600} color="white" _hover={{ bg: T.blue800 }}
+                      onClick={stopVoice} isDisabled={!transcript}
+                      borderRadius="10px" fontSize="13px"
+                      leftIcon={<FaStop size={11} />}>
+                      Stop & Process
+                    </Button>
+                    <Button flex={1} variant="outline" borderColor="rgba(24,95,165,0.2)"
+                      color="gray.500" onClick={() => { setVoiceModal(false); SpeechRecognition.stopListening(); }}
+                      borderRadius="10px" fontSize="13px">
+                      Cancel
+                    </Button>
+                  </HStack>
+                </VStack>
+              ) : (
+                <VStack spacing={5} align="stretch">
+                  <Box bg={T.blue50} borderRadius="12px" p={5}
+                    border={`0.5px solid ${T.blue100}`}>
+                    <Text fontFamily="'Space Grotesk',sans-serif" fontWeight="600"
+                      fontSize="13px" color={T.blue800} mb={3}>
+                      Order Summary
+                    </Text>
+                    <HStack mb={2}>
+                      <Text fontSize="12px" color="gray.500" w="80px">Table</Text>
+                      <Badge bg={T.blue600} color="white" fontWeight="700" px={2} borderRadius="6px">
+                        {voiceParsed.table || 'Not detected'}
+                      </Badge>
+                    </HStack>
+                    <Text fontSize="12px" color="gray.500" mb={2}>Items</Text>
+                    <VStack align="stretch" spacing={2}>
+                      {voiceParsed.items.map((item, idx) => (
+                        <Flex key={idx} align="center" gap={2}
+                          bg="white" borderRadius="8px" px={3} py={2}
+                          border={`0.5px solid ${T.blue100}`}>
+                          <Icon as={FaCheck} color={T.teal600} boxSize="11px" />
+                          <Text fontSize="12px" color={T.blue900} fontWeight="500">
+                            {item.quantity}× {item.name}
+                            {item.modifications?.length > 0 && (
+                              <Text as="span" fontSize="11px" color="gray.400">
+                                {' '}({item.modifications.join(', ')})
+                              </Text>
+                            )}
+                          </Text>
+                        </Flex>
+                      ))}
+                    </VStack>
+                  </Box>
+
+                  {voiceError && (
+                    <Alert status="error" borderRadius="10px" fontSize="12px">
+                      <AlertIcon />{voiceError}
+                    </Alert>
+                  )}
+
+                  <HStack spacing={3} flexWrap="wrap">
+                    <Button flex={1} minW="120px" bg={T.blue600} color="white"
+                      _hover={{ bg: T.blue800 }}
+                      onClick={confirmVoice}
+                      isDisabled={voiceLoading || !!voiceError}
+                      borderRadius="10px" fontSize="13px"
+                      leftIcon={voiceLoading ? <Spinner size="xs" /> : <FaCheck size={11} />}>
+                      Confirm Order
+                    </Button>
+                    <Button flex={1} minW="100px" variant="outline"
+                      borderColor="rgba(24,95,165,0.2)" color={T.blue600}
+                      onClick={() => { setVoiceParsed(null); resetTranscript(); setVoiceError(''); }}
+                      isDisabled={voiceLoading}
+                      borderRadius="10px" fontSize="13px"
+                      leftIcon={<FaRedo size={11} />}>
+                      Retry
+                    </Button>
+                    <Button flex={1} minW="80px" variant="ghost" color="gray.400"
+                      onClick={() => { setVoiceModal(false); SpeechRecognition.stopListening(); }}
+                      isDisabled={voiceLoading}
+                      borderRadius="10px" fontSize="13px">
+                      Cancel
+                    </Button>
+                  </HStack>
+                </VStack>
+              )}
+            </ModalBody>
+          </ModalContent>
+        </Modal>
+
+        {/* Face Registration */}
+        {showFace && (
+          userId ? (
+            <FaceRegistration employeeId={userId} onClose={() => setShowFace(false)} />
+          ) : (
+            <div style={{ position: 'fixed', top: 20, left: 20, right: 20, zIndex: 9999, background: '#fff', padding: 12, borderRadius: 8, border: '1px solid #eee' }}>
+              Could not load your user ID yet. Please wait and try again.
+              <button onClick={() => setShowFace(false)} style={{ marginLeft: 12 }}>Close</button>
+            </div>
+          )
+        )}
+      </Box>
+    </ChakraProvider>
   );
 }

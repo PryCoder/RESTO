@@ -1,41 +1,27 @@
-import { makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode-terminal';
+import whatsappService from './services/whatsappService.js';
 
-async function startSock() {
-  const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
-  const { version } = await fetchLatestBaileysVersion();
-  const sock = makeWASocket({
-    version,
-    auth: state,
-    // printQRInTerminal: true, // REMOVED: deprecated
-  });
+// CLI helper only.
+// App workflow: run `npm run dev` (backend/index.js) and use Manager Dashboard → WhatsApp → Enable.
+// Troubleshooting/pairing workflow: run `node whatsappBot.js` to print QR in terminal.
 
-  sock.ev.on('creds.update', saveCreds);
+const reset = process.argv.includes('--reset');
 
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect, qr } = update;
-    if (qr) {
-      console.log('Scan this QR code with WhatsApp:');
-      qrcode.generate(qr, { small: true });
-    }
-    if (connection === 'close') {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log('connection closed due to', lastDisconnect?.error, ', reconnecting', shouldReconnect);
-      if (shouldReconnect) {
-        startSock();
-      }
-    } else if (connection === 'open') {
-      console.log('opened connection');
-    }
-  });
+console.log('[WhatsApp CLI] Starting Baileys QR login...');
+console.log('[WhatsApp CLI] Ensure your backend API is running (default BACKEND_URL=http://localhost:4000).');
+console.log(`[WhatsApp CLI] Reset session: ${reset ? 'yes' : 'no'} (use --reset if you see 401/logged out)`);
 
-  sock.ev.on('messages.upsert', async (m) => {
-    console.log('got messages', m);
-    const msg = m.messages[0];
-    if (!msg.key.fromMe && msg.message?.conversation) {
-      await sock.sendMessage(msg.key.remoteJid, { text: 'Hello from Baileys bot!' });
-    }
-  });
+try {
+  await whatsappService.enableWhatsAppBot((qr) => {
+    console.log('\n[WhatsApp CLI] Scan this QR code with WhatsApp:');
+    qrcode.generate(qr, { small: true });
+  }, reset);
+} catch (e) {
+  console.error('[WhatsApp CLI] Failed to start:', e?.message || e);
+  process.exitCode = 1;
 }
 
-startSock(); 
+process.on('SIGINT', () => {
+  try { whatsappService.disableWhatsAppBot(); } catch { /* ignore */ }
+  process.exit(0);
+});

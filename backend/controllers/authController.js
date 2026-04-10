@@ -333,6 +333,18 @@ export const getUsers = async (req, res) => {
     if (role) filter.role = role;
     if (restaurantId) filter.restaurant = restaurantId;
 
+    // Scope managers to their own restaurant by default
+    if (req.user?.role === 'manager') {
+      const myRestaurant = req.user?.restaurant;
+      if (myRestaurant) {
+        // If a restaurantId is provided but doesn't match manager's restaurant, block
+        if (restaurantId && String(restaurantId) !== String(myRestaurant)) {
+          return res.status(403).json({ error: 'Not authorized to view users for this restaurant' });
+        }
+        filter.restaurant = myRestaurant;
+      }
+    }
+
     const users = await User.find(filter).select('-password').populate('restaurant', 'name');
     res.json(users);
   } catch (err) {
@@ -499,10 +511,32 @@ export const verifyEmailOtpAndRegisterUser = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Authorization: user can view their own profile; managers can view users in their restaurant
+    const requesterId = req.user?._id;
+    const requesterRole = req.user?.role;
+    const requesterRestaurant = req.user?.restaurant;
+
+    if (!requesterId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
     const user = await User.findById(id).select('-password').populate('restaurant');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    const isSelf = String(user._id) === String(requesterId);
+    const isManagerSameRestaurant =
+      requesterRole === 'manager' &&
+      requesterRestaurant &&
+      user.restaurant &&
+      String(user.restaurant?._id || user.restaurant) === String(requesterRestaurant);
+
+    if (!isSelf && !isManagerSameRestaurant) {
+      return res.status(403).json({ error: 'Not authorized to view this profile' });
+    }
+
     res.json(user);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -595,5 +629,38 @@ export const updateUser = async (req, res) => {
   } catch (err) {
     console.error('Update User Error:', err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * Set (or reset) the current manager's PIN.
+ * Stores only a bcrypt hash.
+ */
+export const setMyPin = async (req, res) => {
+  try {
+    const { pin } = req.body;
+
+    if (req.user?.role !== 'manager') {
+      return res.status(403).json({ error: 'Only managers can set a manager PIN' });
+    }
+
+    if (pin === undefined || pin === null) {
+      return res.status(400).json({ error: 'pin is required' });
+    }
+
+    const pinStr = String(pin).trim();
+    if (pinStr.length < 4 || pinStr.length > 12) {
+      return res.status(400).json({ error: 'PIN must be 4 to 12 characters' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const pinHash = await bcrypt.hash(pinStr, salt);
+
+    await User.findByIdAndUpdate(req.user._id, { pinHash }, { new: false });
+
+    return res.json({ success: true, message: 'Manager PIN updated' });
+  } catch (err) {
+    console.error('Set PIN error:', err);
+    return res.status(500).json({ error: 'Failed to set PIN' });
   }
 };

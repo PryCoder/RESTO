@@ -63,7 +63,45 @@ class MultiAIService {
       });
     }
 
-    // Provider 3: Anthropic Claude
+    // Provider 3: Groq (OpenAI-compatible endpoint)
+    // Docs: https://console.groq.com/docs/openai
+    if (process.env.GROQ_API_KEY &&
+        process.env.GROQ_API_KEY !== 'your_groq_api_key_here' &&
+        process.env.GROQ_API_KEY !== 'your_actual_groq_key') {
+      this.providers.push({
+        name: 'groq',
+        client: null,
+        model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+        generate: async (prompt, config = {}) => {
+          try {
+            const response = await axios.post(
+              'https://api.groq.com/openai/v1/chat/completions',
+              {
+                model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+                messages: [{ role: 'user', content: prompt }],
+                temperature: config.temperature || 0.2,
+                max_tokens: config.maxOutputTokens || 1024,
+              },
+              {
+                headers: {
+                  'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                  'Content-Type': 'application/json'
+                },
+                timeout: 30000
+              }
+            );
+            return response.data?.choices?.[0]?.message?.content;
+          } catch (error) {
+            const status = error.response?.status;
+            const msg = status ? `${status} ${error.message}` : error.message;
+            console.error('Groq error:', msg);
+            throw error;
+          }
+        }
+      });
+    }
+
+    // Provider 4: Anthropic Claude
     if (process.env.ANTHROPIC_API_KEY && 
         process.env.ANTHROPIC_API_KEY !== 'your_anthropic_api_key_here' &&
         process.env.ANTHROPIC_API_KEY !== 'your_actual_anthropic_key') {
@@ -88,7 +126,7 @@ class MultiAIService {
       });
     }
 
-    // Provider 4: Cohere (with rate limit handling)
+    // Provider 5: Cohere (with rate limit handling)
     if (process.env.COHERE_API_KEY && 
         process.env.COHERE_API_KEY !== 'your_cohere_api_key_here') {
       this.providers.push({
@@ -142,7 +180,7 @@ class MultiAIService {
       });
     }
 
-    // Provider 5: Grok (xAI)
+    // Provider 6: Grok (xAI)
     if (process.env.XAI_API_KEY && 
         process.env.XAI_API_KEY !== 'your_xai_api_key_here' &&
         process.env.XAI_API_KEY !== 'your_actual_xai_key') {
@@ -177,7 +215,7 @@ class MultiAIService {
       });
     }
 
-    // Provider 6: DeepSeek
+    // Provider 7: DeepSeek
     if (process.env.DEEPSEEK_API_KEY && 
         process.env.DEEPSEEK_API_KEY !== 'your_deepseek_api_key_here' &&
         process.env.DEEPSEEK_API_KEY !== 'your_actual_deepseek_key') {
@@ -212,7 +250,7 @@ class MultiAIService {
       });
     }
 
-    // Provider 7: Mock (always available as fallback)
+    // Provider 8: Mock (always available as fallback)
     this.providers.push({
       name: 'mock',
       client: null,

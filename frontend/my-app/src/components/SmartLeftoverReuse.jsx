@@ -8,10 +8,17 @@ export default function SmartLeftoverReuse({ restaurantId, userRole }) {
   const [input, setInput] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL 
+  const API_URL = import.meta.env.VITE_API_URL;
   const fetchLeftoverSuggestions = async () => {
     if (!input.trim()) {
       setError('Please describe your leftover ingredients');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('You are not logged in. Please login again.');
+      setHasSearched(true);
       return;
     }
 
@@ -20,15 +27,41 @@ export default function SmartLeftoverReuse({ restaurantId, userRole }) {
     setHasSearched(true);
     
     try {
-      const response = await axios.post(`${API_URL}/api/ai/smartwaste`, {
-        input: input.trim()
-      });
+      const response = await axios.post(
+        `${API_URL}/api/ai/smartwaste`,
+        { input: input.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      setSuggestions(response.data || []);
+      const payload = response?.data;
+      console.debug('[SmartLeftoverReuse] /api/ai/smartwaste response:', payload);
+
+      const coerceToArray = (value) => {
+        if (Array.isArray(value)) return value;
+        if (Array.isArray(value?.suggestions)) return value.suggestions;
+        if (Array.isArray(value?.data)) return value.data;
+        if (typeof value === 'string') {
+          try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : Array.isArray(parsed?.suggestions) ? parsed.suggestions : [];
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      };
+
+      const list = coerceToArray(payload);
+      setSuggestions(list);
       setLoading(false);
     } catch (err) {
       console.error('Leftover reuse error:', err);
-      setError('Unable to generate suggestions');
+      const status = err?.response?.status;
+      if (status === 401) {
+        setError('Unauthorized. Please login again.');
+      } else {
+        setError(err?.response?.data?.error || 'Unable to generate suggestions');
+      }
       setLoading(false);
     }
   };

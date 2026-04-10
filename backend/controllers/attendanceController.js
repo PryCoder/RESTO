@@ -1,13 +1,19 @@
 import { spawn } from 'child_process';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import Attendance from '../models/Attendance.js';
+import FaceEmbedding from '../models/FaceEmbedding.js';
 import User from '../models/User.js';
 import Restaurant from '../models/Restaurant.js';
 
 // Helper function to run Python script
 const runPythonScript = (command, args = [], options = {}) => {
   return new Promise((resolve, reject) => {
-    const scriptPath = path.join(process.cwd(), 'face_recognition_service.py');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const scriptPath = path.resolve(__dirname, '..', 'face_recognition_service.py');
+
+    const pythonBin = process.env.FACE_PYTHON_BIN || 'python';
     // If using stdin, add --stdin flag and do not pass image as argument
     let pythonArgs = [scriptPath, command];
     let useStdin = options.useStdin || false;
@@ -20,11 +26,14 @@ const runPythonScript = (command, args = [], options = {}) => {
       } else if (command === 'recognize') {
         // args: [image]
         stdinPayload = JSON.stringify({ image: args[0] });
+      } else if (command === 'embed') {
+        // args: [image]
+        stdinPayload = JSON.stringify({ image: args[0] });
       }
     } else {
       pythonArgs = [scriptPath, command, ...args];
     }
-    const pythonProcess = spawn('python', pythonArgs);
+    const pythonProcess = spawn(pythonBin, pythonArgs);
     let output = '';
     let errorOutput = '';
     pythonProcess.stdout.on('data', (data) => {
@@ -49,11 +58,25 @@ const runPythonScript = (command, args = [], options = {}) => {
           reject(new Error(`Failed to parse Python output: ${output}`));
         }
       } else {
-        reject(new Error(`Python script failed with code ${code}: ${errorOutput}`));
+        const msg = [
+          `Python script failed (exit ${code})`,
+          `pythonBin=${pythonBin}`,
+          `script=${scriptPath}`,
+          `command=${command}`,
+          `stderr=${(errorOutput || '').slice(0, 4000)}`,
+          `stdout=${(output || '').slice(0, 4000)}`,
+        ].join(' | ');
+        reject(new Error(msg));
       }
     });
     pythonProcess.on('error', (err) => {
-      reject(new Error(`Failed to start Python process: ${err.message}`));
+      const msg = [
+        `Failed to start Python process: ${err.message}`,
+        `pythonBin=${pythonBin}`,
+        `script=${scriptPath}`,
+        `command=${command}`,
+      ].join(' | ');
+      reject(new Error(msg));
     });
     // Write to stdin if needed
     if (useStdin && stdinPayload) {
@@ -61,6 +84,39 @@ const runPythonScript = (command, args = [], options = {}) => {
       pythonProcess.stdin.end();
     }
   });
+};
+
+const cosineDistance = (a = [], b = []) => {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length === 0 || b.length === 0) return Number.POSITIVE_INFINITY;
+  const n = Math.min(a.length, b.length);
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < n; i += 1) {
+    const ai = Number(a[i]) || 0;
+    const bi = Number(b[i]) || 0;
+    dot += ai * bi;
+    na += ai * ai;
+    nb += bi * bi;
+  }
+  if (na === 0 || nb === 0) return Number.POSITIVE_INFINITY;
+  const cos = dot / (Math.sqrt(na) * Math.sqrt(nb));
+  // Convert similarity to distance
+  return 1 - cos;
+};
+
+const dayRange = (date = new Date()) => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { start, end };
+};
+
+const canActForUser = (reqUser, targetUserId) => {
+  if (!reqUser?._id) return false;
+  if (reqUser.role === 'manager') return true;
+  return String(reqUser._id) === String(targetUserId);
 };
 
 // Register face for a user
@@ -78,63 +134,155 @@ export const registerFace = async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    // Call Python script to register face (use stdin)
-    const result = await runPythonScript('register', [userId, image], { useStdin: true });
-    
-    if (result.success) {
-      res.json({ 
-        success: true, 
-        message: 'Face registered successfully',
-        userId 
-      });
-    } else {
-      res.status(400).json({ error: result.error });
+
+    if (!canActForUser(req.user, userId)) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
+
+    if (!user.restaurant) {
+      return res.status(400).json({ error: 'User is not linked to a restaurant' });
+    }
+
+    // Managers can only register faces for staff in their restaurant
+    if (req.user.role === 'manager' && String(req.user.restaurant) !== String(user.restaurant)) {
+      return res.status(403).json({ error: 'User does not belong to your restaurant' });
+    }
+    
+    // Call Python script to create an embedding (no raw images stored)
+    const embedResult = await runPythonScript('embed', [image], { useStdin: true });
+
+    if (!embedResult.success || !Array.isArray(embedResult.embedding)) {
+      return res.status(400).json({ error: embedResult.error || 'Failed to create face embedding' });
+    }
+
+    await FaceEmbedding.findOneAndUpdate(
+      { user: user._id, restaurant: user.restaurant },
+      { embedding: embedResult.embedding, modelName: embedResult.model || 'VGG-Face' },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'Face embedding registered successfully',
+      userId,
+      restaurantId: String(user.restaurant),
+      model: embedResult.model || 'VGG-Face',
+    });
     
   } catch (error) {
     console.error('Face registration error:', error);
-    res.status(500).json({ error: 'Failed to register face' });
+    const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+    res.status(500).json({
+      error: 'Failed to register face',
+      ...(isProd ? {} : { details: error?.message || String(error) }),
+    });
   }
 };
 
 // Clock in with face recognition
 export const clockIn = async (req, res) => {
   try {
-    const { image } = req.body; // base64 image data
+    const { image, userId: bodyUserId, managerPin } = req.body;
     const { restaurantId } = req.params;
-    
-    if (!image) {
-      return res.status(400).json({ error: 'Image data is required' });
+
+    const effectiveRestaurantId = String(restaurantId);
+
+    // Basic restaurant access guard
+    if (!req.user?.restaurant || String(req.user.restaurant) !== effectiveRestaurantId) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
+
+    // Identify which user to mark attendance for.
+    // - If managerPin is provided: must also provide userId (explicit approval)
+    // - If userId is provided: verify face against that user's embedding
+    // - If userId is NOT provided and image is provided: identify best match from restaurant embeddings
+    let targetUserId = bodyUserId ? String(bodyUserId) : null;
+    let liveEmbedding = null;
     
-    // Call Python script to recognize face (use stdin)
-    const recognitionResult = await runPythonScript('recognize', [image], { useStdin: true });
-    
-    if (!recognitionResult.success) {
-      return res.status(400).json({ error: recognitionResult.error });
+    const startedAt = Date.now();
+
+    if (managerPin) {
+      if (!targetUserId) {
+        return res.status(400).json({ error: 'userId is required when using managerPin' });
+      }
+      if (req.user.role !== 'manager') {
+        return res.status(403).json({ error: 'Manager PIN fallback requires manager role' });
+      }
+      const manager = await User.findById(req.user._id).select('+pinHash');
+      if (!manager?.pinHash) {
+        return res.status(400).json({ error: 'Manager PIN not set' });
+      }
+      const ok = await manager.comparePin(managerPin);
+      if (!ok) {
+        return res.status(401).json({ error: 'Invalid manager PIN' });
+      }
+    } else {
+      if (!image) {
+        return res.status(400).json({ error: 'Provide either image (face) or managerPin' });
+      }
+
+      const embedResult = await runPythonScript('embed', [image], { useStdin: true });
+      if (!embedResult.success || !Array.isArray(embedResult.embedding)) {
+        return res.status(400).json({ error: embedResult.error || 'Failed to create face embedding' });
+      }
+      liveEmbedding = embedResult.embedding;
+
+      if (!targetUserId) {
+        // Identify best match within this restaurant
+        const profiles = await FaceEmbedding.find({ restaurant: effectiveRestaurantId }).select('user embedding');
+        if (!profiles.length) {
+          return res.status(400).json({ error: 'No registered faces for this restaurant' });
+        }
+
+        let best = { userId: null, distance: Number.POSITIVE_INFINITY };
+        for (const p of profiles) {
+          const d = cosineDistance(liveEmbedding, p.embedding);
+          if (d < best.distance) best = { userId: String(p.user), distance: d };
+        }
+        const threshold = Number(process.env.FACE_COSINE_DISTANCE_THRESHOLD ?? 0.45);
+        if (!(best.distance <= threshold)) {
+          return res.status(400).json({ error: 'Face not recognized', code: 'FACE_NO_MATCH', distance: best.distance, threshold });
+        }
+        targetUserId = best.userId;
+      }
     }
-    
-    const userId = recognitionResult.user_id;
-    
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    if (!canActForUser(req.user, targetUserId)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     // Verify user exists and belongs to restaurant
-    const user = await User.findById(userId).populate('restaurant');
+    const user = await User.findById(targetUserId).populate('restaurant');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    if (user.restaurant._id.toString() !== restaurantId) {
+
+    if (!user.restaurant || user.restaurant._id.toString() !== effectiveRestaurantId) {
       return res.status(403).json({ error: 'User does not belong to this restaurant' });
+    }
+
+    // If we're using face (not PIN) and userId was specified, verify face matches that specific user
+    if (!managerPin && bodyUserId) {
+      const profile = await FaceEmbedding.findOne({ user: user._id, restaurant: effectiveRestaurantId });
+      if (!profile) {
+        return res.status(400).json({ error: 'Face not registered for this user' });
+      }
+      const distance = cosineDistance(liveEmbedding, profile.embedding);
+      const threshold = Number(process.env.FACE_COSINE_DISTANCE_THRESHOLD ?? 0.45);
+      if (!(distance <= threshold)) {
+        return res.status(400).json({ error: 'Face verification failed', code: 'FACE_MISMATCH', distance, threshold });
+      }
     }
     
     // Check if already clocked in today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const { start: today, end: tomorrow } = dayRange(new Date());
     
     const existingAttendance = await Attendance.findOne({
-      user: userId,
+      user: user._id,
       date: { $gte: today, $lt: tomorrow }
     });
     
@@ -148,18 +296,33 @@ export const clockIn = async (req, res) => {
       attendance = existingAttendance;
     } else {
       attendance = new Attendance({
-        user: userId,
-        restaurant: restaurantId,
+        user: user._id,
+        restaurant: effectiveRestaurantId,
         date: new Date()
       });
     }
-    
-    attendance.clockIn = {
-      time: new Date(),
-      method: 'face',
-      confidence: recognitionResult.confidence,
-      image: image
-    };
+
+    if (managerPin) {
+      attendance.clockIn = {
+        time: new Date(),
+        method: 'pin',
+      };
+    } else {
+      // confidence: if we identified by matching all profiles, confidence is derived from best distance
+      // if we verified against a known user profile, it is also derived from that distance.
+      // We don't store the raw image.
+      const profile = await FaceEmbedding.findOne({ user: user._id, restaurant: effectiveRestaurantId });
+      if (!profile) {
+        return res.status(400).json({ error: 'Face not registered for this user' });
+      }
+      const distance = cosineDistance(liveEmbedding, profile.embedding);
+      const confidence = Math.max(0, Math.min(1, 1 - distance));
+      attendance.clockIn = {
+        time: new Date(),
+        method: 'face',
+        confidence,
+      };
+    }
     
     await attendance.save();
     
@@ -171,8 +334,10 @@ export const clockIn = async (req, res) => {
         name: user.name,
         role: user.role
       },
-      confidence: recognitionResult.confidence,
-      clockInTime: attendance.clockIn.time
+      method: attendance.clockIn.method,
+      confidence: attendance.clockIn.confidence,
+      clockInTime: attendance.clockIn.time,
+      durationMs: Date.now() - startedAt,
     });
     
   } catch (error) {
@@ -184,40 +349,101 @@ export const clockIn = async (req, res) => {
 // Clock out with face recognition
 export const clockOut = async (req, res) => {
   try {
-    const { image } = req.body; // base64 image data
+    const { image, userId: bodyUserId, managerPin } = req.body;
     const { restaurantId } = req.params;
-    
-    if (!image) {
-      return res.status(400).json({ error: 'Image data is required' });
+
+    const effectiveRestaurantId = String(restaurantId);
+
+    // Basic restaurant access guard
+    if (!req.user?.restaurant || String(req.user.restaurant) !== effectiveRestaurantId) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
-    
-    // Call Python script to recognize face (use stdin)
-    const recognitionResult = await runPythonScript('recognize', [image], { useStdin: true });
-    
-    if (!recognitionResult.success) {
-      return res.status(400).json({ error: recognitionResult.error });
-    }
-    
-    const userId = recognitionResult.user_id;
+
+    let targetUserId = bodyUserId ? String(bodyUserId) : null;
+    let liveEmbedding = null;
     
     // Verify user exists and belongs to restaurant
-    const user = await User.findById(userId).populate('restaurant');
+    const startedAt = Date.now();
+
+    if (managerPin) {
+      if (!targetUserId) {
+        return res.status(400).json({ error: 'userId is required when using managerPin' });
+      }
+      if (req.user.role !== 'manager') {
+        return res.status(403).json({ error: 'Manager PIN fallback requires manager role' });
+      }
+      const manager = await User.findById(req.user._id).select('+pinHash');
+      if (!manager?.pinHash) {
+        return res.status(400).json({ error: 'Manager PIN not set' });
+      }
+      const ok = await manager.comparePin(managerPin);
+      if (!ok) {
+        return res.status(401).json({ error: 'Invalid manager PIN' });
+      }
+    } else {
+      if (!image) {
+        return res.status(400).json({ error: 'Provide either image (face) or managerPin' });
+      }
+
+      const embedResult = await runPythonScript('embed', [image], { useStdin: true });
+      if (!embedResult.success || !Array.isArray(embedResult.embedding)) {
+        return res.status(400).json({ error: embedResult.error || 'Failed to create face embedding' });
+      }
+      liveEmbedding = embedResult.embedding;
+
+      if (!targetUserId) {
+        const profiles = await FaceEmbedding.find({ restaurant: effectiveRestaurantId }).select('user embedding');
+        if (!profiles.length) {
+          return res.status(400).json({ error: 'No registered faces for this restaurant' });
+        }
+
+        let best = { userId: null, distance: Number.POSITIVE_INFINITY };
+        for (const p of profiles) {
+          const d = cosineDistance(liveEmbedding, p.embedding);
+          if (d < best.distance) best = { userId: String(p.user), distance: d };
+        }
+        const threshold = Number(process.env.FACE_COSINE_DISTANCE_THRESHOLD ?? 0.45);
+        if (!(best.distance <= threshold)) {
+          return res.status(400).json({ error: 'Face not recognized', code: 'FACE_NO_MATCH', distance: best.distance, threshold });
+        }
+        targetUserId = best.userId;
+      }
+    }
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    if (!canActForUser(req.user, targetUserId)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const user = await User.findById(targetUserId).populate('restaurant');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    if (user.restaurant._id.toString() !== restaurantId) {
+
+    if (!user.restaurant || user.restaurant._id.toString() !== effectiveRestaurantId) {
       return res.status(403).json({ error: 'User does not belong to this restaurant' });
+    }
+
+    if (!managerPin && bodyUserId) {
+      const profile = await FaceEmbedding.findOne({ user: user._id, restaurant: effectiveRestaurantId });
+      if (!profile) {
+        return res.status(400).json({ error: 'Face not registered for this user' });
+      }
+      const distance = cosineDistance(liveEmbedding, profile.embedding);
+      const threshold = Number(process.env.FACE_COSINE_DISTANCE_THRESHOLD ?? 0.45);
+      if (!(distance <= threshold)) {
+        return res.status(400).json({ error: 'Face verification failed', code: 'FACE_MISMATCH', distance, threshold });
+      }
     }
     
     // Find today's attendance record
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const { start: today, end: tomorrow } = dayRange(new Date());
     
     const attendance = await Attendance.findOne({
-      user: userId,
+      user: user._id,
       date: { $gte: today, $lt: tomorrow }
     });
     
@@ -229,13 +455,24 @@ export const clockOut = async (req, res) => {
       return res.status(400).json({ error: 'Already clocked out today' });
     }
     
-    // Update clock out
-    attendance.clockOut = {
-      time: new Date(),
-      method: 'face',
-      confidence: recognitionResult.confidence,
-      image: image
-    };
+    if (managerPin) {
+      attendance.clockOut = {
+        time: new Date(),
+        method: 'pin',
+      };
+    } else {
+      const profile = await FaceEmbedding.findOne({ user: user._id, restaurant: effectiveRestaurantId });
+      if (!profile) {
+        return res.status(400).json({ error: 'Face not registered for this user' });
+      }
+      const distance = cosineDistance(liveEmbedding, profile.embedding);
+      const confidence = Math.max(0, Math.min(1, 1 - distance));
+      attendance.clockOut = {
+        time: new Date(),
+        method: 'face',
+        confidence,
+      };
+    }
     
     await attendance.save();
     
@@ -247,9 +484,11 @@ export const clockOut = async (req, res) => {
         name: user.name,
         role: user.role
       },
-      confidence: recognitionResult.confidence,
+      method: attendance.clockOut.method,
+      confidence: attendance.clockOut.confidence,
       clockOutTime: attendance.clockOut.time,
-      workingHours: attendance.workingHours
+      workingHours: attendance.workingHours,
+      durationMs: Date.now() - startedAt,
     });
     
   } catch (error) {
@@ -341,18 +580,17 @@ export const deleteFace = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // Call Python script to delete face
-    const result = await runPythonScript('delete', [userId]);
-    
-    if (result.success) {
-      res.json({ 
-        success: true, 
-        message: 'Face deleted successfully',
-        userId 
-      });
-    } else {
-      res.status(400).json({ error: result.error });
+    if (!canActForUser(req.user, userId)) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
+
+    await FaceEmbedding.deleteOne({ user: user._id, restaurant: user.restaurant });
+
+    res.json({
+      success: true,
+      message: 'Face embedding deleted successfully',
+      userId,
+    });
     
   } catch (error) {
     console.error('Delete face error:', error);
@@ -363,16 +601,18 @@ export const deleteFace = async (req, res) => {
 // List registered faces
 export const listFaces = async (req, res) => {
   try {
-    const result = await runPythonScript('list');
-    
-    if (result.success) {
-      res.json({
-        success: true,
-        faces: result.faces
-      });
-    } else {
-      res.status(400).json({ error: result.error });
+    // Managers can list embeddings for their restaurant; others list only themselves
+    if (req.user.role === 'manager') {
+      const faces = await FaceEmbedding.find({ restaurant: req.user.restaurant })
+        .select('user restaurant modelName createdAt updatedAt')
+        .populate('user', 'name role')
+        .sort({ updatedAt: -1 });
+      return res.json({ success: true, faces });
     }
+
+    const face = await FaceEmbedding.findOne({ restaurant: req.user.restaurant, user: req.user._id })
+      .select('user restaurant modelName createdAt updatedAt');
+    return res.json({ success: true, faces: face ? [face] : [] });
     
   } catch (error) {
     console.error('List faces error:', error);

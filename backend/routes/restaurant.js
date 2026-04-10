@@ -9,8 +9,12 @@ import {
   getPopularRestaurants
 } from '../controllers/restaurantController.js';
 import authMiddleware from '../middleware/auth.js';
+import { redisCache } from '../middleware/redisCache.js';
 
 const router = express.Router();
+
+// Public browsing endpoints can be safely cached (shared cache)
+router.use(redisCache({ ttlSeconds: 120, scope: 'public' }));
 
 // Public routes for customers to browse restaurants
 router.get('/', listRestaurants);

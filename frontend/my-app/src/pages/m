@@ -1,78 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import {
-  Box,
-  Button,
-  Grid,
-  GridItem,
-  Image,
-  Text,
-  VStack,
-  HStack,
-  Heading,
-  useDisclosure,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalCloseButton,
-  ModalBody,
-  ModalFooter,
-  FormControl,
-  FormLabel,
-  Input,
-  Textarea,
-  NumberInput,
-  NumberInputField,
-  Select,
-  Drawer,
-  DrawerOverlay,
-  DrawerContent,
-  DrawerHeader,
-  DrawerBody,
-  DrawerCloseButton,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-  Badge,
-  Divider,
-  IconButton,
-  Flex,
-  Container,
-  useToast,
-  SimpleGrid,
-  Card,
-  CardBody,
-  CardFooter,
-  Stack,
-  Tag,
-  TagLabel,
-  TagLeftIcon,
-  Progress,
-  Avatar,
-  AvatarGroup,
-  Center,
-  Spinner
-} from '@chakra-ui/react'
-import { 
-  Receipt, 
-  Plus, 
-  X, 
-  QrCode, 
-  CreditCard, 
-  Banknote,
-  ScanLine,
-  CheckCircle,
-  ArrowLeft,
-  Smartphone
-} from 'lucide-react'
-import { motion } from 'framer-motion'
-
-const MotionBox = motion(Box)
-const MotionCard = motion(Card)
 import { useNavigate } from 'react-router-dom';
 import WasteAnalysis from '../components/WasteAnalysis.jsx';
 import SalesProfitAdvisor from '../components/SalesProfitAdvisor.jsx';
@@ -88,9 +15,70 @@ import './managerdashboard.css';
 import QRCode from 'react-qr-code';
 import MonthlySalesGraph from '../components/MonthlySalesGraph.jsx';
 import FaceAttendanceScanner from '../components/FaceAttendanceScanner';
-import FaceRegistration from '../components/FaceRegistration';
 import io from 'socket.io-client';
 import NotificationBell from '../components/notification.jsx';
+
+import {
+  ChakraProvider,
+  extendTheme,
+  Box,
+  Flex,
+  Text,
+  Heading,
+  Button,
+  Input,
+  Select,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  FormControl,
+  FormLabel,
+  Image,
+  Badge,
+  SimpleGrid,
+  Icon,
+  IconButton,
+  useToast,
+  Skeleton,
+  SkeletonText,
+  Alert,
+  AlertIcon,
+  VStack,
+  HStack,
+  Spinner,
+  Center,
+  Drawer,
+  DrawerBody,
+  DrawerHeader,
+  DrawerOverlay,
+  DrawerContent,
+  DrawerCloseButton,
+  useDisclosure,
+  Circle,
+} from '@chakra-ui/react';
+import {
+  FaPlus,
+  FaReceipt,
+  FaCheck,
+  FaTrash,
+  FaUtensils,
+  FaStar,
+  FaSearch,
+  FaBoxOpen,
+  FaTable,
+  FaLeaf,
+  FaDrumstickBite,
+} from 'react-icons/fa';
+import { GiChefToque } from 'react-icons/gi';
 
 export default function ManagerDashboard() {
   const [billDrawerOpen, setBillDrawerOpen] = useState(false);
@@ -146,13 +134,6 @@ export default function ManagerDashboard() {
   const [staff, setStaff] = useState([]);
   const [wasteAlerts, setWasteAlerts] = useState([]);
   const [showFaceScanner, setShowFaceScanner] = useState(false);
-  const [showFaceRegister, setShowFaceRegister] = useState(false);
-  const [selectedStaffForFace, setSelectedStaffForFace] = useState('');
-  const [registeredFaces, setRegisteredFaces] = useState([]);
-  const [registeredFacesLoading, setRegisteredFacesLoading] = useState(false);
-  const [registeredFacesError, setRegisteredFacesError] = useState('');
-  const [managerPinDraft, setManagerPinDraft] = useState('');
-  const [managerPinSaving, setManagerPinSaving] = useState(false);
   // Add these state variables
 const [paymentMethod, setPaymentMethod] = useState('cash');
 const [upiQrCode, setUpiQrCode] = useState('');
@@ -162,65 +143,44 @@ const [reservations, setReservations] = useState([]);
 const VITE_API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000')
   .replace('localhost', window.location.hostname);
 
-  const fetchRegisteredFaces = async () => {
-    if (!restaurantId) return;
-    setRegisteredFacesLoading(true);
-    setRegisteredFacesError('');
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get(`${VITE_API_URL}/api/attendance/faces`, { headers });
-      setRegisteredFaces(res.data?.faces || []);
-    } catch (err) {
-      setRegisteredFaces([]);
-      setRegisteredFacesError(err.response?.data?.error || err.message || 'Failed to load registered faces');
-    } finally {
-      setRegisteredFacesLoading(false);
-    }
+  const authHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  useEffect(() => {
-    if (activePage === 'attendance' && restaurantId) {
-      fetchRegisteredFaces();
-    }
-  }, [activePage, restaurantId]);
-
-  const saveManagerPin = async () => {
-    try {
-      const pin = String(managerPinDraft || '').trim();
-      if (!pin) {
-        alert('Enter a PIN first');
-        return;
-      }
-      setManagerPinSaving(true);
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      await axios.put(`${VITE_API_URL}/api/auth/me/pin`, { pin }, { headers });
-      alert('Manager PIN saved');
-      setManagerPinDraft('');
-    } catch (err) {
-      alert(err.response?.data?.error || err.message || 'Failed to save PIN');
-    } finally {
-      setManagerPinSaving(false);
-    }
+  const mergeOrders = (existing = [], incoming = []) => {
+    const map = new Map();
+    existing.forEach(o => map.set(o._id, o));
+    incoming.forEach(o => map.set(o._id, { ...map.get(o._id), ...o }));
+    return Array.from(map.values());
   };
 
-  const deleteRegisteredFace = async (userId) => {
+  async function fetchOrders() {
     try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      await axios.delete(`${VITE_API_URL}/api/attendance/faces/${userId}`, { headers });
-      await fetchRegisteredFaces();
+      const res = await axios.get(`${VITE_API_URL}/api/orders`, { headers: authHeaders() });
+      const incoming = Array.isArray(res.data) ? res.data : [];
+      setOrders(prev => mergeOrders(prev, incoming));
     } catch (err) {
-      alert(err.response?.data?.error || err.message || 'Failed to delete face');
+      console.error('Failed to fetch orders:', err);
     }
-  };
+  }
+
+  async function fetchDishes(search = '') {
+    try {
+      const url = `${VITE_API_URL}/api/orders/dishes${search ? `?search=${encodeURIComponent(search)}` : ''}`;
+      const res = await axios.get(url, { headers: authHeaders() });
+      setDishes(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error('Failed to fetch dishes:', err);
+      setDishes([]);
+    }
+  }
+
 // Add this useEffect to fetch reservations
 useEffect(() => {
   const fetchReservations = async () => {
     try {
       const token = localStorage.getItem('token');
-      console.log(token);
       const headers = { Authorization: `Bearer ${token}` };
       const res = await axios.get(`${VITE_API_URL}/api/tables/reservations/${restaurantId}`, { headers });
       setReservations(res.data.reservations || []);
@@ -235,864 +195,6 @@ useEffect(() => {
 }, [restaurantId]);
 
 // Load only seated tables (computed as status === 'occupied') for order placement
-useEffect(() => {
-  const fetchSeatedTables = async () => {
-    if (!restaurantId) return;
-    setSeatedTablesLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get(`${VITE_API_URL}/api/tables/tables/${restaurantId}/status`, { headers });
-      const tables = res.data?.tables || [];
-      const occupied = tables.filter(t => t && t.isActive !== false && t.status === 'occupied');
-      setSeatedTables(occupied);
-    } catch (err) {
-      console.error('Error fetching seated tables:', err);
-      setSeatedTables([]);
-    } finally {
-      setSeatedTablesLoading(false);
-    }
-  };
-
-  fetchSeatedTables();
-}, [restaurantId, VITE_API_URL]);
-// Generate Real UPI Payment Link and QR Code
-const generateRealUPIPayment = (amount, tableNo, orderIds = []) => {
-  const upiId = 'priyanshugupta007007@okaxis';
-  const payeeName = 'Priyanshu Gupta';
-  const restaurant = restaurantName || 'RestoPOS AI';
-  
-  // Create a clean, professional message for GPay
-  const transactionNote = `Bill Payment - ${restaurant} - Table ${tableNo} - ₹${amount}`;
-  
-  const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
-  
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiUrl)}`;
-  
-  return {
-    upiUrl,
-    qrCodeUrl,
-    upiId,
-    payeeName,
-    transactionNote
-  };
-};
-
-// Handle Real UPI Payment
-const handleRealUPIPayment = (orderIds, totalAmount, tableNo) => {
-  // Generate UPI payment details
-  const upiPayment = generateRealUPIPayment(totalAmount, tableNo);
-  setUpiQrCode(upiPayment.qrCodeUrl);
-  setCurrentPayment({ amount: totalAmount, tableNo, orderIds });
-  setPaymentStatus('waiting');
-};
-
-// Confirm UPI Payment (Manual confirmation)
-const confirmUPIPayment = async () => {
-  try {
-    setPaymentStatus('processing');
-    
-    const token = localStorage.getItem('token');
-    const headers = { Authorization: `Bearer ${token}` };
-
-    // Mark orders as paid
-    for (const id of currentPayment.orderIds) {
-      await axios.put(`${VITE_API_URL}/api/orders/${id}`, 
-        { status: 'paid', paymentMethod: 'upi' }, 
-        { headers }
-      );
-    }
-
-    // Refresh orders
-    fetchOrders();
-    
-    setPaymentStatus('success');
-    alert(`✅ Payment of ₹${currentPayment.amount} received via UPI!`);
-    
-    // Reset after 2 seconds
-    setTimeout(() => {
-      setPaymentStatus('');
-      setUpiQrCode('');
-      setCurrentPayment({ amount: 0, tableNo: '', orderIds: [] });
-    }, 2000);
-
-  } catch (error) {
-    setPaymentStatus('failed');
-    alert('❌ Failed to update payment status');
-  }
-};
-
-// Open UPI App directly
-const openUPIApp = (amount, tableNo) => {
-  const upiPayment = generateRealUPIPayment(amount, tableNo);
-  
-  // Try to open UPI app
-  window.location.href = upiPayment.upiUrl;
-  
-  // Fallback: Show instructions
-  setTimeout(() => {
-    alert(`If UPI app didn't open automatically:
-    
-1. Open your UPI app (GPay, PhonePe, Paytm, etc.)
-2. Send ₹${amount} to: priyanshugupta007007@okaxis
-3. Add note: "Table ${tableNo} Bill"
-4. Come back here and click "Payment Done"`);
-  }, 1000);
-};
-
-  // Set highlight for multiple items (persistent until changed or reload)
-  const setHighlight = (items) => {
-    // Accepts array or string
-    if (typeof items === 'string') {
-      items = items.split(',').map(i => i.trim()).filter(Boolean);
-    }
-    setHighlightedInventoryItems(items);
-    setInventoryRefreshKey(k => k + 1);
-  };
-
-  // Helper: merge orders by _id
-  function mergeOrders(existing, incoming) {
-    const map = new Map();
-    existing.forEach(o => map.set(o._id, o));
-    incoming.forEach(o => map.set(o._id, { ...map.get(o._id), ...o }));
-    return Array.from(map.values());
-  }
-
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const token = localStorage.getItem('token');
-        const headers = { Authorization: `Bearer ${token}` };
-        let qrRes, userRes, usersRes, wasteAlertRes;
-        try {
-          qrRes = await axios.get(`${VITE_API_URL}/api/auth/generate-qr`, { headers });
-        } catch (err) {
-          console.error('QR API failed:', err);
-          alert('Could not load dashboard data: QR API failed - ' + (err.response?.data?.error || err.message));
-          return;
-        }
-        try {
-          userRes = await axios.get(`${VITE_API_URL}/api/auth/me`, { headers });
-        } catch (err) {
-          console.error('User API failed:', err);
-          alert('Could not load dashboard data: User API failed - ' + (err.response?.data?.error || err.message));
-          return;
-        }
-        try {
-          usersRes = await axios.get(`${VITE_API_URL}/api/auth/`, { headers });
-        } catch (err) {
-          console.error('Users API failed:', err);
-          alert('Could not load dashboard data: Users API failed - ' + (err.response?.data?.error || err.message));
-          return;
-        }
-        try {
-          wasteAlertRes = await axios.get(`${VITE_API_URL}/api/orders/inventoryalert`, { headers });
-        } catch (err) {
-          console.error('Waste Alert API failed:', err);
-          alert('Could not load dashboard data: Waste Alert API failed - ' + (err.response?.data?.error || err.message));
-          return;
-        }
-        setQr(qrRes.data.qrData);
-        setRestaurantName(userRes.data.user?.restaurant?.name || 'No Restaurant');
-        setRestaurantId(userRes.data.user?.restaurant?._id || '');
-        setManagerId(userRes.data.user?._id);
-        // Staff: filter users for this restaurant and staff roles
-        const currentUser = userRes.data.user;
-        const allUsers = usersRes.data;
-        const restaurantUsers = allUsers.filter(user => user.restaurant && user.restaurant._id === currentUser.restaurant._id);
-        // Only count staff (not manager/vendor)
-        const staffRoles = ['waiter', 'kitchen'];
-        setStaff(restaurantUsers.filter(u => staffRoles.includes(u.role)));
-        // Waste Alerts
-        setWasteAlerts(wasteAlertRes.data.alerts || []);
-      } catch (err) {
-        console.error('Failed to load dashboard:', err);
-        alert('Could not load dashboard data: ' + (err.response?.data?.error || err.message));
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-    // WebSocket integration
-    const socket = io(VITE_API_URL);
-    socket.on('order:new', (order) => {
-      console.log('[WS] Received order:new', order);
-      setOrders(prev => {
-        // Only add if not already present
-        if (prev.some(o => o._id === order._id)) return prev;
-        return [...prev, order];
-      });
-    });
-    socket.on('order:update', (updatedOrder) => {
-      setOrders(prev => prev.map(order => order._id === updatedOrder._id ? updatedOrder : order));
-    });
-    socket.on('alert:new', (alert) => {
-      setWasteAlerts(prev => [...prev, alert]);
-    });
-    socket.on('notification', (notification) => {
-      // You can add notification handling logic here
-      // e.g., show a notification or update notification state
-    });
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/');
-  };
-
-  const handleViewQR = () => {
-    navigate('/manager/qr', { state: { qrData: qr, restaurantName } });
-  };
-
-  const handleViewUsers = () => {
-    navigate('/manager/users', { state: { restaurantName } });
-  };
-
-  const handleInventoryManagement = () => {
-    navigate('/inventory');
-  };
-
-  const handleTableManagement = () => {
-    navigate('/tables');
-  };
-
-  const handlePageChange = (page) => {
-    setActivePage(page);
-  };
-
-  const handleViewProfile = () => {
-    if (managerId) navigate(`/profile/${managerId}`);
-  };
-
-  const sidebarItems = [
-    { 
-      id: 'dashboard', 
-      label: 'Dashboard', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="2"/>
-          <rect x="14" y="3" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="2"/>
-          <rect x="14" y="14" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="2"/>
-          <rect x="3" y="14" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="2"/>
-        </svg>
-      ), 
-      color: '#007bff' 
-    },
-    { 
-      id: 'orders', 
-      label: 'Orders', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14,2 14,8 20,8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-          <polyline points="10,9 9,9 8,9"/>
-        </svg>
-      ), 
-      color: '#28a745' 
-    },
-    { 
-      id: 'orderstatus', 
-      label: 'Order Status', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline points="12,6 12,12 16,14"/>
-        </svg>
-      ), 
-      color: '#6366f1' 
-    },
-    { 
-      id: 'inventory', 
-      label: 'Inventory', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-        </svg>
-      ), 
-      color: '#fd7e14' 
-    },
-    { 
-      id: 'attendance', 
-      label: 'Staff Attendance', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-          <circle cx="9" cy="7" r="4"/>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-        </svg>
-      ), 
-      color: '#6f42c1' 
-    },
-    { 
-      id: 'tables', 
-      label: 'Tables & Reservations', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-          <line x1="3" y1="9" x2="21" y2="9"/>
-          <line x1="9" y1="21" x2="9" y2="9"/>
-        </svg>
-      ), 
-      color: '#17a2b8' 
-    },
-    { 
-      id: 'traceability', 
-      label: 'Traceability & Safety', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/>
-          <line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-      ), 
-      color: '#343a40' 
-    },
-    { 
-      id: 'dynamicpricing', 
-      label: 'Dynamic Pricing', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="12" y1="1" x2="12" y2="23"/>
-          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-        </svg>
-      ), 
-      color: '#ffc107' 
-    },
-    { 
-      id: 'foodsecurity', 
-      label: 'Food Security Grid', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M12 1v6m0 6v6"/>
-          <path d="M21 12h-6m-6 0H3"/>
-          <path d="M3.5 3.5l4.5 4.5m0 0l4.5 4.5"/>
-          <path d="M20.5 3.5l-4.5 4.5m0 0l-4.5 4.5"/>
-        </svg>
-      ), 
-      color: '#28a745' 
-    }
-  ];
-
-  // Fetch inventory for voice assistant
-  const getInventory = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const response = await axios.get(`${VITE_API_URL}/api/orders/inventory`, { headers });
-      setInventory(response.data);
-    } catch (err) {
-      console.error('Error fetching inventory:', err);
-    }
-  };
-
-  useEffect(() => { getInventory(); }, []);
-
-  // Voice assistant command handler
-  const handleVoiceCommand = async (text, { intent, entity, tab, highlight, botText, payload }) => {
-    // New intents from VoiceAssistant.jsx
-    if (intent === 'whatsapp_enable') {
-      await handleEnableWhatsapp();
-      return;
-    }
-    if (intent === 'whatsapp_disable') {
-      await handleDisableWhatsapp();
-      return;
-    }
-    if (intent === 'whatsapp_logout') {
-      await handleLogoutWhatsapp();
-      return;
-    }
-    if (intent === 'whatsapp_qr') {
-      await fetchWhatsappQr();
-      return;
-    }
-
-    if (intent === 'upsert_inventory') {
-      try {
-        const name = payload?.name || entity;
-        const quantity = payload?.quantity;
-        const unit = payload?.unit;
-        if (!name || quantity === null || quantity === undefined || Number.isNaN(Number(quantity))) {
-          alert('Voice inventory format: add inventory <item> <quantity> <unit>');
-          return;
-        }
-
-        const token = localStorage.getItem('token');
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        await axios.post(
-          `${VITE_API_URL}/api/orders/inventory/upsert`,
-          { name, quantity: Number(quantity), ...(unit ? { unit } : {}) },
-          { headers }
-        );
-        await getInventory();
-        setActivePage('inventory');
-        setHighlight([String(name).trim().toLowerCase()]);
-        if (window && window.speechSynthesis) {
-          window.speechSynthesis.cancel();
-          const utter = new window.SpeechSynthesisUtterance(`Inventory updated: ${name}.`);
-          utter.lang = 'en-IN';
-          window.speechSynthesis.speak(utter);
-        }
-      } catch (err) {
-        alert('Failed to update inventory: ' + (err.response?.data?.error || err.message));
-      }
-      return;
-    }
-
-    if (intent === 'set_table_status') {
-      try {
-        const tableName = payload?.tableName;
-        const floor = payload?.floor; // already normalized in VoiceAssistant
-        const desiredStatus = payload?.desiredStatus; // seated|confirmed|completed|cancelled|available
-
-        if (!restaurantId) {
-          alert('Restaurant not loaded yet.');
-          return;
-        }
-        if (!tableName || !desiredStatus) {
-          alert('Voice format: set table <name> on <floor> to seated/available/completed');
-          return;
-        }
-
-        const token = localStorage.getItem('token');
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-        const debugVoiceTables = localStorage.getItem('debugVoiceTables') === '1';
-        const parseTimeToHoursMinutes = (timeValue) => {
-          if (timeValue === null || timeValue === undefined) return null;
-          const raw = String(timeValue).trim();
-          if (!raw) return null;
-
-          const normalized = raw
-            .replace(/\./g, ':')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-          const match = normalized.match(/^\s*(\d{1,2})(?:\s*:\s*(\d{1,2}))?\s*(am|pm)?\s*$/i);
-          if (!match) return null;
-
-          let hours = parseInt(match[1], 10);
-          let minutes = match[2] !== undefined ? parseInt(match[2], 10) : 0;
-          const meridiem = match[3] ? match[3].toLowerCase() : null;
-
-          if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-          if (minutes < 0 || minutes > 59) return null;
-
-          if (meridiem) {
-            if (hours === 12) hours = 0;
-            if (meridiem === 'pm') hours += 12;
-          }
-          if (hours < 0 || hours > 23) return null;
-          return { hours, minutes };
-        };
-
-        if (debugVoiceTables) {
-          console.debug('[voice:set_table_status] input', { restaurantId, tableName, floor, desiredStatus });
-        }
-
-        // Get current table statuses (includes currentReservation)
-        const statusRes = await axios.get(
-          `${VITE_API_URL}/api/tables/tables/${restaurantId}/status`,
-          { headers }
-        );
-        const tables = statusRes.data?.tables || [];
-        const reservations = statusRes.data?.reservations || [];
-
-        const normalize = (s) => String(s || '').trim().toLowerCase();
-        const normalizeKey = (s) => normalize(s).replace(/[^a-z0-9]/g, '');
-        const targetName = normalizeKey(tableName);
-        const targetFloor = normalize(floor);
-
-        const matchTable = tables.find(t => {
-          const tn = normalizeKey(t.tableNumber);
-          const tf = normalize(t.floor);
-          if (tn !== targetName) return false;
-          if (targetFloor && tf !== targetFloor) return false;
-          return true;
-        });
-
-        if (debugVoiceTables) {
-          console.debug('[voice:set_table_status] matchTable', matchTable);
-          console.debug(
-            '[voice:set_table_status] reservations(sample)',
-            (reservations || []).slice(0, 10).map(r => ({
-              id: r._id,
-              tableId: r.tableId,
-              tableNumber: r.tableNumber,
-              reservationTime: r.reservationTime,
-              reservationDate: r.reservationDate,
-              status: r.status
-            }))
-          );
-        }
-
-        if (!matchTable) {
-          alert(`Table not found: ${tableName}${floor ? ` on ${floor}` : ''}`);
-          return;
-        }
-
-        const findReservationIdForTable = () => {
-          const direct = matchTable.currentReservation?.reservationId;
-          if (direct) return direct;
-
-          // Fallback: pick nearest upcoming/active pending/confirmed reservation for this table
-          const now = new Date();
-          const candidates = reservations
-            .filter(r => {
-              const rid = normalizeKey(r.tableId);
-              const rAlt = normalizeKey(r.tableNumber || r.table || r.tableName);
-              const tableId = normalizeKey(matchTable.tableId);
-              const tableNumber = normalizeKey(matchTable.tableNumber);
-              return rid === tableId || rid === tableNumber || rAlt === tableId || rAlt === tableNumber;
-            })
-            .filter(r => {
-              const s = normalize(r.status);
-              return s === 'pending' || s === 'confirmed' || s === 'seated';
-            })
-            .map(r => {
-              const dt = new Date(r.reservationDate);
-              const parsed = parseTimeToHoursMinutes(r.reservationTime);
-              if (!parsed) {
-                if (debugVoiceTables) {
-                  console.debug('[voice:set_table_status] unparseable time; skipping', {
-                    id: r._id,
-                    tableId: r.tableId,
-                    reservationTime: r.reservationTime
-                  });
-                }
-                return null;
-              }
-              dt.setHours(parsed.hours, parsed.minutes, 0, 0);
-              return { r, dt };
-            })
-            .filter(Boolean)
-            .sort((a, b) => a.dt - b.dt);
-
-          // Prefer a seated reservation if present
-          const seated = candidates.find(x => normalize(x.r.status) === 'seated');
-          if (seated) return seated.r._id;
-
-          // Otherwise nearest upcoming
-          const upcoming = candidates.find(x => x.dt >= now);
-          if (upcoming) return upcoming.r._id;
-
-          // Otherwise oldest
-          return candidates[0]?.r?._id;
-        };
-
-        // Reservation-driven statuses
-        const reservationStatuses = new Set(['seated', 'confirmed', 'completed', 'cancelled']);
-
-        if (desiredStatus === 'available') {
-          // First: if there is an active seated reservation, complete it.
-          const resId = findReservationIdForTable();
-          if (resId) {
-            await axios.put(
-              `${VITE_API_URL}/api/tables/reservations/${resId}/status`,
-              { status: 'completed' },
-              { headers }
-            );
-          }
-          // Always set the stored table status to available too.
-          await axios.put(
-            `${VITE_API_URL}/api/tables/tables/${restaurantId}/${matchTable.tableId}`,
-            { status: 'available' },
-            { headers }
-          );
-        } else if (reservationStatuses.has(desiredStatus)) {
-          const resId = findReservationIdForTable();
-          if (!resId) {
-            alert('No active reservation found for this table.');
-            return;
-          }
-          await axios.put(
-            `${VITE_API_URL}/api/tables/reservations/${resId}/status`,
-            { status: desiredStatus },
-            { headers }
-          );
-        } else {
-          // Direct table statuses (cleaning/maintenance/etc.)
-          await axios.put(
-            `${VITE_API_URL}/api/tables/tables/${restaurantId}/${matchTable.tableId}`,
-            { status: desiredStatus },
-            { headers }
-          );
-        }
-
-        if (window && window.speechSynthesis) {
-          window.speechSynthesis.cancel();
-          const utter = new window.SpeechSynthesisUtterance(`Table ${tableName} updated.`);
-          utter.lang = 'en-IN';
-          window.speechSynthesis.speak(utter);
-        }
-      } catch (err) {
-        alert('Failed to update table status: ' + (err.response?.data?.error || err.message));
-      }
-      return;
-    }
-
-    if (intent === 'delete_inventory' && entity) {
-      await getInventory(); // Ensure inventory is up to date
-      const item = inventory.find(i => i.name.toLowerCase() === entity.toLowerCase());
-      if (item) {
-        try {
-          const token = localStorage.getItem('token');
-          const headers = { Authorization: `Bearer ${token}` };
-          await axios.delete(`${VITE_API_URL}/api/orders/inventory/${item._id}`, { headers });
-          alert(`Deleted ${entity} from inventory.`);
-          setHighlight([]); // Clear highlights after delete
-          getInventory();
-          if (window && window.speechSynthesis) {
-            window.speechSynthesis.cancel(); // Stop any ongoing speech
-            const utter = new window.SpeechSynthesisUtterance(`${entity} has been deleted from inventory.`);
-            utter.lang = 'en-IN';
-            window.speechSynthesis.speak(utter);
-          }
-        } catch (err) {
-          alert('Failed to delete item: ' + err.message);
-        }
-      } else {
-        alert(`Item \"${entity}\" not found in inventory.`);
-      }
-    }
-    // Use new structure: { intent, entity, tab, highlight, botText }
-    if (tab) {
-      setActivePage(tab);
-      if (tab === 'inventory') {
-        const inventoryNames = inventory.map(item => item.name.trim().toLowerCase());
-        let highlights = [];
-        if (highlight) {
-          let highlightWords = highlight.split(/,| and /i).map(i => i.trim().toLowerCase()).filter(Boolean);
-          highlights = inventoryNames.filter(invName => highlightWords.some(h => invName.includes(h) || h.includes(invName)));
-        }
-        const cmd = text.toLowerCase();
-        const commandHighlights = inventoryNames.filter(invName => cmd.includes(invName));
-        highlights = Array.from(new Set([...highlights, ...commandHighlights]));
-        if (highlights.length > 0) {
-          setHighlight(highlights);
-        }
-        if (window && window.speechSynthesis) {
-          let msg = '';
-          if (highlights.length > 0) {
-            const now = new Date();
-            const responses = highlights.map(hName => {
-              const item = inventory.find(i => i.name.trim().toLowerCase() === hName);
-              if (!item) return null;
-              let line = `${item.name}: ${item.quantity} ${item.unit}, last updated on ${new Date(item.lastUpdated).toLocaleDateString()}`;
-              if (item.expiryDate) {
-                const expiry = new Date(item.expiryDate);
-                const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
-                if (daysLeft <= 3) {
-                  line += `. Warning: expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} (on ${expiry.toLocaleDateString()})`;
-                }
-              }
-              return line;
-            }).filter(Boolean);
-            msg = responses.join('. ');
-          } else {
-            msg = `No, none of those items are available in inventory.`;
-          }
-          const utter = new window.SpeechSynthesisUtterance(msg);
-          utter.lang = 'en-IN';
-          window.speechSynthesis.speak(utter);
-        }
-      }
-    }
-    // Fallback: old logic
-    else {
-      const cmd = text.toLowerCase();
-      if (cmd.includes('inventory')) {
-        setActivePage('inventory');
-        const inventoryNames = inventory.map(item => item.name.trim().toLowerCase());
-        const highlights = inventoryNames.filter(invName => cmd.includes(invName));
-        if (highlights.length > 0) {
-          setHighlight(highlights);
-        }
-        if (window && window.speechSynthesis) {
-          let msg = '';
-          if (highlights.length > 0) {
-            const now = new Date();
-            const responses = highlights.map(hName => {
-              const item = inventory.find(i => i.name.trim().toLowerCase() === hName);
-              if (!item) return null;
-              let line = `${item.name}: ${item.quantity} ${item.unit}, last updated on ${new Date(item.lastUpdated).toLocaleDateString()}`;
-              if (item.expiryDate) {
-                const expiry = new Date(item.expiryDate);
-                const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
-                if (daysLeft <= 3) {
-                  line += `. Warning: expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} (on ${expiry.toLocaleDateString()})`;
-                }
-              }
-              return line;
-            }).filter(Boolean);
-            msg = responses.join('. ');
-          } else {
-            msg = `No, none of those items are available in inventory.`;
-          }
-          const utter = new window.SpeechSynthesisUtterance(msg);
-          utter.lang = 'en-IN';
-          window.speechSynthesis.speak(utter);
-        }
-      } else if (cmd.includes('traceability')) {
-        setActivePage('traceability');
-      } else if (cmd.includes('dynamic pricing') || cmd.includes('profit')) {
-        setActivePage('dynamicpricing');
-      } else if (cmd.includes('food security') || cmd.includes('donate')) {
-        setActivePage('foodsecurity');
-      } else if (cmd.includes('orders')) {
-        setActivePage('orders');
-      } else if (cmd.includes('kitchen')) {
-        setActivePage('kitchen');
-      } else if (cmd.includes('attendance')) {
-        setActivePage('attendance');
-      } else if (cmd.includes('bills')) {
-        setActivePage('bills');
-      } else if (cmd.includes('tables')) {
-        setActivePage('tables');
-      } else if (cmd.includes('dashboard')) {
-        setActivePage('dashboard');
-      }
-    }
-  };
-  const filteredDishes = dishes.filter((dish) =>
-    dish.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  // Fetch orders and dishes
-  useEffect(() => {
-    if (activePage === 'orders') {
-      fetchOrders();
-      fetchDishes();
-    }
-  }, [activePage]);
-
-  const fetchOrders = async () => {
-    setOrdersLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get(`${VITE_API_URL}/api/orders`, { headers });
-      setOrders(prev => mergeOrders(prev, res.data));
-    } catch (err) {
-      // handle error
-    } finally {
-      setOrdersLoading(false);
-    }
-  };
-
-  const fetchDishes = async (search = '') => {
-    setDishLoading(true);
-    setDishError('');
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-  
-      const res = await axios.get(
-        `${VITE_API_URL}/api/orders/dishes${search ? `?search=${encodeURIComponent(search)}` : ''}`,
-        { headers }
-      );
-      setDishes(res.data);
-    } catch (err) {
-      setDishError('Could not load dishes');
-    } finally {
-      setDishLoading(false);
-    }
-  };
-  
-  // Trigger search when typing (or on debounce)
-  const handleSearchChange = (e) => {
-    const value = e.target.value;
-    setSearchTerm(value);
-    fetchDishes(value);
-  };
-
-  const formatApiError = (err, fallback) => {
-    const data = err?.response?.data;
-    if (data?.error) {
-      if (Array.isArray(data.missing) && data.missing.length) {
-        const first = data.missing[0];
-        const dishName = first?.name ? ` (${first.name})` : '';
-        const reason = first?.reason ? `: ${first.reason}` : '';
-        return `${data.error}${dishName}${reason}`;
-      }
-      return String(data.error);
-    }
-    return fallback || err?.message || 'Request failed';
-  };
-  // Add Dish Modal logic
-  const handleAddDish = async (e) => {
-    e.preventDefault();
-    setDishLoading(true);
-    setDishError('');
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      const payload = {
-        ...addDishForm,
-        ingredients: addDishForm.ingredients.split(',').map(i => i.trim()).filter(Boolean),
-        dietary: addDishForm.dietary.split(',').map(i => i.trim()).filter(Boolean),
-        price: parseFloat(addDishForm.price)
-      };
-      await axios.post(`${VITE_API_URL}/api/orders/dishes`, payload, { headers });
-      setShowAddDish(false);
-      setAddDishForm({ name: '', description: '', ingredients: '', price: '', image: '', category: '', dietary: '' });
-      fetchDishes();
-    } catch (err) {
-      setDishError(formatApiError(err, 'Failed to add dish'));
-    } finally {
-      setDishLoading(false);
-    }
-  };
-
-  // Add Order Modal logic
-  const handleAddOrder = async (e) => {
-    e.preventDefault();
-    setOrderLoading(true);
-    setOrderError('');
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      const items = orderItems.map(item => ({
-        dish: item.dishId,
-        name: dishes.find(d => d._id === item.dishId)?.name || '',
-        quantity: item.quantity,
-        price: dishes.find(d => d._id === item.dishId)?.price || 0,
-        modifications: item.modifications ? item.modifications.split(',').map(m => m.trim()).filter(Boolean) : []
-      }));
-      await axios.post(`${VITE_API_URL}/api/orders/create`, {
-        table: addOrderForm.table,
-        items
-      }, { headers });
-      setShowAddOrder(false);
-      setAddOrderForm({ table: '', items: [] });
-      setOrderItems([]);
-      fetchOrders();
-    } catch (err) {
-      setOrderError(formatApiError(err, 'Failed to add order'));
-    } finally {
-      setOrderLoading(false);
-    }
-  };
-
-  // Add/Remove items in order modal
-  const handleAddOrderItem = () => {
-    setOrderItems([...orderItems, { dishId: '', quantity: 1, modifications: '' }]);
-  };
-  const handleRemoveOrderItem = (idx) => {
-    setOrderItems(orderItems.filter((_, i) => i !== idx));
-  };
-  const handleOrderItemChange = (idx, field, value) => {
-    setOrderItems(orderItems.map((item, i) => i === idx ? { ...item, [field]: value } : item));
-  };
-
-  // Dish gallery logic
   const handleGalleryOrder = async (e) => {
     e.preventDefault();
     setGalleryOrderError('');
@@ -1122,7 +224,7 @@ const openUPIApp = (amount, tableNo) => {
         setGalleryModalDish(null);
       }, 900);
     } catch (err) {
-      setGalleryOrderError(formatApiError(err, 'Failed to place order'));
+      setGalleryOrderError('Failed to place order');
     }
   };
 
@@ -2690,777 +1792,863 @@ const openUPIApp = (amount, tableNo) => {
           </div>
         );
 
-    case 'orders':
-  return (
-    <Box 
-      minH="100vh" 
-      w="full" 
-      bgGradient="linear(120deg, #f8fafc 0%, #e0e7ff 100%)"
-      position="relative"
-      pb={10}
-    >
-      {/* Bill Drawer Button */}
-      <IconButton
-        icon={<Receipt />}
-        position="fixed"
-        top={8}
-        right={8}
-        zIndex={1202}
-        bgGradient="linear(90deg, #6366f1, #f472b6)"
-        color="white"
-        rounded="full"
-        size="lg"
-        px={8}
-        py={6}
-        fontSize="lg"
-        fontWeight="bold"
-        fontFamily="Sora"
-        boxShadow="lg"
-        _hover={{
-          transform: 'translateY(-2px)',
-          boxShadow: 'xl',
-          bgGradient: "linear(90deg, #818cf8, #f472b6)"
-        }}
-        onClick={() => setBillDrawerOpen(true)}
-      >
-        Bill
-      </IconButton>
-
-      {/* Add Dish Button */}
-      <Container maxW="1400px" centerContent>
-        <Button
-          leftIcon={<Plus />}
-          onClick={() => setShowAddDish(true)}
-          bgGradient="linear(90deg, #6366f1, #818cf8)"
-          color="white"
-          rounded="full"
-          size="lg"
-          px={8}
-          py={6}
-          fontSize="lg"
-          fontWeight="semibold"
-          fontFamily="Sora"
-          boxShadow="md"
-          mt={20}
-          _hover={{
-            bgGradient: "linear(90deg, #818cf8, #6366f1)",
-            transform: 'translateY(-2px) scale(1.02)',
-            boxShadow: 'xl'
-          }}
-          transition="all 0.2s"
-        >
-          Add New Dish
-        </Button>
-
-        {/* Dish Gallery Grid */}
-        <SimpleGrid 
-          columns={{ base: 1, sm: 2, md: 3, lg: 4 }} 
-          spacing={6} 
-          w="full" 
-          mt={8}
-          px={4}
-        >
-          {dishes.map(dish => (
-            <MotionCard
-              key={dish._id}
-              overflow="hidden"
-              cursor="pointer"
-              onClick={() => setGalleryModalDish(dish)}
-              borderRadius="2xl"
-              bg="white"
-              boxShadow="lg"
-              _hover={{ 
-                boxShadow: '2xl',
-                transform: 'translateY(-4px)'
+      case 'orders':
+        return (
+          <ManagerOrdersPage
+            orders={orders}
+            setOrders={setOrders}
+            dishes={dishes}
+            setDishes={setDishes}
+            mergeOrders={mergeOrders}
+            restaurantId={restaurantId}
+            apiBaseUrl={VITE_API_URL}
+          />
+        );
+        return (
+          <div style={{ minHeight: '100vh', width: '100vw', background: 'linear-gradient(120deg, #f8fafc 0%, #e0e7ff 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 40px 0', position: 'relative' }}>
+            {/* Bill Drawer Button */}
+            <button
+              style={{
+                position: 'fixed',
+                top: 32,
+                right: 32,
+                zIndex: 1202,
+                background: 'linear-gradient(90deg,#6366f1,#f472b6)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 18,
+                padding: '12px 28px',
+                fontFamily: 'Sora, sans-serif',
+                fontWeight: 700,
+                fontSize: '1.08rem',
+                boxShadow: '0 2px 18px #6366f122',
+                cursor: 'pointer',
               }}
-              transition="all 0.3s"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              onClick={() => setBillDrawerOpen(true)}
             >
-              <Box position="relative" h="280px">
-                <Image
-                  src={dish.image || '/images/chef3.png'}
-                  alt={dish.name}
-                  objectFit="cover"
-                  w="full"
-                  h="full"
-                />
-                <Box
-                  position="absolute"
-                  bottom={0}
-                  left={0}
-                  right={0}
-                  bgGradient="linear(to-t, rgba(30,32,48,0.95), transparent)"
-                  p={4}
-                  color="white"
-                >
-                  <Text 
-                    fontSize="xl" 
-                    fontWeight="bold" 
-                    fontFamily="Sora"
-                    noOfLines={1}
-                    textShadow="0 2px 8px rgba(0,0,0,0.3)"
-                  >
-                    {dish.name}
-                  </Text>
-                  <Text 
-                    fontSize="sm" 
-                    color="gray.200"
-                    noOfLines={1}
-                  >
-                    {dish.description}
-                  </Text>
-                  <Text 
-                    fontSize="lg" 
-                    fontWeight="bold" 
-                    color="yellow.300"
-                    textShadow="0 2px 8px rgba(0,0,0,0.3)"
-                  >
-                    ₹ {dish.price}
-                  </Text>
-                </Box>
-              </Box>
-            </MotionCard>
-          ))}
-        </SimpleGrid>
-      </Container>
-
-      {/* Add Dish Modal */}
-      <Modal 
-        isOpen={showAddDish} 
-        onClose={() => setShowAddDish(false)}
-        size="md"
-        motionPreset="scale"
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:8,verticalAlign:'middle'}}><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M5 7h14"/><path d="M9 11h6"/><path d="M9 15h6"/><path d="M5 21l2-2 2 2 2-2 2 2 2-2 2 2"/></svg>
+              Bill
+            </button>
+            {/* Dish Gallery and Add Dish Button */}
+            <style>{`
+              .orders-gallery {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 32px;
+                margin: 40px auto 0 auto;
+                max-width: 1400px;
+                width: 100%;
+                justify-items: center;
+                padding: 0 16px;
+              }
+              .orders-gallery-img-wrap {
+                position: relative;
+                width: 100%;
+                aspect-ratio: 1 / 1;
+                max-width: 320px;
+                cursor: pointer;
+                overflow: hidden;
+                display: flex;
+                align-items: stretch;
+                justify-content: stretch;
+              }
+              .orders-gallery-img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+                border: none;
+                border-radius: 0;
+                box-shadow: none;
+                background: none;
+                margin: 0;
+                padding: 0;
+                transition: transform 0.18s;
+              }
+              .orders-gallery-img-wrap:hover .orders-gallery-img {
+                transform: scale(1.04);
+              }
+              .orders-gallery-info-overlay {
+                position: absolute;
+                left: 0; right: 0; bottom: 0;
+                background: linear-gradient(0deg, rgba(30,32,48,0.88) 85%, rgba(30,32,48,0.10) 100%);
+                color: #fff;
+                padding: 16px 14px 12px 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                pointer-events: none;
+              }
+              .orders-gallery-name {
+                font-family: 'Sora', sans-serif;
+                font-size: 1.18rem;
+                font-weight: 700;
+                margin-bottom: 2px;
+                line-height: 1.18;
+                letter-spacing: 0.01em;
+                text-shadow: 0 2px 8px #23294688;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+              }
+              .orders-gallery-desc {
+                font-size: 0.97rem;
+                font-weight: 400;
+                color: #e0e7ff;
+                margin-bottom: 2px;
+                line-height: 1.18;
+                max-height: 2.3em;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+              }
+              .orders-gallery-price {
+                font-size: 1.05rem;
+                font-weight: 700;
+                color: #fbbf24;
+                margin-top: 2px;
+                text-shadow: 0 2px 8px #23294688;
+              }
+              @media (max-width: 1100px) {
+                .orders-gallery {
+                  grid-template-columns: repeat(3, 1fr);
+                }
+              }
+              @media (max-width: 800px) {
+                .orders-gallery {
+                  grid-template-columns: repeat(2, 1fr);
+                  gap: 16px;
+                }
+                .orders-gallery-img-wrap { max-width: 220px; }
+                .orders-gallery-info-overlay {
+                  padding: 12px 8px 8px 10px;
+                }
+                .orders-gallery-name { font-size: 1.05rem; }
+                .orders-gallery-desc { font-size: 0.91rem; }
+                .orders-gallery-price { font-size: 0.98rem; }
+              }
+              @media (max-width: 500px) {
+                .orders-gallery {
+                  grid-template-columns: 1fr;
+                  gap: 10px;
+                  padding: 0 2px;
+                }
+                .orders-gallery-img-wrap { max-width: 98vw; }
+                .orders-gallery-info-overlay {
+                  padding: 8px 4px 6px 6px;
+                }
+                .orders-gallery-name { font-size: 0.98rem; }
+                .orders-gallery-desc { font-size: 0.85rem; }
+                .orders-gallery-price { font-size: 0.92rem; }
+              }
+              .orders-add-dish-btn {
+                margin: 32px 0 0 0;
+                background: linear-gradient(90deg,#6366f1,#818cf8);
+                color: #fff;
+                border: none;
+                border-radius: 18px 32px 32px 18px;
+                padding: 12px 28px;
+                font-family: 'Sora', sans-serif;
+                font-weight: 600;
+                font-size: 1.08rem;
+                cursor: pointer;
+                box-shadow: 0 2px 18px #6366f122;
+                transition: background 0.18s, box-shadow 0.18s, transform 0.18s;
+              }
+              .orders-add-dish-btn:hover {
+                background: linear-gradient(90deg,#818cf8,#6366f1);
+                box-shadow: 0 4px 32px #6366f144;
+                transform: translateY(-2px) scale(1.04);
+              }
+            `}</style>
+            <button className="orders-add-dish-btn" onClick={() => setShowAddDish(true)}>Add Dish</button>
+            <div className="orders-gallery">
+              {dishes.map(dish => (
+                <div key={dish._id} className="orders-gallery-img-wrap" onClick={()=>setGalleryModalDish(dish)}>
+                  <img className="orders-gallery-img" src={dish.image || '/images/chef3.png'} alt={dish.name} />
+                  <div className="orders-gallery-info-overlay">
+                    <div className="orders-gallery-name">{dish.name}</div>
+                    <div className="orders-gallery-desc">{dish.description}</div>
+                    <div className="orders-gallery-price">₹ {dish.price}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {showAddDish && (
+ <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md px-4 py-8 overflow-y-auto">
+<div className="relative w-full max-w-md bg-white/5 border border-white/10 backdrop-blur-2xl rounded-3xl shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] p-6 sm:p-8 text-white animate-fadeIn">
+      
+      {/* 🔘 Close Button */}
+      <button
+        onClick={() => setShowAddDish(false)}
+        className="absolute top-4 right-4 text-white/60 hover:text-white text-2xl"
+        aria-label="Close"
       >
-        <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(10px)" />
-        <ModalContent
-          bg="whiteAlpha.100"
-          backdropFilter="blur(20px)"
-          border="1px solid"
-          borderColor="whiteAlpha.200"
-          borderRadius="3xl"
-          boxShadow="2xl"
-        >
-          <ModalHeader color="white" fontSize="2xl" fontWeight="bold">
-            🍽️ Add New Dish
-          </ModalHeader>
-          <ModalCloseButton color="white" />
-          
-          <ModalBody>
-            <form onSubmit={handleAddDish}>
-              <VStack spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel color="whiteAlpha.800">Dish Name</FormLabel>
-                  <Input
-                    value={addDishForm.name}
-                    onChange={(e) => setAddDishForm({ ...addDishForm, name: e.target.value })}
-                    bg="whiteAlpha.200"
-                    border="1px solid"
-                    borderColor="whiteAlpha.300"
-                    color="white"
-                    _placeholder={{ color: 'whiteAlpha.500' }}
-                    _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                  />
-                </FormControl>
+        ×
+      </button>
 
-                <FormControl isRequired>
-                  <FormLabel color="whiteAlpha.800">Description</FormLabel>
-                  <Textarea
-                    value={addDishForm.description}
-                    onChange={(e) => setAddDishForm({ ...addDishForm, description: e.target.value })}
-                    bg="whiteAlpha.200"
-                    border="1px solid"
-                    borderColor="whiteAlpha.300"
-                    color="white"
-                    rows={3}
-                    _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                  />
-                </FormControl>
+      {/* 🖼️ Title */}
+      <h2 className="text-2xl sm:text-3xl font-bold mb-6 tracking-tight text-white/90">
+        🍽️ Add New Dish
+      </h2>
 
-                <FormControl isRequired>
-                  <FormLabel color="whiteAlpha.800">Ingredients (comma-separated)</FormLabel>
-                  <Input
-                    value={addDishForm.ingredients}
-                    onChange={(e) => setAddDishForm({ ...addDishForm, ingredients: e.target.value })}
-                    bg="whiteAlpha.200"
-                    border="1px solid"
-                    borderColor="whiteAlpha.300"
-                    color="white"
-                    _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel color="whiteAlpha.800">Dietary Info</FormLabel>
-                  <Input
-                    value={addDishForm.dietary}
-                    onChange={(e) => setAddDishForm({ ...addDishForm, dietary: e.target.value })}
-                    bg="whiteAlpha.200"
-                    border="1px solid"
-                    borderColor="whiteAlpha.300"
-                    color="white"
-                    _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                  />
-                </FormControl>
-
-                <HStack spacing={4} w="full">
-                  <FormControl isRequired>
-                    <FormLabel color="whiteAlpha.800">Price (₹)</FormLabel>
-                    <NumberInput min={0} precision={2}>
-                      <NumberInputField
-                        value={addDishForm.price}
-                        onChange={(e) => setAddDishForm({ ...addDishForm, price: e.target.value })}
-                        bg="whiteAlpha.200"
-                        border="1px solid"
-                        borderColor="whiteAlpha.300"
-                        color="white"
-                        _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                      />
-                    </NumberInput>
-                  </FormControl>
-
-                  <FormControl isRequired>
-                    <FormLabel color="whiteAlpha.800">Category</FormLabel>
-                    <Input
-                      value={addDishForm.category}
-                      onChange={(e) => setAddDishForm({ ...addDishForm, category: e.target.value })}
-                      bg="whiteAlpha.200"
-                      border="1px solid"
-                      borderColor="whiteAlpha.300"
-                      color="white"
-                      _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                    />
-                  </FormControl>
-                </HStack>
-
-                <FormControl>
-                  <FormLabel color="whiteAlpha.800">Image URL</FormLabel>
-                  <Input
-                    value={addDishForm.image}
-                    onChange={(e) => setAddDishForm({ ...addDishForm, image: e.target.value })}
-                    bg="whiteAlpha.200"
-                    border="1px solid"
-                    borderColor="whiteAlpha.300"
-                    color="white"
-                    _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                  />
-                </FormControl>
-
-                {dishError && (
-                  <Text color="red.400" fontSize="sm">
-                    {dishError}
-                  </Text>
-                )}
-              </VStack>
-            </form>
-          </ModalBody>
-
-          <ModalFooter>
-            <Button 
-              variant="ghost" 
-              mr={3} 
-              onClick={() => setShowAddDish(false)}
-              color="white"
-              _hover={{ bg: 'whiteAlpha.200' }}
-            >
-              Cancel
-            </Button>
-            <Button
-              bg="pink.500"
-              color="white"
-              _hover={{ bg: 'pink.600' }}
-              isLoading={dishLoading}
-              onClick={handleAddDish}
-            >
-              Add Dish
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* Bill Drawer */}
-      <Drawer
-        isOpen={billDrawerOpen}
-        placement="right"
-        onClose={() => {
-          setBillDrawerOpen(false)
-          setPaymentMethod('cash')
-          setUpiQrCode('')
-          setPaymentStatus('')
-        }}
-        size="md"
-      >
-        <DrawerOverlay />
-        <DrawerContent
-          borderLeftRadius="2xl"
-          boxShadow="-8px 0 32px rgba(99, 102, 241, 0.1)"
-        >
-          <DrawerCloseButton />
-          <DrawerHeader 
-            borderBottomWidth="1px" 
-            borderColor="gray.200"
-            fontSize="xl"
-            fontFamily="Sora"
-          >
-            {paymentStatus === 'waiting' ? 'UPI Payment' : 'Bill & Payment'}
-          </DrawerHeader>
-
-          <DrawerBody>
-            {paymentStatus === 'waiting' && upiQrCode ? (
-              <VStack spacing={6} align="stretch">
-                <Center>
-                  <Box
-                    bg="green.50"
-                    p={6}
-                    borderRadius="xl"
-                    border="2px solid"
-                    borderColor="green.400"
-                  >
-                    <Image 
-                      src={upiQrCode} 
-                      alt="UPI QR Code" 
-                      boxSize="250px"
-                      borderRadius="lg"
-                    />
-                  </Box>
-                </Center>
-
-                <Box
-                  bgGradient="linear(135deg, #22c55e, #10b981)"
-                  color="white"
-                  p={4}
-                  borderRadius="xl"
-                >
-                  <Text fontSize="3xl" fontWeight="bold" textAlign="center">
-                    ₹ {currentPayment.amount}
-                  </Text>
-                  <Text textAlign="center" fontSize="sm" opacity={0.9}>
-                    Table {currentPayment.tableNo} • {restaurantName}
-                  </Text>
-                </Box>
-
-                <Box
-                  bg="green.50"
-                  p={4}
-                  borderRadius="lg"
-                  border="2px dashed"
-                  borderColor="green.400"
-                >
-                  <Text fontSize="xs" color="gray.600">Send to UPI ID:</Text>
-                  <Text fontSize="lg" fontWeight="bold" color="green.600" fontFamily="mono">
-                    priyanshugupta007007@okaxis
-                  </Text>
-                  <Text fontSize="sm" color="gray.600">Priyanshu Gupta</Text>
-                </Box>
-
-                <VStack spacing={3}>
-                  <Button
-                    leftIcon={<Smartphone />}
-                    bgGradient="linear(135deg, #4285f4, #34a853)"
-                    color="white"
-                    size="lg"
-                    w="full"
-                    onClick={() => openUPIApp(currentPayment.amount, currentPayment.tableNo)}
-                    _hover={{ transform: 'translateY(-2px)', boxShadow: 'lg' }}
-                  >
-                    Open UPI App
-                  </Button>
-
-                  <Button
-                    leftIcon={<CheckCircle />}
-                    bgGradient="linear(135deg, #22c55e, #10b981)"
-                    color="white"
-                    size="lg"
-                    w="full"
-                    onClick={confirmUPIPayment}
-                    _hover={{ transform: 'translateY(-2px)', boxShadow: 'lg' }}
-                  >
-                    I've Made the Payment
-                  </Button>
-
-                  <Button
-                    leftIcon={<ArrowLeft />}
-                    variant="outline"
-                    w="full"
-                    onClick={() => {
-                      setUpiQrCode('')
-                      setPaymentStatus('')
-                    }}
-                  >
-                    Back to Payment Methods
-                  </Button>
-                </VStack>
-
-                <Box
-                  bg="orange.50"
-                  p={3}
-                  borderRadius="md"
-                  border="1px solid"
-                  borderColor="orange.300"
-                >
-                  <Text fontSize="sm" color="orange.800">
-                    💡 <strong>How to pay:</strong><br/>
-                    1. Scan QR code with any UPI app<br/>
-                    2. Or click "Open UPI App"<br/>
-                    3. Or manually send to the UPI ID above<br/>
-                    4. Click "I've Made the Payment" when done
-                  </Text>
-                </Box>
-              </VStack>
+      <form onSubmit={handleAddDish} className="space-y-5 text-sm">
+        {[
+          { name: 'name', placeholder: 'Dish Name', type: 'text', required: true },
+          { name: 'description', placeholder: 'Description', type: 'textarea', rows: 2, required: true },
+          { name: 'ingredients', placeholder: 'Ingredients (comma-separated)', type: 'text', required: true },
+          { name: 'dietary', placeholder: 'Dietary Info (comma-separated)', type: 'text' },
+        ].map((field) => (
+          <div className="relative" key={field.name}>
+            {field.type === 'textarea' ? (
+              <textarea
+                placeholder=" "
+                rows={field.rows}
+                value={addDishForm[field.name]}
+                onChange={(e) => setAddDishForm({ ...addDishForm, [field.name]: e.target.value })}
+                required={field.required}
+                className="peer w-full px-4 pt-5 pb-2 text-white bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 transition placeholder-transparent"
+              />
             ) : (
-              <VStack spacing={6} align="stretch">
-                {/* Payment Method Selection */}
-                <Box>
-                  <Text fontWeight="bold" mb={3} fontSize="lg">Payment Method</Text>
-                  <SimpleGrid columns={3} spacing={3}>
-                    <Button
-                      leftIcon={<Banknote />}
-                      variant={paymentMethod === 'cash' ? 'solid' : 'outline'}
-                      colorScheme="green"
-                      onClick={() => setPaymentMethod('cash')}
-                      size="sm"
-                    >
-                      Cash
-                    </Button>
-                    <Button
-                      leftIcon={<QrCode />}
-                      variant={paymentMethod === 'upi' ? 'solid' : 'outline'}
-                      colorScheme="blue"
-                      onClick={() => setPaymentMethod('upi')}
-                      size="sm"
-                    >
-                      UPI
-                    </Button>
-                    <Button
-                      leftIcon={<CreditCard />}
-                      variant={paymentMethod === 'card' ? 'solid' : 'outline'}
-                      colorScheme="purple"
-                      onClick={() => setPaymentMethod('card')}
-                      size="sm"
-                    >
-                      Card
-                    </Button>
-                  </SimpleGrid>
-                </Box>
-
-                {/* Table Selection */}
-                {orders.filter(o => o.status === 'pending').length > 0 && (
-                  <HStack spacing={2} overflowX="auto" pb={2}>
-                    {[...new Set(orders.filter(o => o.status === 'pending').map(o => o.table))].map(tableNo => (
-                      <Button
-                        key={tableNo}
-                        variant={selectedBillTable === tableNo ? 'solid' : 'outline'}
-                        colorScheme={selectedBillTable === tableNo ? 'purple' : 'gray'}
-                        onClick={() => setSelectedBillTable(tableNo)}
-                        size="sm"
-                        rounded="full"
-                      >
-                        Table {tableNo}
-                      </Button>
-                    ))}
-                  </HStack>
-                )}
-
-                {/* Orders Display */}
-                {orders.filter(o => o.status === 'pending').length === 0 ? (
-                  <Center py={10}>
-                    <Text color="gray.500">No items in bill yet.</Text>
-                  </Center>
-                ) : (
-                  (() => {
-                    const pendingOrders = orders.filter(o => 
-                      o.status === 'pending' && 
-                      (!selectedBillTable || o.table === selectedBillTable)
-                    )
-                    const tables = [...new Set(pendingOrders.map(o => o.table))]
-                    
-                    if (tables.length === 0) {
-                      return (
-                        <Center py={10}>
-                          <Text color="gray.500">No items in bill yet.</Text>
-                        </Center>
-                      )
-                    }
-                    
-                    return tables.map(tableNo => {
-                      const tableOrders = pendingOrders.filter(o => o.table === tableNo)
-                      let allItems = []
-                      tableOrders.forEach(order => {
-                        order.items.forEach(item => {
-                          allItems.push({ ...item, _orderId: order._id })
-                        })
-                      })
-
-                      const groupedItems = []
-                      allItems.forEach(item => {
-                        const key = item.name + '|' + (item.modifications ? item.modifications.join(',') : '')
-                        const existing = groupedItems.find(i => i.key === key)
-                        if (existing) {
-                          existing.quantity += Number(item.quantity)
-                        } else {
-                          groupedItems.push({
-                            key,
-                            name: item.name,
-                            modifications: item.modifications,
-                            price: item.price,
-                            quantity: Number(item.quantity)
-                          })
-                        }
-                      })
-
-                      const total = groupedItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-                      const orderIds = tableOrders.map(o => o._id)
-
-                      return (
-                        <Box
-                          key={tableNo}
-                          bg="gray.50"
-                          p={4}
-                          borderRadius="xl"
-                          border="1px solid"
-                          borderColor="gray.200"
-                        >
-                          <Text fontWeight="bold" color="purple.500" fontSize="lg" mb={3}>
-                            Table {tableNo}
-                          </Text>
-                          
-                          <Table size="sm" variant="simple">
-                            <Thead>
-                              <Tr>
-                                <Th>Item</Th>
-                                <Th isNumeric>Qty</Th>
-                                <Th isNumeric>Price</Th>
-                                <Th isNumeric>Total</Th>
-                              </Tr>
-                            </Thead>
-                            <Tbody>
-                              {groupedItems.map((item, idx) => (
-                                <Tr key={idx}>
-                                  <Td>
-                                    <Text fontWeight="semibold">{item.name}</Text>
-                                    {item.modifications && item.modifications.length > 0 && (
-                                      <Text fontSize="xs" color="gray.600" fontStyle="italic">
-                                        {item.modifications.join(', ')}
-                                      </Text>
-                                    )}
-                                  </Td>
-                                  <Td isNumeric>{item.quantity}</Td>
-                                  <Td isNumeric>₹ {item.price}</Td>
-                                  <Td isNumeric fontWeight="bold">₹ {item.price * item.quantity}</Td>
-                                </Tr>
-                              ))}
-                            </Tbody>
-                          </Table>
-                          
-                          <Divider my={3} />
-                          
-                          <Text fontSize="xl" fontWeight="bold" textAlign="right" color="orange.400">
-                            Total: ₹ {total}
-                          </Text>
-
-                          <Button
-                            mt={4}
-                            w="full"
-                            size="lg"
-                            colorScheme={paymentMethod === 'upi' ? 'green' : paymentMethod === 'card' ? 'purple' : 'blue'}
-                            onClick={async () => {
-                              if (paymentMethod === 'upi') {
-                                handleRealUPIPayment(orderIds, total, tableNo)
-                              } else {
-                                for (const id of orderIds) {
-                                  await handlePayment(id)
-                                }
-                                alert(`✅ Payment of ₹${total} received via ${paymentMethod.toUpperCase()}!`)
-                              }
-                            }}
-                          >
-                            {paymentMethod === 'upi' ? `Pay ₹${total} via UPI` :
-                             paymentMethod === 'card' ? `Process Card Payment - ₹${total}` :
-                             `Confirm Cash Payment - ₹${total}`}
-                          </Button>
-                        </Box>
-                      )
-                    })
-                  })()
-                )}
-              </VStack>
+              <input
+                type={field.type}
+                placeholder=" "
+                value={addDishForm[field.name]}
+                onChange={(e) => setAddDishForm({ ...addDishForm, [field.name]: e.target.value })}
+                required={field.required}
+                className="peer w-full px-4 pt-5 pb-2 text-white bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 transition placeholder-transparent"
+              />
             )}
-          </DrawerBody>
-        </DrawerContent>
-      </Drawer>
+            <label className="absolute left-4 top-2 text-xs text-white/60 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-white/40 peer-focus:top-2 peer-focus:text-xs peer-focus:text-pink-500">
+              {field.placeholder}
+            </label>
+          </div>
+        ))}
 
-      {/* Order Modal */}
-      <Modal 
-        isOpen={!!galleryModalDish} 
-        onClose={() => setGalleryModalDish(null)}
-        isCentered
-        motionPreset="scale"
-      >
-        <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(5px)" />
-        <ModalContent borderRadius="2xl">
-          <ModalCloseButton />
-          <ModalBody p={6}>
-            {galleryModalDish && (
-              <VStack spacing={4}>
-                <Image
-                  src={galleryModalDish.image || '/images/chef3.png'}
-                  alt={galleryModalDish.name}
-                  borderRadius="xl"
-                  boxShadow="lg"
-                  maxH="200px"
-                  objectFit="cover"
-                />
-                
-                <Box w="full">
-                  <Text fontSize="xl" fontWeight="bold" fontFamily="Sora">
-                    {galleryModalDish.name}
-                  </Text>
-                  <Text color="gray.600" fontSize="sm">
-                    {galleryModalDish.description}
-                  </Text>
-                  <Text color="orange.400" fontWeight="bold" fontSize="lg" mt={1}>
-                    ₹ {galleryModalDish.price}
-                  </Text>
-                </Box>
+        {/* Grid Fields */}
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            { name: 'price', placeholder: 'Price ₹', type: 'number' },
+            { name: 'category', placeholder: 'Category', type: 'text' },
+          ].map((field) => (
+            <div className="relative" key={field.name}>
+              <input
+                type={field.type}
+                step={field.type === 'number' ? '0.01' : undefined}
+                placeholder=" "
+                value={addDishForm[field.name]}
+                onChange={(e) => setAddDishForm({ ...addDishForm, [field.name]: e.target.value })}
+                required
+                className="peer w-full px-4 pt-5 pb-2 text-white bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 transition placeholder-transparent"
+              />
+              <label className="absolute left-4 top-2 text-xs text-white/60 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-white/40 peer-focus:top-2 peer-focus:text-xs peer-focus:text-pink-500">
+                {field.placeholder}
+              </label>
+            </div>
+          ))}
+        </div>
 
-                <form onSubmit={handleGalleryOrder} style={{ width: '100%' }}>
-                  <VStack spacing={4}>
-                    <FormControl isRequired>
-                      <FormLabel>Select Table</FormLabel>
-                      <Select
-                        value={galleryOrderTableNo}
-                        onChange={(e) => setGalleryOrderTableNo(e.target.value)}
-                        placeholder={seatedTablesLoading ? 'Loading tables...' : 'Select a seated table'}
-                        isDisabled={seatedTablesLoading || seatedTables.length === 0}
-                      >
-                        {seatedTables.map(t => (
-                          <option key={t.tableId} value={t.tableNumber}>
-                            Table {t.tableNumber}{t.floor ? ` • ${t.floor}` : ''}
-                          </option>
-                        ))}
-                      </Select>
-                    </FormControl>
+        {/* Image URL */}
+        <div className="relative">
+          <input
+            type="text"
+            placeholder=" "
+            value={addDishForm.image}
+            onChange={(e) => setAddDishForm({ ...addDishForm, image: e.target.value })}
+            className="peer w-full px-4 pt-5 pb-2 text-white bg-white/10 border border-white/20 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 transition placeholder-transparent"
+          />
+          <label className="absolute left-4 top-2 text-xs text-white/60 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-white/40 peer-focus:top-2 peer-focus:text-xs peer-focus:text-pink-500">
+            Image URL
+          </label>
+        </div>
 
-                    <FormControl isRequired>
-                      <FormLabel>Quantity</FormLabel>
-                      <NumberInput min={1} value={galleryOrderQty}>
-                        <NumberInputField
-                          onChange={(e) => setGalleryOrderQty(e.target.value)}
-                        />
-                      </NumberInput>
-                    </FormControl>
+        {/* 🧨 Error Message */}
+        {dishError && (
+          <p className="text-red-400 text-xs text-right mt-1">
+            {dishError}
+          </p>
+        )}
 
-                    <FormControl>
-                      <FormLabel>Modifications</FormLabel>
-                      <Input
-                        value={galleryOrderMods}
-                        onChange={(e) => setGalleryOrderMods(e.target.value)}
-                        placeholder="e.g., No onions, extra spicy"
-                      />
-                    </FormControl>
-
-                    {galleryOrderSuccess && (
-                      <Text color="green.500" fontWeight="bold">
-                        Order placed successfully!
-                      </Text>
-                    )}
-                    
-                    {galleryOrderError && (
-                      <Text color="red.500">
-                        {galleryOrderError}
-                      </Text>
-                    )}
-
-                    <HStack spacing={3} w="full" justify="flex-end">
-                      <Button variant="ghost" onClick={() => setGalleryModalDish(null)}>
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        bgGradient="linear(90deg, #6366f1, #818cf8)"
-                        color="white"
-                        _hover={{
-                          bgGradient: "linear(90deg, #818cf8, #6366f1)",
-                        }}
-                      >
-                        Place Order
-                      </Button>
-                    </HStack>
-                  </VStack>
-                </form>
-              </VStack>
-            )}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
-
-      {/* Order Notification Toast */}
-      {orderNotification && (
-        <MotionBox
-          position="fixed"
-          top={8}
-          right={8}
-          zIndex={2000}
-          initial={{ opacity: 0, y: -20, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -20, scale: 0.95 }}
-        >
-          <Card
-            overflow="hidden"
-            bg="white"
-            boxShadow="2xl"
-            borderRadius="2xl"
-            minW="300px"
+        {/* 🎯 Buttons */}
+        <div className="flex justify-end gap-3 pt-4">
+          <button
+            type="button"
+            onClick={() => setShowAddDish(false)}
+            className="px-4 py-2 text-sm font-medium rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 transition"
           >
-            <Progress
-              value={orderNotificationProgress * 100}
-              size="xs"
-              colorScheme="green"
-              position="absolute"
-              top={0}
-              left={0}
-              right={0}
-            />
-            <CardBody>
-              <HStack spacing={4}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={dishLoading}
+            className="px-5 py-2 text-sm font-semibold rounded-xl bg-pink-600 hover:bg-pink-700 text-white transition disabled:opacity-50"
+          >
+            {dishLoading ? 'Adding...' : 'Add Dish'}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
+            {/* Bill Drawer/Modal */}
+          {/* Bill Drawer/Modal */}
+{billDrawerOpen && (
+  <div style={{
+    position: 'fixed',
+    top: 0,
+    right: 0,
+    width: 480,
+    maxWidth: '98vw',
+    height: '100vh',
+    background: '#fff',
+    boxShadow: '-8px 0 32px #6366f122',
+    zIndex: 1203,
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '32px 24px 24px 24px',
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
+    overflowY: 'auto'
+  }}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
+      <h2 style={{margin:0,fontFamily:'Sora',fontSize:'1.2rem',color:'#232946'}}>
+        {paymentStatus === 'waiting' ? 'UPI Payment' : 'Bill & Payment'}
+      </h2>
+      <button onClick={()=>{
+        setBillDrawerOpen(false);
+        setPaymentMethod('cash');
+        setUpiQrCode('');
+        setPaymentStatus('');
+      }} style={{background:'none',border:'none',fontSize:24,cursor:'pointer',color:'#6366f1',fontWeight:700}}>&times;</button>
+    </div>
+
+    {/* UPI Payment Screen */}
+    {paymentStatus === 'waiting' && upiQrCode && (
+      <div style={{textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
+        <h3 style={{color: '#22c55e', marginBottom: '20px'}}>💳 Scan & Pay via UPI</h3>
+        
+        {/* UPI QR Code */}
+        <div style={{
+          background: '#f8fafc',
+          padding: '20px',
+          borderRadius: '16px',
+          marginBottom: '20px',
+          border: '2px solid #22c55e'
+        }}>
+          <img 
+            src={upiQrCode} 
+            alt="UPI QR Code" 
+            style={{
+              width: '220px',
+              height: '220px',
+              border: '3px solid #22c55e',
+              borderRadius: '12px',
+              margin: '0 auto'
+            }}
+          />
+        </div>
+
+        {/* Payment Details */}
+        <div style={{
+          background: 'linear-gradient(135deg, #22c55e, #10b981)',
+          color: 'white',
+          padding: '16px',
+          borderRadius: '12px',
+          marginBottom: '20px'
+        }}>
+          <div style={{fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '8px'}}>
+            ₹ {currentPayment.amount}
+          </div>
+          <div style={{fontSize: '0.9rem', opacity: 0.9}}>
+            Table {currentPayment.tableNo} • {restaurantName}
+          </div>
+        </div>
+
+        {/* UPI ID Display */}
+        <div style={{
+          background: '#f0fdf4',
+          border: '2px dashed #22c55e',
+          padding: '12px',
+          borderRadius: '10px',
+          marginBottom: '20px',
+          fontFamily: 'monospace'
+        }}>
+          <div style={{fontSize: '0.8rem', color: '#64748b', marginBottom: '4px'}}>Send to UPI ID:</div>
+          <div style={{fontSize: '1rem', fontWeight: 'bold', color: '#059669'}}>
+            priyanshugupta007007@okaxis
+          </div>
+          <div style={{fontSize: '0.8rem', color: '#64748b', marginTop: '4px'}}>Priyanshu Gupta</div>
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{display: 'flex', gap: '12px', flexDirection: 'column'}}>
+          <button
+            onClick={() => openUPIApp(currentPayment.amount, currentPayment.tableNo)}
+            style={{
+              background: 'linear-gradient(135deg, #4285f4, #34a853)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '14px',
+              fontWeight: 'bold',
+              fontSize: '1rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}
+          >
+            <span>📱</span>
+            Open UPI App
+          </button>
+
+          <button
+            onClick={confirmUPIPayment}
+            style={{
+              background: 'linear-gradient(135deg, #22c55e, #10b981)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '14px',
+              fontWeight: 'bold',
+              fontSize: '1rem',
+              cursor: 'pointer'
+            }}
+          >
+            ✅ I've Made the Payment
+          </button>
+
+          <button
+            onClick={() => {
+              setUpiQrCode('');
+              setPaymentStatus('');
+            }}
+            style={{
+              background: '#f8fafc',
+              color: '#64748b',
+              border: '2px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '12px',
+              fontWeight: 'bold',
+              fontSize: '0.9rem',
+              cursor: 'pointer'
+            }}
+          >
+            ← Back to Payment Methods
+          </button>
+        </div>
+
+        {/* Instructions */}
+        <div style={{
+          marginTop: '20px',
+          padding: '12px',
+          background: '#fffbeb',
+          border: '1px solid #fbbf24',
+          borderRadius: '8px',
+          fontSize: '0.8rem',
+          color: '#92400e'
+        }}>
+          💡 <strong>How to pay:</strong><br/>
+          1. Scan QR code with any UPI app<br/>
+          2. Or click "Open UPI App"<br/>
+          3. Or manually send to the UPI ID above<br/>
+          4. Click "I've Made the Payment" when done
+        </div>
+      </div>
+    )}
+
+    {/* Payment Method Selection (Show when not in UPI payment screen) */}
+    {!paymentStatus && (
+      <>
+        <div style={{marginBottom: 24}}>
+          <h3 style={{marginBottom: 12, color: '#232946', fontFamily: 'Sora'}}>Payment Method</h3>
+          <div style={{display: 'flex', gap: 12, flexWrap: 'wrap'}}>
+            {[
+              { id: 'cash', label: '💵 Cash', color: '#22c55e' },
+              { id: 'upi', label: '📱 UPI Payment', color: '#10b981' },
+              { id: 'card', label: '💳 Card', color: '#8b5cf6' }
+            ].map(method => (
+              <button
+                key={method.id}
+                onClick={() => setPaymentMethod(method.id)}
+                style={{
+                  background: paymentMethod === method.id ? method.color : '#f8fafc',
+                  color: paymentMethod === method.id ? '#fff' : '#232946',
+                  border: `2px solid ${method.color}`,
+                  borderRadius: 12,
+                  padding: '10px 16px',
+                  fontWeight: 700,
+                  fontFamily: 'Sora',
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  flex: 1,
+                  minWidth: '120px'
+                }}
+              >
+                {method.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Table slider */}
+        {orders.filter(o => o.status === 'pending').length > 0 && (
+          <div style={{display:'flex',gap:8,marginBottom:18,overflowX:'auto'}}>
+            {[...new Set(orders.filter(o => o.status === 'pending').map(o => o.table))].map(tableNo => (
+              <button
+                key={tableNo}
+                onClick={()=>setSelectedBillTable(tableNo)}
+                style={{
+                  background: selectedBillTable === tableNo ? 'linear-gradient(90deg,#6366f1,#f472b6)' : '#e0e7ff',
+                  color: selectedBillTable === tableNo ? '#fff' : '#232946',
+                  border: 'none',
+                  borderRadius: 16,
+                  padding: '8px 18px',
+                  fontWeight: 700,
+                  fontFamily: 'Sora',
+                  fontSize: '1rem',
+                  cursor: 'pointer',
+                  boxShadow: selectedBillTable === tableNo ? '0 2px 12px #6366f122' : 'none',
+                  transition: 'all 0.18s',
+                }}
+              >Table {tableNo}</button>
+            ))}
+          </div>
+        )}
+
+        <div style={{flex:1,overflowY:'auto'}}>
+          {orders.filter(o => o.status === 'pending').length === 0 ? (
+            <div style={{color:'#888',textAlign:'center',marginTop:40}}>No items in bill yet.</div>
+          ) : (
+            (() => {
+              const pendingOrders = orders.filter(o => o.status === 'pending' && (!selectedBillTable || o.table === selectedBillTable));
+              const tables = [...new Set(pendingOrders.map(o => o.table))];
+              if (tables.length === 0) return <div style={{color:'#888',textAlign:'center',marginTop:40}}>No items in bill yet.</div>;
+              
+              return tables.map(tableNo => {
+                const tableOrders = pendingOrders.filter(o => o.table === tableNo);
+                let allItems = [];
+                tableOrders.forEach(order => {
+                  order.items.forEach(item => {
+                    allItems.push({
+                      ...item,
+                      _orderId: order._id
+                    });
+                  });
+                });
+
+                const groupedItems = [];
+                allItems.forEach(item => {
+                  const key = item.name + '|' + (item.modifications ? item.modifications.join(',') : '');
+                  const existing = groupedItems.find(i => i.key === key);
+                  if (existing) {
+                    existing.quantity += Number(item.quantity);
+                  } else {
+                    groupedItems.push({
+                      key,
+                      name: item.name,
+                      modifications: item.modifications,
+                      price: item.price,
+                      quantity: Number(item.quantity)
+                    });
+                  }
+                });
+
+                const total = groupedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+                const orderIds = tableOrders.map(o => o._id);
+
+                return (
+                  <div key={tableNo} style={{
+                    background:'#f8fafc',
+                    borderRadius:18,
+                    boxShadow:'0 2px 12px #6366f122',
+                    padding:18,
+                    marginBottom:18,
+                    border:'1px solid #e0e7ff'
+                  }}>
+                    <div style={{fontWeight:700,fontSize:'1.13rem',color:'#6366f1',marginBottom:10}}>
+                      Table {tableNo}
+                    </div>
+                    
+                    <table style={{width:'100%',borderCollapse:'collapse',marginBottom:8}}>
+                      <thead>
+                        <tr>
+                          <th style={{textAlign:'left',fontWeight:700,color:'#6366f1',background:'#f8fafc'}}>Item</th>
+                          <th style={{textAlign:'left',fontWeight:700,color:'#6366f1',background:'#f8fafc'}}>Qty</th>
+                          <th style={{textAlign:'left',fontWeight:700,color:'#6366f1',background:'#f8fafc'}}>Price</th>
+                          <th style={{textAlign:'left',fontWeight:700,color:'#6366f1',background:'#f8fafc'}}>Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupedItems.map((item, idx) => (
+                          <tr key={item.key+idx}>
+                            <td style={{color:'#232946',fontWeight:600}}>
+                              {item.name}
+                              {item.modifications && item.modifications.length > 0 && (
+                                <div style={{fontSize:'0.8rem',color:'#64748b',fontStyle:'italic'}}>
+                                  {item.modifications.join(', ')}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{color:'#232946',fontWeight:700}}>{item.quantity}</td>
+                            <td style={{color:'#232946',fontWeight:700}}>₹ {item.price}</td>
+                            <td style={{color:'#232946',fontWeight:700}}>₹ {item.price * item.quantity}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    
+                    <div style={{
+                      color:'#fbbf24',
+                      fontWeight:700,
+                      fontSize:'1.13rem',
+                      marginTop:18,
+                      marginBottom:10,
+                      textAlign: 'right'
+                    }}>
+                      Total: ₹ {total}
+                    </div>
+
+                    {/* Payment Button */}
+                    <button 
+                      style={{
+                        marginTop: 10,
+                        background: paymentMethod === 'upi' ? '#10b981' : 
+                                   paymentMethod === 'card' ? '#8b5cf6' : 
+                                   'linear-gradient(90deg,#6366f1,#f472b6)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 12,
+                        padding: '12px 0',
+                        fontFamily: 'Sora, sans-serif',
+                        fontWeight: 700,
+                        fontSize: '1.08rem',
+                        boxShadow: '0 2px 18px #6366f122',
+                        cursor: 'pointer',
+                        width: '100%',
+                        transition: 'all 0.18s',
+                      }}
+                      onClick={async () => {
+                        if (paymentMethod === 'upi') {
+                          handleRealUPIPayment(orderIds, total, tableNo);
+                        } else {
+                          for (const id of orderIds) {
+                            await handlePayment(id);
+                          }
+                          alert(`✅ Payment of ₹${total} received via ${paymentMethod.toUpperCase()}!`);
+                        }
+                      }}
+                    >
+                      {paymentMethod === 'upi' ? `Pay ₹${total} via UPI` :
+                       paymentMethod === 'card' ? `Process Card Payment - ₹${total}` :
+                       `Confirm Cash Payment - ₹${total}`}
+                    </button>
+                  </div>
+                );
+              });
+            })()
+          )}
+        </div>
+      </>
+    )}
+  </div>
+)}
+            {/* ...rest of Orders page... */}
+            {/* Gallery Modal for ordering dish */}
+         
+            {galleryModalDish && (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                background: 'rgba(35, 41, 70, 0.82)',
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 12,
+              }}>
+                <form className="order-modal-form" onSubmit={handleGalleryOrder} style={{
+                  background: '#fff',
+                  borderRadius: 20,
+                  padding: '32px 28px 24px 28px',
+                  minWidth: 240,
+                  maxWidth: 350,
+                  width: '100%',
+                  boxShadow: '0 8px 40px #23294633, 0 2px 12px #6366f122',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                  fontFamily: 'Sora, DM Sans, sans-serif',
+                  alignItems: 'center',
+                }}>
+                  <img src={galleryModalDish.image || '/images/chef3.png'} alt={galleryModalDish.name} style={{
+                    width: '100%',
+                    maxWidth: 220,
+                    borderRadius: 14,
+                    objectFit: 'cover',
+                    marginBottom: 10,
+                    boxShadow: '0 2px 12px #6366f122',
+                  }} />
+                  <div style={{
+                    width: '100%',
+                    textAlign: 'left',
+                  }}>
+                    <h2 style={{
+                      margin: 0,
+                      fontFamily: 'Sora, DM Sans, sans-serif',
+                      fontSize: '1.18rem',
+                      color: '#232946',
+                      fontWeight: 700,
+                      letterSpacing: '0.01em',
+                      marginBottom: 2,
+                    }}>{galleryModalDish.name}</h2>
+                    <div style={{
+                      color: '#64748b',
+                      fontSize: 15,
+                      marginBottom: 2,
+                      fontWeight: 400,
+                      lineHeight: 1.18,
+                    }}>{galleryModalDish.description}</div>
+                    <div style={{
+                      color: '#fbbf24',
+                      fontWeight: 700,
+                      fontSize: '1.05rem',
+                      marginBottom: 2,
+                    }}>₹ {galleryModalDish.price}</div>
+                  </div>
+                  <select required value={galleryOrderTableNo} onChange={e=>setGalleryOrderTableNo(e.target.value)} style={{
+                    padding: 10,
+                    borderRadius: 8,
+                    border: '1.5px solid #e0e7ff',
+                    fontSize: 15,
+                    color: '#232946',
+                    background: '#f8fafc',
+                    marginBottom: 2,
+                    width: '100%',
+                  }} disabled={seatedTablesLoading || seatedTables.length === 0}>
+                    <option value="" disabled>
+                      {seatedTablesLoading ? 'Loading seated tables…' : (seatedTables.length === 0 ? 'No seated tables right now' : 'Select a seated table')}
+                    </option>
+                    {seatedTables.map(t => (
+                      <option key={t.tableId} value={t.tableNumber}>
+                        {`Table ${t.tableNumber}${t.floor ? ` • ${t.floor}` : ''}`}
+                      </option>
+                    ))}
+                  </select>
+                  <input required type="number" min="1" value={galleryOrderQty} onChange={e=>setGalleryOrderQty(e.target.value)} placeholder="Quantity" style={{
+                    padding: 10,
+                    borderRadius: 8,
+                    border: '1.5px solid #e0e7ff',
+                    fontSize: 15,
+                    color: '#232946',
+                    background: '#f8fafc',
+                    marginBottom: 2,
+                    width: '100%',
+                  }} />
+                  <input placeholder="Modifications" value={galleryOrderMods} onChange={e=>setGalleryOrderMods(e.target.value)} style={{
+                    padding: 10,
+                    borderRadius: 8,
+                    border: '1.5px solid #e0e7ff',
+                    fontSize: 15,
+                    color: '#495057',
+                    background: '#f8fafc',
+                    marginBottom: 2,
+                    width: '100%',
+                  }} />
+                  {galleryOrderSuccess && <div style={{color:'#22c55e',fontWeight:600}}>Order placed successfully!</div>}
+                  {galleryOrderError && <div style={{color:'#dc2626',fontWeight:600}}>{galleryOrderError}</div>}
+                  <div style={{display:'flex',gap:14,marginTop:10,justifyContent:'flex-end',width:'100%'}}>
+                    <button type="submit" style={{
+                      background: 'linear-gradient(90deg,#6366f1,#818cf8)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '10px 22px',
+                      fontWeight: 700,
+                      fontSize: '1rem',
+                      fontFamily: 'Sora, DM Sans, sans-serif',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 12px #6366f122',
+                      transition: 'background 0.18s, box-shadow 0.18s, transform 0.18s',
+                    }}>Order</button>
+                    <button type="button" onClick={()=>setGalleryModalDish(null)} style={{
+                      background: '#e0e7ff',
+                      color: '#232946',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '10px 22px',
+                      fontWeight: 700,
+                      fontSize: '1rem',
+                      fontFamily: 'Sora, DM Sans, sans-serif',
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 6px #e0e7ff55',
+                    }}>Cancel</button>
+                  </div>
+                </form>
+              </div>
+            )}
+            {orderNotification && (
+              <div style={{
+                position: 'fixed',
+                top: 32,
+                right: 32,
+                zIndex: 2000,
+                borderRadius: 16,
+                boxShadow: '0 4px 24px #22c55e22',
+                padding: '18px 28px 18px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                minWidth: 240,
+                maxWidth: 320,
+                border: 'none',
+                fontFamily: 'Sora, DM Sans, sans-serif',
+                animation: 'fadeInPop 0.4s',
+                transition: 'all 0.2s',
+                overflow: 'hidden',
+                background: '#fff',
+                boxSizing: 'border-box',
+              }}>
+                {/* Battery effect: animated green fill as background */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  bottom: 0,
+                  width: `${Math.round(orderNotificationProgress * 100)}%`,
+                  background: 'linear-gradient(90deg,#e0fce6 0%,#22c55e 100%)',
+                  borderRadius: 16,
+                  zIndex: 0,
+                  transition: 'width 0.2s',
+                  pointerEvents: 'none',
+                }} />
                 {orderNotification.waiterImage && (
-                  <Avatar
-                    src={orderNotification.waiterImage}
-                    name={orderNotification.waiter}
-                    size="md"
-                    border="2px solid"
-                    borderColor="green.400"
-                  />
+                  <img src={orderNotification.waiterImage} alt="Waiter" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', marginRight: 14, border: '2px solid #fff', boxShadow: '0 1px 6px #22c55e33', zIndex: 1 }} />
                 )}
-                <VStack align="start" spacing={1} flex={1}>
-                  <Text fontWeight="bold" color="green.700">
-                    Waiter: {orderNotification.waiter}
-                  </Text>
-                  <Badge colorScheme="green">
-                    Table {orderNotification.table}
-                  </Badge>
-                  <Text fontSize="sm" fontWeight="semibold" color="gray.700">
-                    Order: {orderNotification.dishes}
-                  </Text>
-                </VStack>
+                <div style={{ flex: 1, zIndex: 1 }}>
+                  <div style={{ fontWeight: 700, color: '#134e1e', fontSize: 16, marginBottom: 2, letterSpacing: 0.2 }}>Waiter: {orderNotification.waiter}</div>
+                  <div style={{ color: '#065f46', fontWeight: 600, fontSize: 14, marginBottom: 2 }}>Table <span style={{color:'#22c55e'}}>{orderNotification.table}</span></div>
+                  <div style={{ color: '#232946', fontSize: 13, margin: '2px 0 0 0', fontWeight: 600 }}>Order: <span style={{color:'#065f46'}}>{orderNotification.dishes}</span></div>
+                </div>
                 {orderNotification.dishImage && (
-                  <Image
-                    src={orderNotification.dishImage}
-                    alt="Dish"
-                    boxSize="50px"
-                    borderRadius="lg"
-                    border="2px solid"
-                    borderColor="yellow.400"
-                    objectFit="cover"
-                  />
+                  <img src={orderNotification.dishImage} alt="Dish" style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', marginLeft: 10, border: '2px solid #fbbf24', boxShadow: '0 1px 6px #fbbf2433', zIndex: 1 }} />
                 )}
-              </HStack>
-            </CardBody>
-          </Card>
-        </MotionBox>
-      )}
-    </Box>
-  )
+                <style>{`
+                  @keyframes fadeInPop {
+                    0% { opacity: 0; transform: translateY(-20px) scale(0.95); }
+                    100% { opacity: 1; transform: translateY(0) scale(1); }
+                  }
+                `}</style>
+              </div>
+            )}
+          </div>
+        );
+
       case 'inventory':
         return (
           <div style={{ 
@@ -3594,7 +2782,6 @@ const openUPIApp = (amount, tableNo) => {
             {showFaceScanner && (
               <FaceAttendanceScanner
                 restaurantId={restaurantId}
-                staff={staff}
                 onSuccess={() => {
                   fetchAttendanceRecords();
                 }}

@@ -17,6 +17,7 @@ import PremiumLoader from './components/PremiumLoader';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import CustomerRegister from './pages/CustomerRegister';
 import CustomerHomePage from './pages/CustomerHomePage';
+import OrdersPage from './pages/OrdersPage'; // Import the new OrdersPage
  import RestaurantDetailsPage from './pages/RestaurantDetails'; 
 import CheckoutPage from './pages/checkout';
 import OrderReceiptPage from './components/Receipt';

@@ -1,5 +1,24 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  Divider,
+  Heading,
+  HStack,
+  List,
+  ListItem,
+  Progress,
+  SimpleGrid,
+  Spinner,
+  Stack,
+  Text,
+  VStack,
+} from '@chakra-ui/react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -153,425 +172,230 @@ export default function WasteAnalysis({ restaurantId, userRole }) {
     }
   };
 
-  const getAlertColor = (type) => {
-    switch(type) {
-      case 'waste': return '#ef4444';
-      case 'avoid': return '#f59e0b';
-      default: return '#6366f1';
-    }
-  };
-
-  const getAlertBackground = (type) => {
-    switch(type) {
-      case 'waste': return '#fef2f2';
-      case 'avoid': return '#fffbeb';
-      default: return '#f0f9ff';
-    }
-  };
-
-  const getAlertBorder = (type) => {
-    switch(type) {
-      case 'waste': return '#fecaca';
-      case 'avoid': return '#fde68a';
-      default: return '#bae6fd';
+  const getAlertBadgeScheme = (type) => {
+    switch (type) {
+      case 'waste':
+        return 'red';
+      case 'avoid':
+        return 'orange';
+      default:
+        return 'blue';
     }
   };
 
   if (loading) {
     return (
-      <div style={{ 
-        padding: '16px', 
-        backgroundColor: 'rgba(255,255,255,0.8)', 
-        borderRadius: 12,
-        textAlign: 'center',
-        border: '1px solid rgba(224,231,255,0.6)'
-      }}>
-        <div style={{ 
-          width: 32, 
-          height: 32, 
-          border: '3px solid #e0e7ff', 
-          borderTop: '3px solid #6366f1', 
-          borderRadius: '50%', 
-          animation: 'spin 1s linear infinite',
-          margin: '0 auto 12px auto'
-        }}></div>
-        <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
-          Analyzing waste patterns...
-        </p>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
+      <Card variant="outline" borderColor="blue.100" bg="white">
+        <CardBody>
+          <HStack spacing={3}>
+            <Spinner size="sm" color="blue.500" />
+            <Text fontSize="sm" color="gray.600" fontWeight="semibold">
+              Analyzing waste patterns…
+            </Text>
+          </HStack>
+          <Progress mt={3} size="sm" isIndeterminate colorScheme="blue" borderRadius="md" />
+        </CardBody>
+      </Card>
     );
   }
 
   if (error && !analysis) {
     return (
-      <div style={{ 
-        padding: '16px', 
-        backgroundColor: '#fef3c7', 
-        border: '1px solid #fbbf24',
-        borderRadius: 12,
-        textAlign: 'center'
-      }}>
-        <div style={{ fontSize: '20px', marginBottom: '8px' }}>⚠️</div>
-        <p style={{ margin: '0 0 12px 0', color: '#92400e', fontSize: '13px', fontWeight: 600 }}>{error}</p>
-        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-          <button 
-            onClick={fetchWasteAnalysis}
-            style={{ 
-              padding: '6px 12px', 
-              backgroundColor: '#6366f1', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 600
-            }}
-          >
-            Retry AI Analysis
-          </button>
-          <button 
-            onClick={() => {
-              const fallbackAnalysis = {
-                wastePrediction: [
-                  {
-                    item: "All perishable items",
-                    suggestedPrep: "Reduce by 25%",
-                    reason: "Conservative estimate while system recovers"
-                  }
-                ],
-                doNotMake: [
-                  {
-                    item: "High-risk items",
-                    reason: "Temporary system issue - proceed with caution"
-                  }
-                ],
-                generalTips: [
-                  "Monitor inventory daily",
-                  "Use older stock first",
-                  "Train staff on portion control"
-                ]
-              };
-              setAnalysis(fallbackAnalysis);
-              setError('');
-            }}
-            style={{ 
-              padding: '6px 12px', 
-              backgroundColor: '#22c55e', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 600
-            }}
-          >
-            Use Fallback Data
-          </button>
-        </div>
-      </div>
+      <Card variant="outline" borderColor="blue.100" bg="white">
+        <CardBody>
+          <VStack spacing={3} align="stretch">
+            <Heading size="sm" color="blue.700">
+              Waste Analysis
+            </Heading>
+            <Text fontSize="sm" color="gray.600">
+              {error}
+            </Text>
+            <HStack spacing={3} flexWrap="wrap">
+              <Button size="sm" colorScheme="blue" onClick={fetchWasteAnalysis}>
+                Retry analysis
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                colorScheme="blue"
+                onClick={() => {
+                  const fallbackAnalysis = {
+                    wastePrediction: [
+                      {
+                        item: 'All perishable items',
+                        suggestedPrep: 'Reduce by 25%',
+                        reason: 'Conservative estimate while system recovers',
+                      },
+                    ],
+                    doNotMake: [
+                      {
+                        item: 'High-risk items',
+                        reason: 'Temporary system issue - proceed with caution',
+                      },
+                    ],
+                    generalTips: ['Monitor inventory daily', 'Use older stock first', 'Train staff on portion control'],
+                  };
+                  setAnalysis(fallbackAnalysis);
+                  setError('');
+                }}
+              >
+                Use fallback
+              </Button>
+            </HStack>
+          </VStack>
+        </CardBody>
+      </Card>
     );
   }
 
   const alerts = getAllAlerts();
   const totalAlerts = alerts.length;
 
+  const current = alerts[currentSlide] || null;
+
   return (
-    <div style={{ padding: '0' }}>
-      {/* Summary Header */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        marginBottom: '16px',
-        background: 'linear-gradient(135deg, #fef3c7 0%, #fbbf24 100%)',
-        borderRadius: 12,
-        padding: 12,
-        border: '1px solid #fbbf24'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontSize: '20px' }}>🚨</div>
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#92400e' }}>
-              Smart Waste Analysis
-            </div>
-            <div style={{ fontSize: '11px', color: '#92400e', opacity: 0.8 }}>
-              {totalAlerts > 0 ? `${totalAlerts} alerts detected` : 'No waste alerts'}
-              {error && ' • Using fallback data'}
-            </div>
-          </div>
-        </div>
-        
-        {totalAlerts > 1 && (
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button 
-              onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
-              disabled={currentSlide === 0}
-              style={{ 
-                padding: '4px 8px',
-                background: currentSlide === 0 ? '#e2e8f0' : '#6366f1',
-                color: currentSlide === 0 ? '#64748b' : 'white',
-                border: 'none',
-                borderRadius: 6,
-                cursor: currentSlide === 0 ? 'not-allowed' : 'pointer',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}
-            >
-              ←
-            </button>
-            <button 
-              onClick={() => setCurrentSlide(Math.min(totalAlerts - 1, currentSlide + 1))}
-              disabled={currentSlide === totalAlerts - 1}
-              style={{ 
-                padding: '4px 8px',
-                background: currentSlide === totalAlerts - 1 ? '#e2e8f0' : '#6366f1',
-                color: currentSlide === totalAlerts - 1 ? '#64748b' : 'white',
-                border: 'none',
-                borderRadius: 6,
-                cursor: currentSlide === totalAlerts - 1 ? 'not-allowed' : 'pointer',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}
-            >
-              →
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Alert Display */}
-      {totalAlerts > 0 ? (
-        <div style={{ 
-          background: 'rgba(255,255,255,0.9)', 
-          borderRadius: 12, 
-          padding: 16,
-          border: '1px solid rgba(224,231,255,0.6)',
-          marginBottom: '12px'
-        }}>
-          {alerts[currentSlide] && (
-            <div>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 8, 
-                marginBottom: 12 
-              }}>
-                <div style={{ 
-                  fontSize: '16px',
-                  color: getAlertColor(alerts[currentSlide].type)
-                }}>
-                  {getAlertIcon(alerts[currentSlide].type)}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ 
-                    fontSize: '14px', 
-                    fontWeight: 'bold', 
-                    color: '#232946',
-                    marginBottom: 2
-                  }}>
-                    {alerts[currentSlide].name}
-                  </div>
-                  <div style={{ 
-                    fontSize: '11px', 
-                    color: '#64748b',
-                    textTransform: 'uppercase',
-                    fontWeight: 600
-                  }}>
-                    {alerts[currentSlide].type === 'waste' ? 'High Waste Risk' : 'Avoid Preparation'}
-                  </div>
-                </div>
-              </div>
-
-              {alerts[currentSlide].action && (
-                <div style={{ 
-                  background: '#f0f9ff',
-                  borderRadius: 6,
-                  padding: '8px 12px',
-                  marginBottom: 8,
-                  border: '1px solid #bae6fd'
-                }}>
-                  <div style={{ 
-                    fontSize: '11px', 
-                    fontWeight: 'bold', 
-                    color: '#0369a1',
-                    marginBottom: 2
-                  }}>
-                    Recommended Action:
-                  </div>
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: '#0369a1'
-                  }}>
-                    {alerts[currentSlide].action}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ 
-                background: getAlertBackground(alerts[currentSlide].type),
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 12,
-                border: `1px solid ${getAlertBorder(alerts[currentSlide].type)}`
-              }}>
-                <div style={{ 
-                  fontSize: '12px', 
-                  color: alerts[currentSlide].type === 'waste' ? '#991b1b' : '#92400e',
-                  lineHeight: 1.4
-                }}>
-                  {alerts[currentSlide].description}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button 
-                  onClick={() => handleAction('reduce', alerts[currentSlide])}
-                  style={{ 
-                    padding: '6px 12px',
-                    background: 'linear-gradient(135deg, #6366f1, #818cf8)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: 'bold'
-                  }}
+    <Box>
+      <Card variant="outline" borderColor="blue.100" bg="white" mb={4}>
+        <CardHeader pb={3} bg="blue.50">
+          <HStack spacing={3} flexWrap="wrap">
+            <Box>
+              <Heading size="sm" color="blue.700">
+                Waste Analysis
+              </Heading>
+              <Text fontSize="sm" color="gray.600">
+                {totalAlerts > 0 ? `${totalAlerts} alerts detected` : 'No waste alerts'}
+                {error ? ' • Using fallback data' : ''}
+              </Text>
+            </Box>
+            <Box flex="1" />
+            {totalAlerts > 1 ? (
+              <HStack spacing={2}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  colorScheme="blue"
+                  onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
+                  isDisabled={currentSlide === 0}
                 >
-                  📉 Reduce Quantity
-                </button>
-                <button 
-                  onClick={() => handleAction('substitute', alerts[currentSlide])}
-                  style={{ 
-                    padding: '6px 12px',
-                    background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: 'bold'
-                  }}
+                  ←
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  colorScheme="blue"
+                  onClick={() => setCurrentSlide(Math.min(totalAlerts - 1, currentSlide + 1))}
+                  isDisabled={currentSlide === totalAlerts - 1}
                 >
-                  🔄 Find Substitute
-                </button>
-                <button 
-                  onClick={() => handleAction('implement', alerts[currentSlide])}
-                  style={{ 
-                    padding: '6px 12px',
-                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  ✅ Implement
-                </button>
-              </div>
-            </div>
+                  →
+                </Button>
+              </HStack>
+            ) : null}
+          </HStack>
+        </CardHeader>
+        <CardBody>
+          {totalAlerts > 0 && current ? (
+            <Stack spacing={3}>
+              <HStack spacing={3} align="start">
+                <Box fontSize="lg" lineHeight="1">
+                  {getAlertIcon(current.type)}
+                </Box>
+                <Box flex="1">
+                  <HStack spacing={2} flexWrap="wrap">
+                    <Heading size="sm" color="gray.900">
+                      {current.name}
+                    </Heading>
+                    <Badge colorScheme={getAlertBadgeScheme(current.type)} variant="subtle">
+                      {current.type === 'waste' ? 'High waste risk' : 'Avoid preparation'}
+                    </Badge>
+                  </HStack>
+                  <Text fontSize="sm" color="gray.600" mt={1}>
+                    {current.description}
+                  </Text>
+                </Box>
+              </HStack>
+
+              {current.action ? (
+                <Box borderWidth="1px" borderColor="blue.100" bg="blue.50" borderRadius="lg" px={4} py={3}>
+                  <Text fontSize="xs" color="gray.600" fontWeight="semibold">
+                    Recommended action
+                  </Text>
+                  <Text fontSize="sm" color="blue.700" fontWeight="semibold">
+                    {current.action}
+                  </Text>
+                </Box>
+              ) : null}
+
+              <HStack spacing={3} flexWrap="wrap">
+                <Button size="sm" colorScheme="blue" onClick={() => handleAction('reduce', current)}>
+                  Reduce quantity
+                </Button>
+                <Button size="sm" variant="outline" colorScheme="blue" onClick={() => handleAction('substitute', current)}>
+                  Find substitute
+                </Button>
+                <Button size="sm" variant="outline" colorScheme="blue" onClick={() => handleAction('implement', current)}>
+                  Implement
+                </Button>
+              </HStack>
+            </Stack>
+          ) : (
+            <VStack spacing={2} py={3}>
+              <Text fontSize="lg">✅</Text>
+              <Text fontSize="sm" color="blue.700" fontWeight="semibold">
+                No waste alerts
+              </Text>
+              <Text fontSize="sm" color="gray.600" textAlign="center">
+                All items are within safe waste prediction limits.
+              </Text>
+            </VStack>
           )}
-        </div>
-      ) : (
-        <div style={{ 
-          background: 'rgba(255,255,255,0.8)', 
-          borderRadius: 12, 
-          padding: 16,
-          border: '1px solid rgba(224,231,255,0.6)',
-          textAlign: 'center'
-        }}>
-          <div style={{ fontSize: '24px', marginBottom: 8 }}>✅</div>
-          <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#22c55e', marginBottom: 4 }}>
-            No Waste Alerts
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b' }}>
-            All items are within safe waste prediction limits
-          </div>
-        </div>
-      )}
+        </CardBody>
+      </Card>
 
-      {/* General Tips Section */}
-      {analysis?.generalTips && analysis.generalTips.length > 0 && (
-        <div style={{ 
-          background: 'rgba(255,255,255,0.8)', 
-          borderRadius: 12, 
-          padding: 16,
-          border: '1px solid rgba(224,231,255,0.6)',
-          marginBottom: '12px'
-        }}>
-          <div style={{ 
-            fontSize: '13px', 
-            fontWeight: 'bold', 
-            color: '#6366f1',
-            marginBottom: 8,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6
-          }}>
-            💡 General Waste Reduction Tips
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.4 }}>
-            {analysis.generalTips.map((tip, index) => (
-              <div key={index} style={{ marginBottom: 4 }}>
-                • {tip}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {analysis?.generalTips && analysis.generalTips.length > 0 ? (
+        <Card variant="outline" borderColor="blue.100" bg="white" mb={4}>
+          <CardHeader pb={3}>
+            <Heading size="sm" color="blue.700">
+              Waste reduction tips
+            </Heading>
+            <Text fontSize="sm" color="gray.600">
+              Practical steps for daily operations
+            </Text>
+          </CardHeader>
+          <CardBody pt={0}>
+            <List spacing={2}>
+              {analysis.generalTips.map((tip, index) => (
+                <ListItem key={index}>
+                  <Text fontSize="sm" color="gray.900">
+                    • {tip}
+                  </Text>
+                </ListItem>
+              ))}
+            </List>
+          </CardBody>
+        </Card>
+      ) : null}
 
-      {/* Slider Indicators */}
-      {totalAlerts > 1 && (
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          gap: 6,
-          marginTop: 12
-        }}>
+      {totalAlerts > 1 ? (
+        <HStack justify="center" spacing={2} mb={3}>
           {alerts.map((_, index) => (
-            <div 
+            <Box
               key={index}
-              style={{ 
-                width: 8, 
-                height: 8, 
-                borderRadius: '50%',
-                background: index === currentSlide ? '#6366f1' : '#e2e8f0',
-                cursor: 'pointer',
-                transition: 'background 0.2s'
-              }}
+              width="8px"
+              height="8px"
+              borderRadius="full"
+              bg={index === currentSlide ? 'blue.500' : 'blue.100'}
+              cursor="pointer"
               onClick={() => setCurrentSlide(index)}
             />
           ))}
-        </div>
-      )}
+        </HStack>
+      ) : null}
 
-      {/* Refresh Button */}
-      <div style={{ textAlign: 'center', marginTop: 12 }}>
-        <button 
-          onClick={fetchWasteAnalysis}
-          disabled={loading}
-          style={{ 
-            padding: '6px 12px', 
-            backgroundColor: loading ? '#e2e8f0' : '#6366f1', 
-            color: loading ? '#64748b' : 'white', 
-            border: 'none', 
-            borderRadius: 6,
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          {loading ? '🔄 Analyzing...' : '🔄 Refresh Analysis'}
-        </button>
-      </div>
-    </div>
+      <HStack justify="center">
+        <Button size="sm" colorScheme="blue" onClick={fetchWasteAnalysis} isDisabled={loading}>
+          Refresh analysis
+        </Button>
+      </HStack>
+    </Box>
   );
 }

@@ -4,8 +4,9 @@ import axios from 'axios';
 import io from 'socket.io-client';
 import './NotificationBell.css';
 
-const VITE_API_URL = import.meta.env.VITE_API_URL;
-const SOCKET_URL = 'http://localhost:4000'; // Change to your backend URL
+const VITE_API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000')
+  .replace('localhost', window.location.hostname);
+const SOCKET_URL = VITE_API_URL;
 
 export default function NotificationBell({ restaurantId }) {
   const [urgentOrders, setUrgentOrders] = useState([]);

@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
+
 // In-memory session state (for demo; use DB or file for production)
 let sock = null;
 let isEnabled = false;
@@ -10,6 +12,13 @@ let qrCallback = null;
 let isConnected = false;
 let lastConnectAttempt = 0;
 let connectAttempts = 0;
+let backendJwtToken = null;
+let lastDisconnectStatusCode = null;
+let lastDisconnectAt = null;
+
+function setBackendJwtToken(token) {
+  backendJwtToken = token || null;
+}
 
 class WhatsAppBotError extends Error {
   constructor(message, code) {
@@ -23,6 +32,19 @@ function deleteAuthFolder() {
   const authPath = path.resolve('./whatsapp_auth');
   if (fs.existsSync(authPath)) {
     fs.rmSync(authPath, { recursive: true, force: true });
+  }
+}
+
+function resetWhatsAppAuth() {
+  try {
+    if (sock) {
+      try { sock.end(); } catch { /* ignore */ }
+    }
+  } finally {
+    sock = null;
+    isEnabled = false;
+    isConnected = false;
+    try { deleteAuthFolder(); } catch { /* ignore */ }
   }
 }
 
@@ -90,20 +112,31 @@ async function startWhatsAppBot(onQR, reset = false) {
       }
       if (connection === 'open') {
         isConnected = true;
+        lastDisconnectStatusCode = null;
+        lastDisconnectAt = null;
         console.log('[I1] WhatsApp bot is connected and ready.');
       } else if (connection === 'close') {
         isConnected = false;
+        lastDisconnectStatusCode = lastDisconnect?.error?.output?.statusCode ?? null;
+        lastDisconnectAt = new Date();
         if (lastDisconnect?.error) {
           const errMsg = lastDisconnect.error.message || lastDisconnect.error.toString();
           console.error('[E7] WhatsApp connection closed:', errMsg);
         }
-        if (lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) {
-          console.warn('[W1] Attempting to reconnect WhatsApp bot...');
-          setTimeout(() => startWhatsAppBot(qrCallback), 10000); // Wait 10s before reconnect
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+
+        // IMPORTANT: when the socket closes, Baileys requires a new socket for reconnection.
+        // Keeping a stale `sock` prevents reconnect because startWhatsAppBot() short-circuits.
+        try { sock?.end(); } catch { /* ignore */ }
+        sock = null;
+
+        if (!isLoggedOut) {
+          console.warn('[W1] Attempting to reconnect WhatsApp bot in 10s...');
+          setTimeout(() => startWhatsAppBot(qrCallback), 10000);
         } else {
           isEnabled = false;
-          sock = null;
-          console.warn('[W2] WhatsApp bot logged out. Session ended.');
+          console.warn('[W2] WhatsApp bot logged out (401). Call /api/whatsapp/enable?reset=true to re-pair.');
         }
       } else if (connection === 'connecting') {
         console.log('[I2] WhatsApp bot is connecting...');
@@ -140,31 +173,53 @@ async function startWhatsAppBot(onQR, reset = false) {
         // === ORDER CREATION ===
         if (text.startsWith('order')) {
           const items = parseOrderItems(text);
-          await axios.post('http://localhost:5000/api/orders/create', {
+          await axios.post(`${BACKEND_URL}/api/orders/create`, {
             table: 'WhatsApp',
             items
+          }, {
+            headers: backendJwtToken ? { Authorization: `Bearer ${backendJwtToken}` } : {},
           });
           await sock.sendMessage(jid, { text: 'Order placed!' });
         }
         // === ANALYTICS QUERY ===
         else if (text.includes('profit') || text.includes('sales')) {
-          const res2 = await axios.get('http://localhost:5000/api/ai/sales-advisor');
-          await sock.sendMessage(jid, { text: `Sales: ₹${res2.data.forecast_sales}\nProfit Margin: ${(res2.data.profit_margin*100).toFixed(2)}%` });
+          const res2 = await axios.post(`${BACKEND_URL}/api/ai/sales-profit-advisor`, {
+            voiceInput: text,
+          }, {
+            headers: backendJwtToken ? { Authorization: `Bearer ${backendJwtToken}` } : {},
+          });
+
+          const totalSales = res2.data?.totalSales ?? '₹0';
+          const profit = res2.data?.profit ?? '₹0';
+          const tip = res2.data?.tip ? `\nTip: ${res2.data.tip}` : '';
+          await sock.sendMessage(jid, { text: `Sales: ${totalSales}\nProfit: ${profit}${tip}` });
         }
         // === INVENTORY UPDATE ===
         else if (text.startsWith('add inventory')) {
           const [_, name, quantity] = text.split(' ');
-          await axios.post('http://localhost:5000/api/orders/inventory', { name, quantity: Number(quantity) });
+          await axios.post(`${BACKEND_URL}/api/orders/inventory/upsert`, { name, quantity: Number(quantity) }, {
+            headers: backendJwtToken ? { Authorization: `Bearer ${backendJwtToken}` } : {},
+          });
           await sock.sendMessage(jid, { text: `Inventory updated: ${name} +${quantity}` });
         }
         // === WASTE ALERTS ===
         else if (text.includes('waste')) {
-          const res2 = await axios.get('http://localhost:5000/api/ai/waste-alerts');
-          await sock.sendMessage(jid, { text: `Waste Alerts:\n${res2.data.alerts.map(a => `${a.item}: ${a.reason}`).join('\n')}` });
+          const res2 = await axios.post(`${BACKEND_URL}/api/ai/inventory-waste-alert`, {}, {
+            headers: backendJwtToken ? { Authorization: `Bearer ${backendJwtToken}` } : {},
+          });
+
+          const alerts = Array.isArray(res2.data?.alerts) ? res2.data.alerts : [];
+          await sock.sendMessage(jid, {
+            text: alerts.length
+              ? `Waste Alerts:\n${alerts.map(a => `${a.item}: ${a.reason}`).join('\n')}`
+              : 'No waste alerts right now.'
+          });
         }
         // === UPSALE SUGGESTIONS ===
         else if (text.includes('upsell')) {
-          const res2 = await axios.get('http://localhost:5000/api/ai/upsell');
+          const res2 = await axios.get(`${BACKEND_URL}/api/ai/upsell`, {
+            headers: backendJwtToken ? { Authorization: `Bearer ${backendJwtToken}` } : {},
+          });
           await sock.sendMessage(jid, { text: `Upsell Suggestions:\n${res2.data.suggestions.map(s => `${s.base} → ${s.upsell}`).join('\n')}` });
         }
         // Add more commands as needed!
@@ -220,6 +275,15 @@ function isWhatsAppEnabled() {
   return isEnabled && isConnected;
 }
 
+function getWhatsAppStatus() {
+  return {
+    enabled: isEnabled,
+    connected: isConnected,
+    lastDisconnectStatusCode,
+    lastDisconnectAt,
+  };
+}
+
 function parseOrderItems(text) {
   // "order 2 butter naan, 1 paneer tikka"
   return text.replace('order', '').split(',').map(item => {
@@ -231,7 +295,10 @@ function parseOrderItems(text) {
 export default {
   enableWhatsAppBot,
   disableWhatsAppBot,
+  resetWhatsAppAuth,
+  setBackendJwtToken,
   sendWhatsAppMessage,
   isWhatsAppEnabled,
+  getWhatsAppStatus,
   // TODO: add group creation, announcement scheduling, Gemini integration, persistent session storage
 }; 

@@ -16,17 +16,20 @@ import {
   analyzeWasteAndAdvice
 } from '../services/geminiService.js';
 import authMiddleware from '../middleware/auth.js';
+import { redisAutoInvalidate, redisCache } from '../middleware/redisCache.js';
 
 const router = express.Router();
 
+router.use(redisAutoInvalidate());
+
 // AI upsell suggestions
-router.get('/upsell', authMiddleware, getUpsellSuggestions);
+router.get('/upsell', authMiddleware, redisCache({ ttlSeconds: 30, scope: 'user' }), getUpsellSuggestions);
 
 // AI plate analysis
 router.post('/plate', authMiddleware, analyzePlate);
 
 // AI crowd prediction
-router.get('/crowd', authMiddleware, predictCrowd);
+router.get('/crowd', authMiddleware, redisCache({ ttlSeconds: 30, scope: 'user' }), predictCrowd);
 
 // Adjust menu prices
 router.post('/adjust-prices', authMiddleware, adjustMenuPrices);

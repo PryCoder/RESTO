@@ -16,6 +16,9 @@ import attendanceRoutes from './routes/attendance.js';
 import inventoryRoutes from './routes/inventory.js';
 import restaurantRoutes from './routes/restaurant.js';
 import Order from './models/Order.js'; // Import Order model
+
+import whatsappService from './services/whatsappService.js';
+import { getRedisClient, redisPing } from './services/redisClient.js';
 const options = {
   definition: {
     openapi: "3.0.0",
@@ -37,6 +40,32 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+// Optional Redis startup check (non-fatal)
+(async () => {
+  try {
+    const redisUrl = process.env.REDIS_URL || process.env.REDIS_CONNECTION_STRING;
+    if (!redisUrl) {
+      console.log('ℹ️ Redis not configured (set REDIS_URL to enable caching)');
+      return;
+    }
+
+    const ok = await Promise.race([
+      (async () => {
+        await getRedisClient();
+        return redisPing();
+      })(),
+      new Promise((resolve) => setTimeout(() => resolve(false), 2000)),
+    ]);
+    if (ok) {
+      console.log('✅ Redis connected (caching enabled)');
+    } else {
+      console.log('⚠️ Redis not reachable (caching disabled)');
+    }
+  } catch (err) {
+    console.log('⚠️ Redis check failed (caching disabled):', err?.message || err);
+  }
+})();
 
 // Middleware
 const allowedOrigins = [
@@ -69,6 +98,43 @@ app.use('/api/restaurants', restaurantRoutes);
 // Default Route
 app.get('/', (req, res) => {
   res.send('🍽️ Restaurant Management API is running');
+});
+
+// Health check (useful for deployments / demos)
+app.get('/api/health', (req, res) => {
+  const dbState = mongoose.connection?.readyState;
+  const db = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected';
+  const whatsapp = (() => {
+    try { return whatsappService.isWhatsAppEnabled() ? 'ready' : 'not-ready'; }
+    catch { return 'unknown'; }
+  })();
+
+  // Fire-and-forget (don’t block health if Redis is down)
+  const redisPromise = redisPing();
+
+  Promise.resolve(redisPromise)
+    .then((ok) => {
+      res.json({
+        status: 'ok',
+        time: new Date().toISOString(),
+        services: {
+          db,
+          whatsapp,
+          redis: ok ? 'ready' : 'not-ready',
+        },
+      });
+    })
+    .catch(() => {
+      res.json({
+        status: 'ok',
+        time: new Date().toISOString(),
+        services: {
+          db,
+          whatsapp,
+          redis: 'not-ready',
+        },
+      });
+    });
 });
 
 // MongoDB Connection

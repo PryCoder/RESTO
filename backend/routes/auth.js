@@ -9,14 +9,19 @@ import {
   initiateRegisterWithEmailOtp,
   verifyEmailOtpAndRegisterUser,
   getUserById,
-  updateUser // Import updateUser instead of updateUserProfile
+  updateUser,
+  setMyPin
 } from '../controllers/authController.js';
 import authMiddleware from '../middleware/auth.js';
+import requireRole from '../middleware/requireRole.js';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Restaurant from '../models/Restaurant.js';
+import { redisAutoInvalidate, redisCache } from '../middleware/redisCache.js';
 
 const router = express.Router();
+
+router.use(redisAutoInvalidate());
 
 // Manager registration
 router.post('/register', registerUser);
@@ -25,20 +30,24 @@ router.post('/register', registerUser);
 router.post('/login', loginUser);
 
 // QR code generation for linking waiters
-router.get('/generate-qr', authMiddleware, generateQRCode);
+router.get('/generate-qr', authMiddleware, redisCache({ ttlSeconds: 5, scope: 'user' }), generateQRCode);
 
 // Auto-join via QR code
 router.get('/join', joinRestaurant);
 
-router.get('/me',authMiddleware, getUser);
+// Cache user profile reads briefly (user-scoped)
+router.get('/me', authMiddleware, redisCache({ ttlSeconds: 10, scope: 'user' }), getUser);
 
-router.get('/', getUsers);
+// Manager PIN for attendance fallback
+router.put('/me/pin', authMiddleware, requireRole('manager'), setMyPin);
+
+router.get('/', authMiddleware, requireRole('manager'), redisCache({ ttlSeconds: 10, scope: 'user' }), getUsers);
 
 // Email OTP registration endpoints
 router.post('/register/initiate-email', initiateRegisterWithEmailOtp);
 router.post('/register/verify-email-otp', verifyEmailOtpAndRegisterUser);
 
-router.get('/:id', getUserById);
+router.get('/:id', authMiddleware, redisCache({ ttlSeconds: 10, scope: 'user' }), getUserById);
 router.patch('/:id', authMiddleware, updateUser); // Use updateUser here
 
 router.post('/whatsapp-login', async (req, res) => {

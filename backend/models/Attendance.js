@@ -25,7 +25,7 @@ const attendanceSchema = new mongoose.Schema({
     },
     method: {
       type: String,
-      enum: ['face', 'manual', 'qr'],
+      enum: ['face', 'pin', 'manual', 'qr'],
       default: 'face'
     },
     confidence: {
@@ -46,7 +46,7 @@ const attendanceSchema = new mongoose.Schema({
     },
     method: {
       type: String,
-      enum: ['face', 'manual', 'qr'],
+      enum: ['face', 'pin', 'manual', 'qr'],
       default: 'face'
     },
     confidence: {

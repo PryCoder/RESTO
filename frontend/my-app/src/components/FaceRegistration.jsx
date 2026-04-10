@@ -22,7 +22,6 @@ export default function FaceRegistration({ employeeId, onSuccess, onClose }) {
         setIsLoading(true);
         await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
         await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
-        await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
         let stream;
         try {
           stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
@@ -92,8 +91,7 @@ export default function FaceRegistration({ employeeId, onSuccess, onClose }) {
       // 11. Timeout during face detection
       const detectionPromise = faceapi
         .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
-        .withFaceLandmarks()
-        .withFaceDescriptors();
+        .withFaceLandmarks();
       const timeoutPromise = new Promise((_, reject) => timeoutId = setTimeout(() => reject(new Error('Face detection timed out.')), 8000));
       const detections = await Promise.race([detectionPromise, timeoutPromise]);
       clearTimeout(timeoutId);
@@ -116,17 +114,34 @@ export default function FaceRegistration({ employeeId, onSuccess, onClose }) {
         setIsRegistering(false);
         return;
       }
-      // Draw the detected face box on the canvas and save as image
-      const dims = faceapi.matchDimensions(canvasRef.current, videoRef.current, true);
-      faceapi.draw.drawDetections(canvasRef.current, faceapi.resizeResults(detection, dims));
-      setFaceImage(canvasRef.current.toDataURL('image/jpeg'));
-      const descriptor = Array.from(detection.descriptor);
-      // 4. Face already registered, 5. Network/server error, 8. User not found, 9. Duplicate registration, 10. Unauthorized
+
+      // Capture a snapshot to send to backend (backend computes embedding)
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      if (!canvas || !video) {
+        setError('Camera not ready.');
+        setIsRegistering(false);
+        return;
+      }
+      canvas.width = video.videoWidth || videoSize.width || 320;
+      canvas.height = video.videoHeight || videoSize.height || 240;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const capturedImage = canvas.toDataURL('image/jpeg');
+      setFaceImage(capturedImage);
+
+      const VITE_API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000')
+        .replace('localhost', window.location.hostname);
+      const token = localStorage.getItem('token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+      // Register face embedding in backend
       try {
-        await axios.post('/api/register-face', {
-          employeeId,
-          faceDescriptor: descriptor,
-        });
+        await axios.post(
+          `${VITE_API_URL}/api/attendance/faces/${employeeId}`,
+          { image: capturedImage },
+          { headers }
+        );
         setSuccess('Face registered successfully!');
         if (onSuccess) onSuccess();
       } catch (err) {

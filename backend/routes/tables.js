@@ -3,8 +3,12 @@ import Restaurant from '../models/Restaurant.js';
 import Reservation from '../models/Reservation.js';
 import authMiddleware from '../middleware/auth.js';
 import mongoose from 'mongoose';
+import { redisAutoInvalidate, redisCache } from '../middleware/redisCache.js';
 
 const router = express.Router();
+
+// Auto-invalidate relevant cached GETs on POST/PUT/DELETE
+router.use(redisAutoInvalidate());
 
 // Test route to verify API is working
 router.get('/test', (req, res) => {
@@ -12,7 +16,7 @@ router.get('/test', (req, res) => {
 });
 
 // List all restaurants (for debugging)
-router.get('/restaurants', authMiddleware, async (req, res) => {
+router.get('/restaurants', authMiddleware, redisCache({ ttlSeconds: 30, scope: 'user' }), async (req, res) => {
   try {
     console.log('=== LIST RESTAURANTS DEBUG ===');
     console.log('User:', req.user);
@@ -36,7 +40,7 @@ router.get('/restaurants', authMiddleware, async (req, res) => {
 });
 
 // Get restaurant layout and tables
-router.get('/layout/:restaurantId', authMiddleware, async (req, res) => {
+router.get('/layout/:restaurantId', authMiddleware, redisCache({ ttlSeconds: 30, scope: 'user' }), async (req, res) => {
   try {
     const { restaurantId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
@@ -453,12 +457,43 @@ router.delete('/tables/:restaurantId/:tableId', authMiddleware, async (req, res)
 });
 
 // Get table status and reservations - FIXED DYNAMIC STATUS CALCULATION
-router.get('/tables/:restaurantId/status', authMiddleware, async (req, res) => {
+router.get('/tables/:restaurantId/status', authMiddleware, redisCache({ ttlSeconds: 10, scope: 'user' }), async (req, res) => {
   try {
     const { restaurantId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
       return res.status(400).json({ error: 'Invalid restaurant ID format' });
     }
+
+    const parseTimeToHoursMinutes = (timeValue) => {
+      if (timeValue === null || timeValue === undefined) return null;
+      const raw = String(timeValue).trim();
+      if (!raw) return null;
+
+      // Normalize common variants: "19.30" -> "19:30", "7pm" -> "7 pm"
+      const normalized = raw
+        .replace(/\./g, ':')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const match = normalized.match(/^\s*(\d{1,2})(?:\s*:\s*(\d{1,2}))?\s*(am|pm)?\s*$/i);
+      if (!match) return null;
+
+      let hours = parseInt(match[1], 10);
+      let minutes = match[2] !== undefined ? parseInt(match[2], 10) : 0;
+      const meridiem = match[3] ? match[3].toLowerCase() : null;
+
+      if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+      if (minutes < 0 || minutes > 59) return null;
+
+      if (meridiem) {
+        // 12am -> 0h, 12pm -> 12h
+        if (hours === 12) hours = 0;
+        if (meridiem === 'pm') hours += 12;
+      }
+
+      if (hours < 0 || hours > 23) return null;
+      return { hours, minutes };
+    };
 
     const { date } = req.query;
     const queryDate = date ? new Date(date) : new Date();
@@ -479,6 +514,28 @@ router.get('/tables/:restaurantId/status', authMiddleware, async (req, res) => {
       reservationDate: { $gte: startOfDay, $lte: endOfDay }
     });
 
+    const debug = req.query.debug === '1';
+    const debugTable = String(req.query.debugTable || '').trim().toLowerCase();
+    if (debug) {
+      console.log('=== TABLE STATUS DEBUG ===', {
+        restaurantId,
+        queryDate: queryDate.toISOString(),
+        isToday: queryDate.toDateString() === new Date().toDateString(),
+        reservationCount: reservations.length,
+        debugTable: debugTable || null
+      });
+      console.log(
+        'Reservations(sample):',
+        reservations.slice(0, 10).map(r => ({
+          id: String(r._id),
+          tableId: r.tableId,
+          reservationTime: r.reservationTime,
+          status: r.status,
+          reservationDate: r.reservationDate
+        }))
+      );
+    }
+
     // Get current time for checking active reservations
     const currentTime = new Date();
     const isToday = queryDate.toDateString() === new Date().toDateString();
@@ -486,13 +543,27 @@ router.get('/tables/:restaurantId/status', authMiddleware, async (req, res) => {
     // Calculate table status dynamically based on reservations for the selected date
     const tablesWithStatus = restaurant.tables.map(table => {
       // Find all reservations for this table on the selected date
-      const tableReservations = reservations.filter(res => res.tableId === table.tableId);
+      // NOTE: Some older/frontends may store Reservation.tableId as the visible table number
+      // (e.g., "gh9") instead of the internal tableId (e.g., "T123...").
+      // Be tolerant so status + voice actions can still work.
+      const tableReservations = reservations.filter(res => {
+        const resTableId = res?.tableId;
+        const resAlt = res?.tableNumber || res?.table || res?.tableName;
+        return (
+          resTableId === table.tableId ||
+          resTableId === table.tableNumber ||
+          resAlt === table.tableId ||
+          resAlt === table.tableNumber
+        );
+      });
       
-      let status = 'available';
+      // Base status comes from the table itself (so voice/manual updates like
+      // 'cleaning' can be reflected when there is no reservation overriding it).
+      let status = (typeof table.status === 'string' && table.status.trim()) ? table.status : 'available';
       let currentReservation = null;
 
       // Check for seated reservations first (highest priority)
-      const seatedReservation = tableReservations.find(res => res.status === 'seated');
+      const seatedReservation = tableReservations.find(res => String(res.status || '').toLowerCase() === 'seated');
       if (seatedReservation && isToday) {
         status = 'occupied';
         currentReservation = {
@@ -509,10 +580,21 @@ router.get('/tables/:restaurantId/status', authMiddleware, async (req, res) => {
       else if (isToday) {
         for (const reservation of tableReservations) {
           // Only consider pending or confirmed reservations for active time check
-          if (reservation.status === 'pending' || reservation.status === 'confirmed') {
+          const resStatus = String(reservation.status || '').toLowerCase();
+          if (resStatus === 'pending' || resStatus === 'confirmed') {
             const reservationDateTime = new Date(reservation.reservationDate);
-            const [hours, minutes] = reservation.reservationTime.split(':');
-            reservationDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            const parsed = parseTimeToHoursMinutes(reservation.reservationTime);
+            if (!parsed) {
+              if (debug && (!debugTable || String(table.tableNumber || '').toLowerCase() === debugTable)) {
+                console.log('Unparseable reservationTime; skipping active check', {
+                  tableNumber: table.tableNumber,
+                  reservationId: String(reservation._id),
+                  reservationTime: reservation.reservationTime
+                });
+              }
+              continue;
+            }
+            reservationDateTime.setHours(parsed.hours, parsed.minutes, 0, 0);
             
             const endTime = new Date(reservationDateTime.getTime() + reservation.duration * 60000);
             
@@ -531,13 +613,57 @@ router.get('/tables/:restaurantId/status', authMiddleware, async (req, res) => {
             }
           }
         }
+
+        // If it's today and there is an upcoming pending/confirmed reservation later,
+        // expose the nearest upcoming one so UIs (and voice commands) can act on it.
+        if (!currentReservation) {
+          const upcoming = tableReservations
+            .filter(res => {
+              const s = String(res.status || '').toLowerCase();
+              return s === 'pending' || s === 'confirmed';
+            })
+            .map(res => {
+              const dt = new Date(res.reservationDate);
+              const parsed = parseTimeToHoursMinutes(res.reservationTime);
+              if (!parsed) {
+                if (debug && (!debugTable || String(table.tableNumber || '').toLowerCase() === debugTable)) {
+                  console.log('Unparseable reservationTime; skipping upcoming', {
+                    tableNumber: table.tableNumber,
+                    reservationId: String(res._id),
+                    reservationTime: res.reservationTime
+                  });
+                }
+                return null;
+              }
+              dt.setHours(parsed.hours, parsed.minutes, 0, 0);
+              return { res, dt };
+            })
+            .filter(Boolean)
+            .filter(x => x.dt >= currentTime)
+            .sort((a, b) => a.dt - b.dt);
+
+          if (upcoming.length > 0) {
+            status = 'reserved';
+            const reservation = upcoming[0].res;
+            currentReservation = {
+              reservationId: reservation._id,
+              customerName: reservation.customerName,
+              customerPhone: reservation.customerPhone,
+              partySize: reservation.partySize,
+              reservationTime: reservation.reservationTime,
+              expectedDuration: reservation.duration,
+              notes: reservation.specialRequests
+            };
+          }
+        }
       }
       
       // For future dates, check for any pending/confirmed reservations
       if (!isToday && status === 'available') {
-        const futureReservation = tableReservations.find(res => 
-          res.status === 'pending' || res.status === 'confirmed' || res.status === 'seated'
-        );
+        const futureReservation = tableReservations.find(res => {
+          const s = String(res.status || '').toLowerCase();
+          return s === 'pending' || s === 'confirmed' || s === 'seated';
+        });
         if (futureReservation) {
           status = 'reserved';
           currentReservation = {
@@ -563,9 +689,10 @@ router.get('/tables/:restaurantId/status', authMiddleware, async (req, res) => {
     });
 
     // Filter reservations to show in the list (only active ones for the selected date)
-    const activeReservations = reservations.filter(res => 
-      res.status !== 'cancelled' && res.status !== 'completed'
-    );
+    const activeReservations = reservations.filter(res => {
+      const s = String(res.status || '').toLowerCase();
+      return s !== 'cancelled' && s !== 'completed';
+    });
 
     res.json({ tables: tablesWithStatus, reservations: activeReservations });
   } catch (error) {
@@ -672,7 +799,7 @@ router.post('/reservations/:restaurantId', authMiddleware, async (req, res) => {
 });
 
 // Get reservations
-router.get('/reservations/:restaurantId', authMiddleware, async (req, res) => {
+router.get('/reservations/:restaurantId', authMiddleware, redisCache({ ttlSeconds: 15, scope: 'user' }), async (req, res) => {
   try {
     const { restaurantId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {

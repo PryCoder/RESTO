@@ -8,6 +8,12 @@ import User from '../models/User.js'; // Add this import
 import printer from '../utils/printer.js';
 import { emitAnalyticsUpdate, emitInventoryUpdate, emitWasteAlert, broadcastOrder } from '../index.js';
 import mongoose from 'mongoose';
+import Dish from '../models/Dish.js';
+import {
+  applyInventoryDeductions,
+  previewInventoryDeductions,
+  restoreInventoryFromOrderLedger,
+} from '../services/inventoryConsumption.js';
 
 // Helper to recalculate and emit analytics
 async function recalculateAndEmitAnalytics() {
@@ -79,6 +85,55 @@ export const updateInventory = async (req, res) => {
   }
 };
 
+// Upsert inventory by name (useful for voice/WhatsApp commands)
+export const upsertInventoryByName = async (req, res) => {
+  try {
+    const { name, quantity, unit } = req.body;
+    if (!name || quantity === undefined) {
+      return res.status(400).json({ error: 'name and quantity are required' });
+    }
+
+    const restaurantId = req.user?.restaurant || null;
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Restaurant ID not found for this user' });
+    }
+
+    const cleanName = String(name).trim();
+    const delta = Number(quantity);
+    if (!cleanName) return res.status(400).json({ error: 'Invalid name' });
+    if (!Number.isFinite(delta)) return res.status(400).json({ error: 'Invalid quantity' });
+
+    const existing = await Inventory.findOne({ restaurant: restaurantId, name: cleanName });
+
+    if (!existing) {
+      const created = new Inventory({
+        name: cleanName,
+        quantity: Math.max(0, delta),
+        unit: unit || 'pieces',
+        lastUpdated: new Date(),
+        restaurant: restaurantId,
+      });
+      await created.save();
+      emitInventoryUpdate(await Inventory.find());
+      await recalculateAndEmitAnalytics();
+      return res.status(201).json({ message: 'Inventory item created', item: created });
+    }
+
+    existing.quantity = Number(existing.quantity || 0) + delta;
+    if (existing.quantity < 0) existing.quantity = 0;
+    if (unit) existing.unit = unit;
+    existing.lastUpdated = new Date();
+    await existing.save();
+
+    emitInventoryUpdate(await Inventory.find());
+    await recalculateAndEmitAnalytics();
+    res.json({ message: 'Inventory updated', item: existing });
+  } catch (err) {
+    console.error('Inventory upsert failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 export const deleteInventory = async (req, res) => {
   try {
     const { id } = req.params;
@@ -102,14 +157,35 @@ export const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const updated = await Order.findByIdAndUpdate(id, { status }, { new: true });
-    if (!updated) {
+
+    const order = await Order.findById(id);
+    if (!order) {
       return res.status(404).json({ error: 'Order not found' });
     }
+
+    order.status = status;
+    order.updatedAt = new Date();
+
+    if (
+      status === 'cancelled' &&
+      order.inventoryDeductedAt &&
+      !order.inventoryRestoredAt &&
+      Array.isArray(order.inventoryDeductions) &&
+      order.inventoryDeductions.length
+    ) {
+      await restoreInventoryFromOrderLedger({
+        restaurantId: order.restaurant || null,
+        inventoryDeductions: order.inventoryDeductions,
+      });
+      order.inventoryRestoredAt = new Date();
+      emitInventoryUpdate(await Inventory.find());
+    }
+
+    await order.save();
     import('../index.js').then(({ io }) => {
-      if (io) io.emit('order:update', updated);
+      if (io) io.emit('order:update', order);
     });
-    res.json({ message: 'Order status updated', order: updated });
+    res.json({ message: 'Order status updated', order });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -133,18 +209,61 @@ export const createOrder = async (req, res) => {
       0
     );
 
+    const restaurantId = req.user?.restaurant || null;
+    const requireRecipe = String(process.env.INVENTORY_REQUIRE_RECIPE || 'false').toLowerCase() === 'true';
+
+    const { deductions, missing } = await previewInventoryDeductions({
+      restaurantId,
+      items,
+    });
+
+    // Avoid silent "no inventory change" situations.
+    // If preview found recipe/unit problems and produced no deductions, fail loudly.
+    if (!requireRecipe && missing.length && (!deductions || deductions.length === 0)) {
+      return res.status(400).json({
+        error: 'Inventory deduction was not applied because one or more dishes have missing/invalid recipes',
+        missing,
+        hint: 'Configure dish recipeItems and/or set INVENTORY_REQUIRE_RECIPE=true',
+      });
+    }
+
+    if (requireRecipe && missing.length) {
+      return res.status(400).json({
+        error: 'Inventory recipe is not configured for one or more dishes',
+        missing,
+      });
+    }
+
+    const deductionResult = await applyInventoryDeductions({ restaurantId, deductions });
+    if (!deductionResult.ok) {
+      return res.status(409).json({ error: deductionResult.error?.message || 'Inventory deduction failed', details: deductionResult.error });
+    }
+
     const newOrder = new Order({
       table: table || 'Takeaway',
       items,
       totalAmount,
-      restaurant: req.user?.restaurant || null,
+      restaurant: restaurantId,
       vendorId: req.user?._id || null,
       customer: req.user?._id || null,
       waiter: req.user?._id || null,
+      inventoryDeductions: deductionResult.applied || [],
+      inventoryDeductedAt: (deductionResult.applied || []).length ? new Date() : null,
       createdAt: new Date(),
     });
 
-    await newOrder.save();
+    try {
+      await newOrder.save();
+    } catch (saveErr) {
+      // Roll back inventory if order save fails
+      await restoreInventoryFromOrderLedger({
+        restaurantId,
+        inventoryDeductions: deductionResult.applied || [],
+      });
+      throw saveErr;
+    }
+
+    emitInventoryUpdate(await Inventory.find());
     broadcastOrder(newOrder);
     await recalculateAndEmitAnalytics();
     emitAnalyticsUpdate({ type: 'order', order: newOrder });
@@ -153,7 +272,11 @@ export const createOrder = async (req, res) => {
       await printer.printOrder(newOrder);
     }
 
-    res.status(201).json({ message: 'Order saved & printed', order: newOrder });
+    res.status(201).json({
+      message: 'Order saved & printed',
+      order: newOrder,
+      ...(missing.length ? { inventoryWarnings: missing } : {}),
+    });
   } catch (err) {
     console.error('Create Order Error:', err);
     res.status(500).json({ error: err.message });
@@ -287,6 +410,8 @@ export const createCustomerOrder = async (req, res) => {
     let totalAmount = 0;
     const orderItems = [];
 
+    const requireRecipe = String(process.env.INVENTORY_REQUIRE_RECIPE || 'false').toLowerCase() === 'true';
+
     for (const item of items) {
       // Find menu item in restaurant's menu
       const menuItem = restaurant.menu?.find(m => m._id.toString() === item.menuItemId);
@@ -302,12 +427,44 @@ export const createCustomerOrder = async (req, res) => {
       totalAmount += itemTotal;
 
       orderItems.push({
-        dish: menuItem._id,
+        // Link to Dish collection when possible (used for inventory recipes)
+        dish: (await Dish.findOne({
+          name: new RegExp(
+            `^${String(menuItem.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+            'i'
+          ),
+        }).select('_id'))?._id || null,
         name: menuItem.name,
         quantity: quantity,
         modifications: item.modifications || [],
         price: menuItem.price,
       });
+    }
+
+    const { deductions, missing } = await previewInventoryDeductions({
+      restaurantId,
+      items: orderItems,
+    });
+
+    // Avoid silent "no inventory change" situations.
+    if (!requireRecipe && missing.length && (!deductions || deductions.length === 0)) {
+      return res.status(400).json({
+        error: 'Inventory deduction was not applied because one or more dishes have missing/invalid recipes',
+        missing,
+        hint: 'Configure dish recipeItems and/or set INVENTORY_REQUIRE_RECIPE=true',
+      });
+    }
+
+    if (requireRecipe && missing.length) {
+      return res.status(400).json({
+        error: 'Inventory recipe is not configured for one or more dishes',
+        missing,
+      });
+    }
+
+    const deductionResult = await applyInventoryDeductions({ restaurantId, deductions });
+    if (!deductionResult.ok) {
+      return res.status(409).json({ error: deductionResult.error?.message || 'Inventory deduction failed', details: deductionResult.error });
     }
 
     // Create the order with customer ID explicitly set
@@ -320,12 +477,24 @@ export const createCustomerOrder = async (req, res) => {
       specialInstructions: specialInstructions || '',
       paymentMethod: paymentMethod || 'cash',
       status: 'pending',
+      inventoryDeductions: deductionResult.applied || [],
+      inventoryDeductedAt: (deductionResult.applied || []).length ? new Date() : null,
       createdAt: new Date(),
       updatedAt: new Date()
     });
 
     // Save the order
-    await order.save();
+    try {
+      await order.save();
+    } catch (saveErr) {
+      await restoreInventoryFromOrderLedger({
+        restaurantId,
+        inventoryDeductions: deductionResult.applied || [],
+      });
+      throw saveErr;
+    }
+
+    emitInventoryUpdate(await Inventory.find());
 
     // Populate for response
     const populatedOrder = await Order.findById(order._id)
@@ -347,7 +516,8 @@ export const createCustomerOrder = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Order placed successfully',
-      order: populatedOrder
+      order: populatedOrder,
+      ...(missing.length ? { inventoryWarnings: missing } : {}),
     });
 
   } catch (err) {
@@ -444,6 +614,16 @@ export const cancelCustomerOrder = async (req, res) => {
 
     order.status = 'cancelled';
     order.updatedAt = new Date();
+
+    if (order.inventoryDeductedAt && !order.inventoryRestoredAt && Array.isArray(order.inventoryDeductions) && order.inventoryDeductions.length) {
+      await restoreInventoryFromOrderLedger({
+        restaurantId: order.restaurant || null,
+        inventoryDeductions: order.inventoryDeductions,
+      });
+      order.inventoryRestoredAt = new Date();
+      emitInventoryUpdate(await Inventory.find());
+    }
+
     await order.save();
 
     // Emit cancellation event
@@ -493,26 +673,68 @@ export const reorderFromPrevious = async (req, res) => {
       return res.status(404).json({ error: 'Restaurant no longer available' });
     }
 
-    // Create new order with same items
+    const restaurantId = previousOrder.restaurant._id;
+    const requireRecipe = String(process.env.INVENTORY_REQUIRE_RECIPE || 'false').toLowerCase() === 'true';
+
+    const orderItems = previousOrder.items.map(item => ({
+      dish: item.dish,
+      name: item.name,
+      quantity: item.quantity,
+      modifications: item.modifications || [],
+      price: item.price,
+    }));
+
+    const { deductions, missing } = await previewInventoryDeductions({
+      restaurantId,
+      items: orderItems,
+    });
+
+    if (!requireRecipe && missing.length && (!deductions || deductions.length === 0)) {
+      return res.status(400).json({
+        error: 'Inventory deduction was not applied because one or more dishes have missing/invalid recipes',
+        missing,
+        hint: 'Configure dish recipeItems and/or set INVENTORY_REQUIRE_RECIPE=true',
+      });
+    }
+
+    if (requireRecipe && missing.length) {
+      return res.status(400).json({
+        error: 'Inventory recipe is not configured for one or more dishes',
+        missing,
+      });
+    }
+
+    const deductionResult = await applyInventoryDeductions({ restaurantId, deductions });
+    if (!deductionResult.ok) {
+      return res.status(409).json({ error: deductionResult.error?.message || 'Inventory deduction failed', details: deductionResult.error });
+    }
+
+    // Create new order with same items + inventory ledger
     const newOrder = new Order({
-      restaurant: previousOrder.restaurant._id,
+      restaurant: restaurantId,
       customer: customerId,
-      items: previousOrder.items.map(item => ({
-        dish: item.dish,
-        name: item.name,
-        quantity: item.quantity,
-        modifications: item.modifications || [],
-        price: item.price,
-      })),
+      items: orderItems,
       totalAmount: previousOrder.totalAmount,
       deliveryAddress: previousOrder.deliveryAddress,
       paymentMethod: previousOrder.paymentMethod,
       status: 'pending',
+      inventoryDeductions: deductionResult.applied || [],
+      inventoryDeductedAt: (deductionResult.applied || []).length ? new Date() : null,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
 
-    await newOrder.save();
+    try {
+      await newOrder.save();
+    } catch (saveErr) {
+      await restoreInventoryFromOrderLedger({
+        restaurantId,
+        inventoryDeductions: deductionResult.applied || [],
+      });
+      throw saveErr;
+    }
+
+    emitInventoryUpdate(await Inventory.find());
 
     // Populate for response
     const populatedOrder = await Order.findById(newOrder._id)
@@ -522,7 +744,8 @@ export const reorderFromPrevious = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Order placed successfully',
-      order: populatedOrder
+      order: populatedOrder,
+      ...(missing.length ? { inventoryWarnings: missing } : {}),
     });
 
   } catch (err) {

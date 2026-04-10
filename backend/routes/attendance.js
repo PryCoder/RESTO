@@ -9,8 +9,11 @@ import {
   deleteFace,
   listFaces
 } from '../controllers/attendanceController.js';
+import { redisAutoInvalidate, redisCache } from '../middleware/redisCache.js';
 
 const router = express.Router();
+
+router.use(redisAutoInvalidate());
 
 // Face registration (for waiters to register their face)
 router.post('/faces/:userId', authMiddleware, registerFace);
@@ -22,15 +25,15 @@ router.post('/clock-in/:restaurantId', authMiddleware, clockIn);
 router.post('/clock-out/:restaurantId', authMiddleware, clockOut);
 
 // Get attendance records for a restaurant
-router.get('/records/:restaurantId', authMiddleware, getAttendanceRecords);
+router.get('/records/:restaurantId', authMiddleware, redisCache({ ttlSeconds: 20, scope: 'user' }), getAttendanceRecords);
 
 // Get attendance summary for a restaurant
-router.get('/summary/:restaurantId', authMiddleware, getAttendanceSummary);
+router.get('/summary/:restaurantId', authMiddleware, redisCache({ ttlSeconds: 20, scope: 'user' }), getAttendanceSummary);
 
 // Delete registered face
 router.delete('/faces/:userId', authMiddleware, deleteFace);
 
 // List registered faces
-router.get('/faces', authMiddleware, listFaces);
+router.get('/faces', authMiddleware, redisCache({ ttlSeconds: 30, scope: 'user' }), listFaces);
 
 export default router; 
