@@ -86,8 +86,10 @@ router.put('/layout/:restaurantId', authMiddleware, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
       return res.status(400).json({ error: 'Invalid restaurant ID format' });
     }
-    
-    const { layout, reservationSettings } = req.body;
+
+    // Accept either `{ layout: {...} }` or a direct layout payload `{ floors, floorNames, ... }`
+    const layout = req.body?.layout && typeof req.body.layout === 'object' ? req.body.layout : req.body;
+    const reservationSettings = req.body?.reservationSettings;
     
     console.log('=== UPDATE LAYOUT DEBUG ===');
     console.log('Restaurant ID:', restaurantId);
@@ -122,9 +124,6 @@ router.put('/layout/:restaurantId', authMiddleware, async (req, res) => {
       }
       if (layout.canvasHeight !== undefined && !isNaN(layout.canvasHeight)) {
         restaurant.layout.canvasHeight = Number(layout.canvasHeight);
-      }
-      if (layout.backgroundColor !== undefined) {
-        restaurant.layout.backgroundColor = layout.backgroundColor;
       }
       
       console.log('Updated layout:', restaurant.layout);
@@ -171,6 +170,101 @@ router.put('/layout/:restaurantId', authMiddleware, async (req, res) => {
   }
 });
 
+// --- Floors CRUD (explicit endpoints) ---
+// Create a floor
+router.post('/floors/:restaurantId', authMiddleware, async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+      return res.status(400).json({ error: 'Invalid restaurant ID format' });
+    }
+
+    const name = String(req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'name is required' });
+
+    const restaurant = await Restaurant.findById(restaurantId);
+    if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
+
+    if (!restaurant.layout) {
+      restaurant.layout = { floors: 1, floorNames: ['Ground Floor'], canvasWidth: 800, canvasHeight: 600 };
+    }
+
+    const existing = Array.isArray(restaurant.layout.floorNames) ? restaurant.layout.floorNames : [];
+    if (existing.some((n) => String(n).trim().toLowerCase() === name.toLowerCase())) {
+      return res.status(400).json({ error: 'Floor already exists' });
+    }
+
+    restaurant.layout.floorNames = [...existing, name];
+    restaurant.layout.floors = restaurant.layout.floorNames.length;
+    restaurant.markModified('layout');
+    await restaurant.save();
+
+    res.status(201).json({ message: 'Floor created', layout: restaurant.layout });
+  } catch (error) {
+    console.error('Error creating floor:', error);
+    res.status(500).json({ error: 'Failed to create floor', details: error.message });
+  }
+});
+
+// Delete a floor (by index). Requires no tables on that floor.
+router.delete('/floors/:restaurantId/:floorIndex', authMiddleware, async (req, res) => {
+  try {
+    const { restaurantId, floorIndex } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+      return res.status(400).json({ error: 'Invalid restaurant ID format' });
+    }
+
+    const idx = Number(floorIndex);
+    if (!Number.isInteger(idx) || idx < 0) {
+      return res.status(400).json({ error: 'floorIndex must be a non-negative integer' });
+    }
+
+    const restaurant = await Restaurant.findById(restaurantId);
+    if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
+
+    if (!restaurant.layout) {
+      restaurant.layout = { floors: 1, floorNames: ['Ground Floor'], canvasWidth: 800, canvasHeight: 600 };
+    }
+
+    const names = Array.isArray(restaurant.layout.floorNames) ? restaurant.layout.floorNames : [];
+    if (names.length <= 1) return res.status(400).json({ error: 'Cannot delete the only floor' });
+    if (idx >= names.length) return res.status(400).json({ error: 'Floor index out of range' });
+
+    const hasTables = (restaurant.tables || []).some((t) => Number(t.floorIndex) === idx);
+    if (hasTables) {
+      return res.status(400).json({ error: 'Move or delete tables on this floor first' });
+    }
+
+    // Remove the floor name
+    const nextNames = names.filter((_, i) => i !== idx);
+    restaurant.layout.floorNames = nextNames;
+    restaurant.layout.floors = nextNames.length;
+
+    // Reindex tables above the removed floor (keep consistent if floors were removed)
+    if (Array.isArray(restaurant.tables) && restaurant.tables.length) {
+      restaurant.tables = restaurant.tables.map((t) => {
+        const tIdx = Number(t.floorIndex ?? 0);
+        if (!Number.isFinite(tIdx)) return t;
+        if (tIdx > idx) {
+          const newIndex = tIdx - 1;
+          const newFloor = nextNames[newIndex] || t.floor;
+          const plain = typeof t?.toObject === 'function' ? t.toObject() : t;
+          return { ...plain, floorIndex: newIndex, floor: newFloor };
+        }
+        return t;
+      });
+      restaurant.markModified('tables');
+    }
+
+    restaurant.markModified('layout');
+    await restaurant.save();
+    res.json({ message: 'Floor deleted', layout: restaurant.layout });
+  } catch (error) {
+    console.error('Error deleting floor:', error);
+    res.status(500).json({ error: 'Failed to delete floor', details: error.message });
+  }
+});
+
 // Add a new table
 router.post('/tables/:restaurantId', authMiddleware, async (req, res) => {
   try {
@@ -202,8 +296,9 @@ router.post('/tables/:restaurantId', authMiddleware, async (req, res) => {
     if (seats === undefined || seats === null) {
       return res.status(400).json({ error: 'seats is required' });
     }
-    
-    if (typeof seats !== 'number' || seats < 1) {
+
+    const seatsNum = Number(seats);
+    if (!Number.isFinite(seatsNum) || seatsNum < 1) {
       return res.status(400).json({ error: 'seats must be a number greater than 0' });
     }
     
@@ -211,7 +306,9 @@ router.post('/tables/:restaurantId', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'position is required' });
     }
     
-    if (typeof position.x !== 'number' || typeof position.y !== 'number') {
+    const xNum = Number(position.x);
+    const yNum = Number(position.y);
+    if (!Number.isFinite(xNum) || !Number.isFinite(yNum)) {
       return res.status(400).json({ error: 'position must have x and y coordinates as numbers' });
     }
 
@@ -242,10 +339,10 @@ router.post('/tables/:restaurantId', authMiddleware, async (req, res) => {
       floor: targetFloor,
       floorIndex: floorIndex !== undefined ? Number(floorIndex) : 0,
       tableType: tableType || 'normal',
-      seats: Number(seats),
+      seats: seatsNum,
       position: {
-        x: Number(position.x),
-        y: Number(position.y)
+        x: xNum,
+        y: yNum
       },
       width: width ? Number(width) : 80,
       height: height ? Number(height) : 80,

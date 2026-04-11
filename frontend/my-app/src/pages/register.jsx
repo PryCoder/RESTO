@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './register.css';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
 export default function Register() {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'manager', restaurantName: '', phone: '' });
@@ -14,7 +15,7 @@ export default function Register() {
   const navigate = useNavigate();
 
   // API URL from environment or default
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const API_URL = API_BASE_URL;
   console.log(API_URL);
   
   // Card parallax tilt

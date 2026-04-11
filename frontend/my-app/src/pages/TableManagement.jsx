@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 import {
   Box, Flex, Grid, GridItem, Text, Heading, Button, IconButton,
   Input, Select, Textarea, Spinner, useToast, useDisclosure,
@@ -188,7 +189,7 @@ const numFieldStyles = {
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 function TableManagementInner() {
-  const API_URL = import.meta.env?.VITE_API_URL || 'http://localhost:4000';
+  const API_URL = API_BASE_URL;
   const toast = useToast();
   const navigate = useNavigate();
 

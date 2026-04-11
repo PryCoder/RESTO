@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import FaceRegistration from '../components/FaceRegistration';
 import io from 'socket.io-client';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 import {
   FaUtensils, FaMicrophone, FaSignOutAlt, FaCamera,
   FaClock, FaCheckCircle, FaListAlt, FaTable, FaArrowRight,
@@ -84,9 +85,8 @@ const theme = extendTheme({
   },
 });
 
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000')
-  .replace('localhost', window.location.hostname);
-const SOCKET_URL = API_URL;
+const API_URL = API_BASE_URL;
+const SOCKET_URL = API_BASE_URL;
 
 /* ─── Design tokens ─── */
 const T = {

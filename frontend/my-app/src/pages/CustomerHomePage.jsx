@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 import {
   ChakraProvider,
   Box,
@@ -267,7 +268,7 @@ const CustomerHomePage = () => {
   const { isOpen: isFilterOpen, onOpen: onFilterOpen, onClose: onFilterClose } = useDisclosure();
   const { isOpen: isSortOpen, onOpen: onSortOpen, onClose: onSortClose } = useDisclosure();
   
-  const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const VITE_API_URL = API_BASE_URL;
 
   // Food categories for quick filters
   const foodCategories = [

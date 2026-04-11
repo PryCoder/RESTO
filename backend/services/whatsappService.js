@@ -4,6 +4,52 @@ import path from 'path';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
+const DEBUG_WHATSAPP = String(process.env.DEBUG_WHATSAPP || '').toLowerCase() === 'true';
+
+// Prevent reply loops: track message IDs we sent, so we can ignore them on upsert.
+// Map: messageId -> expiresAt (ms)
+const sentMessageIds = new Map();
+
+function rememberSentMessage(sendResult) {
+  const id = sendResult?.key?.id;
+  if (!id) return;
+  sentMessageIds.set(id, Date.now() + 5 * 60 * 1000);
+}
+
+function wasSentByThisBot(msg) {
+  const id = msg?.key?.id;
+  if (!id) return false;
+  const expiresAt = sentMessageIds.get(id);
+  if (!expiresAt) return false;
+  if (Date.now() > expiresAt) {
+    sentMessageIds.delete(id);
+    return false;
+  }
+  return true;
+}
+
+const salesFilePath = path.resolve('./sales.json');
+
+function readSales() {
+  try {
+    if (!fs.existsSync(salesFilePath)) return [];
+    const raw = fs.readFileSync(salesFilePath, 'utf8');
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSales(sales) {
+  fs.writeFileSync(salesFilePath, JSON.stringify(sales, null, 2));
+}
+
+function isSameLocalDate(a, b) {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
+}
 
 // In-memory session state (for demo; use DB or file for production)
 let sock = null;
@@ -15,6 +61,54 @@ let connectAttempts = 0;
 let backendJwtToken = null;
 let lastDisconnectStatusCode = null;
 let lastDisconnectAt = null;
+
+function unwrapBaileysMessageContent(message) {
+  // Common wrappers: ephemeral, viewOnce, etc.
+  let m = message;
+  // Protect against pathological nesting
+  for (let i = 0; i < 5 && m; i++) {
+    if (m.ephemeralMessage?.message) {
+      m = m.ephemeralMessage.message;
+      continue;
+    }
+    if (m.viewOnceMessage?.message) {
+      m = m.viewOnceMessage.message;
+      continue;
+    }
+    if (m.viewOnceMessageV2?.message) {
+      m = m.viewOnceMessageV2.message;
+      continue;
+    }
+    if (m.documentWithCaptionMessage?.message) {
+      m = m.documentWithCaptionMessage.message;
+      continue;
+    }
+    break;
+  }
+  return m;
+}
+
+function extractIncomingText(msg) {
+  const content = unwrapBaileysMessageContent(msg?.message);
+  if (!content) return '';
+
+  // Plain text
+  if (typeof content.conversation === 'string') return content.conversation;
+
+  // Most common for messages sent from some clients
+  if (typeof content.extendedTextMessage?.text === 'string') return content.extendedTextMessage.text;
+
+  // Captions
+  if (typeof content.imageMessage?.caption === 'string') return content.imageMessage.caption;
+  if (typeof content.videoMessage?.caption === 'string') return content.videoMessage.caption;
+  if (typeof content.documentMessage?.caption === 'string') return content.documentMessage.caption;
+
+  // Button/list replies (best-effort)
+  if (typeof content.buttonsResponseMessage?.selectedButtonId === 'string') return content.buttonsResponseMessage.selectedButtonId;
+  if (typeof content.listResponseMessage?.singleSelectReply?.selectedRowId === 'string') return content.listResponseMessage.singleSelectReply.selectedRowId;
+
+  return '';
+}
 
 function setBackendJwtToken(token) {
   backendJwtToken = token || null;
@@ -165,11 +259,68 @@ async function startWhatsAppBot(onQR, reset = false) {
     // Handle incoming messages (full manager dashboard features)
     sock.ev.on('messages.upsert', async (m) => {
       const msg = m.messages?.[0];
-      if (!msg?.message?.conversation) return;
-      const text = msg.message.conversation.toLowerCase();
-      const jid = msg.key.remoteJid;
+      if (!msg?.message) return;
+      if (wasSentByThisBot(msg)) return; // ignore messages we sent (prevents loops)
+
+      const jid = msg.key?.remoteJid;
+      if (!jid) return;
+      if (jid === 'status@broadcast') return;
+
+      const rawText = extractIncomingText(msg);
+      const text = String(rawText || '').trim().toLowerCase();
+      if (!text) return;
+
+      if (DEBUG_WHATSAPP) {
+        console.log('[I3] WA incoming:', {
+          fromMe: Boolean(msg.key?.fromMe),
+          jid,
+          text: String(rawText || ''),
+          messageId: msg.key?.id,
+        });
+      }
+
+      const send = async (content) => {
+        const result = await sock.sendMessage(jid, content);
+        rememberSentMessage(result);
+        if (DEBUG_WHATSAPP) {
+          console.log('[I4] WA sent:', { jid, messageId: result?.key?.id });
+        }
+        return result;
+      };
 
       try {
+        // Quick sanity check
+        if (text === 'ping' || text === '!ping') {
+          await send({ text: 'pong' });
+          return;
+        }
+
+        // === SALES LOGGING (lightweight, file-backed) ===
+        // Commands:
+        // - "sale 250" -> logs a sale amount
+        // - "today sales" -> sums today's logged sales
+        if (text === 'today sales') {
+          const now = new Date();
+          const sales = readSales();
+          const todays = sales.filter((s) => {
+            const at = new Date(s?.at);
+            return Number.isFinite(at.getTime()) && isSameLocalDate(at, now);
+          });
+          const total = todays.reduce((sum, s) => sum + (Number(s?.amount) || 0), 0);
+          await send({ text: `Today's sales: ₹${total}\nCount: ${todays.length}` });
+          return;
+        }
+
+        if (text.startsWith('sale')) {
+          const match = rawText.match(/\bsale\b\s*(?<amount>\d+(?:\.\d+)?)/i);
+          const amount = match?.groups?.amount ? Number(match.groups.amount) : 0;
+          const sales = readSales();
+          sales.push({ amount: Number.isFinite(amount) ? amount : 0, at: new Date().toISOString() });
+          writeSales(sales);
+          await send({ text: `Sale recorded: ₹${Number.isFinite(amount) ? amount : 0}` });
+          return;
+        }
+
         // === ORDER CREATION ===
         if (text.startsWith('order')) {
           const items = parseOrderItems(text);
@@ -179,20 +330,30 @@ async function startWhatsAppBot(onQR, reset = false) {
           }, {
             headers: backendJwtToken ? { Authorization: `Bearer ${backendJwtToken}` } : {},
           });
-          await sock.sendMessage(jid, { text: 'Order placed!' });
+          await send({ text: 'Order placed!' });
         }
         // === ANALYTICS QUERY ===
         else if (text.includes('profit') || text.includes('sales')) {
-          const res2 = await axios.post(`${BACKEND_URL}/api/ai/sales-profit-advisor`, {
-            voiceInput: text,
-          }, {
-            headers: backendJwtToken ? { Authorization: `Bearer ${backendJwtToken}` } : {},
-          });
+          // Prefer AI endpoint, but fall back to /api/orders/profit so the user always gets a reply.
+          try {
+            const res2 = await axios.post(`${BACKEND_URL}/api/ai/sales-profit-advisor`, {
+              voiceInput: text,
+            }, {
+              headers: backendJwtToken ? { Authorization: `Bearer ${backendJwtToken}` } : {},
+            });
 
-          const totalSales = res2.data?.totalSales ?? '₹0';
-          const profit = res2.data?.profit ?? '₹0';
-          const tip = res2.data?.tip ? `\nTip: ${res2.data.tip}` : '';
-          await sock.sendMessage(jid, { text: `Sales: ${totalSales}\nProfit: ${profit}${tip}` });
+            const totalSales = res2.data?.totalSales ?? '₹0';
+            const profit = res2.data?.profit ?? '₹0';
+            const tip = res2.data?.tip ? `\nTip: ${res2.data.tip}` : '';
+            await send({ text: `Sales: ${totalSales}\nProfit: ${profit}${tip}` });
+          } catch (aiErr) {
+            const res2 = await axios.get(`${BACKEND_URL}/api/orders/profit`, {
+              headers: backendJwtToken ? { Authorization: `Bearer ${backendJwtToken}` } : {},
+            });
+            const profit = res2.data?.profit ?? 0;
+            const change = res2.data?.change ?? '0';
+            await send({ text: `Today sales (profit): ₹${profit}\nChange vs yesterday: ${change}%` });
+          }
         }
         // === INVENTORY UPDATE ===
         else if (text.startsWith('add inventory')) {
@@ -200,7 +361,7 @@ async function startWhatsAppBot(onQR, reset = false) {
           await axios.post(`${BACKEND_URL}/api/orders/inventory/upsert`, { name, quantity: Number(quantity) }, {
             headers: backendJwtToken ? { Authorization: `Bearer ${backendJwtToken}` } : {},
           });
-          await sock.sendMessage(jid, { text: `Inventory updated: ${name} +${quantity}` });
+          await send({ text: `Inventory updated: ${name} +${quantity}` });
         }
         // === WASTE ALERTS ===
         else if (text.includes('waste')) {
@@ -209,7 +370,7 @@ async function startWhatsAppBot(onQR, reset = false) {
           });
 
           const alerts = Array.isArray(res2.data?.alerts) ? res2.data.alerts : [];
-          await sock.sendMessage(jid, {
+          await send({
             text: alerts.length
               ? `Waste Alerts:\n${alerts.map(a => `${a.item}: ${a.reason}`).join('\n')}`
               : 'No waste alerts right now.'
@@ -220,12 +381,19 @@ async function startWhatsAppBot(onQR, reset = false) {
           const res2 = await axios.get(`${BACKEND_URL}/api/ai/upsell`, {
             headers: backendJwtToken ? { Authorization: `Bearer ${backendJwtToken}` } : {},
           });
-          await sock.sendMessage(jid, { text: `Upsell Suggestions:\n${res2.data.suggestions.map(s => `${s.base} → ${s.upsell}`).join('\n')}` });
+          await send({ text: `Upsell Suggestions:\n${res2.data.suggestions.map(s => `${s.base} → ${s.upsell}`).join('\n')}` });
         }
         // Add more commands as needed!
+        else {
+          await send({ text: 'Commands: "sale 100", "today sales", "sales"/"profit", "order ...", "ping".' });
+        }
       } catch (err) {
         console.error('[E12] Error handling incoming WhatsApp message:', err);
-        await sock.sendMessage(jid, { text: 'Error: ' + (err.response?.data?.error || err.message) });
+        try {
+          await send({ text: 'Error: ' + (err.response?.data?.error || err.message) });
+        } catch {
+          // ignore
+        }
       }
     });
     return sock;
@@ -264,7 +432,8 @@ async function sendWhatsAppMessage(jid, text) {
   }
   console.log('Sending WhatsApp message:', { jid, text });
   try {
-    await sock.sendMessage(jid, { text });
+    const result = await sock.sendMessage(jid, { text });
+    rememberSentMessage(result);
   } catch (err) {
     console.error('Error sending WhatsApp message:', err);
     throw err;

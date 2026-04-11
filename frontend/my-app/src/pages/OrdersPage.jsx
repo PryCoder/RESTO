@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 import {
   ChakraProvider,
   extendTheme,
@@ -76,7 +77,7 @@ const statusMap = {
   paid:      { bg: '#F1EFE8',  fg: '#5F5E5A',   label: 'Paid'      },
 };
 
-const VITE_API_URL = import.meta.env.VITE_API_URL || '';
+const VITE_API_URL = API_BASE_URL;
 
 const OrdersPage = ({ orders, setOrders, dishes, setDishes, mergeOrders, restaurantId }) => {
   /* Bill drawer */

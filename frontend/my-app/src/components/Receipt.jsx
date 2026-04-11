@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 import { 
   ShoppingBag, 
   Clock, 
@@ -43,7 +44,7 @@ const CustomerOrderDetails = () => {
   
   const { orderId } = useParams();
   const navigate = useNavigate();
-  const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const VITE_API_URL = API_BASE_URL;
 
   useEffect(() => {
     // Get user from localStorage

@@ -344,8 +344,8 @@ export const getDailyProfit = async (req, res) => {
       Order.find({ createdAt: { $gte: yesterday, $lt: today } }),
     ]);
 
-    const todayTotal = todayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const yesterdayTotal = yesterdayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+    const todayTotal = todayOrders.reduce((sum, o) => sum + (o.totalAmount ?? o.total ?? 0), 0);
+    const yesterdayTotal = yesterdayOrders.reduce((sum, o) => sum + (o.totalAmount ?? o.total ?? 0), 0);
     const diff = yesterdayTotal === 0 ? 100 : ((todayTotal - yesterdayTotal) / yesterdayTotal) * 100;
 
     res.json({ profit: todayTotal, change: diff.toFixed(2) });

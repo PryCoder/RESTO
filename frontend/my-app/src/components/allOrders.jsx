@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
 // Chakra UI Core imports
 import {
@@ -433,7 +434,7 @@ const CustomerAllOrders = () => {
   });
 
   const navigate = useNavigate();
-  const VITE_API_URL = import.meta.env.VITE_API_URL;
+  const VITE_API_URL = API_BASE_URL;
 
   // Static values
   const buttonSize = 'md';

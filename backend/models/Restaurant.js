@@ -129,10 +129,10 @@ const restaurantSchema = new mongoose.Schema({
       min: 1,
       max: 10
     },
-    floorNames: [{
-      type: String,
+    floorNames: {
+      type: [String],
       default: ['Ground Floor']
-    }],
+    },
     canvasWidth: {
       type: Number,
       default: 800

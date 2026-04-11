@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 import {
   Box,
   Button,
@@ -159,8 +160,7 @@ const [upiQrCode, setUpiQrCode] = useState('');
 const [paymentStatus, setPaymentStatus] = useState('');
 const [currentPayment, setCurrentPayment] = useState({ amount: 0, tableNo: '' });
 const [reservations, setReservations] = useState([]);
-const VITE_API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000')
-  .replace('localhost', window.location.hostname);
+const VITE_API_URL = API_BASE_URL;
 
   const fetchRegisteredFaces = async () => {
     if (!restaurantId) return;

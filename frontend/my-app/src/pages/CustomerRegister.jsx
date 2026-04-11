@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import './login.css';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
 export default function CustomerRegister() {
   const [form, setForm] = useState({ 
@@ -22,7 +23,6 @@ export default function CustomerRegister() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
   const handleChange = (e) => {
     const { name, value } = e.target;

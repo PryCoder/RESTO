@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
 export default function JoinRestaurantPage() {
   const [input, setInput] = useState('');
@@ -44,7 +45,7 @@ export default function JoinRestaurantPage() {
       }
       const headers = { Authorization: `Bearer ${waiterToken}` };
       const res = await axios.get(
-        `http://localhost:4000/api/auth/join?rid=${restaurantId}`,
+        `${API_BASE_URL}/api/auth/join?rid=${restaurantId}`,
         { headers }
       );
       if (res.data.user) {

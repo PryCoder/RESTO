@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import React from 'react';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 import {
   ChakraProvider, extendTheme, Box, Flex, Grid, GridItem,
   Text, Button, Input, Select, IconButton, Badge,
@@ -890,7 +891,7 @@ export default function InventoryManagement({ highlightedItem: highlightedItems,
   const [filterUnit, setFilterUnit] = useState('all');
   const navigate = useNavigate();
   const toast = useToast();
-  const VITE_API_URL = import.meta.env.VITE_API_URL;
+  const VITE_API_URL = API_BASE_URL;
 
   const [formData, setFormData] = useState({ name: '', quantity: '', unit: 'pieces' });
   const [bulkItems, setBulkItems] = useState([{ name: '', quantity: '', unit: 'pieces' }]);

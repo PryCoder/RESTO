@@ -8,6 +8,7 @@ import {
   VStack, HStack,
   extendTheme, ChakraProvider,
 } from '@chakra-ui/react';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
 // ─── THEME (same system) ──────────────────────────────────────────────────────
 const theme = extendTheme({
@@ -178,10 +179,6 @@ function ManagerUsersInner() {
   const navigate = useNavigate() || (() => {});
   const toast    = useToast();
 
-  const VITE_API_URL = (typeof import.meta !== 'undefined')
-    ? (import.meta.env?.VITE_API_URL || 'http://localhost:4000')
-    : 'http://localhost:4000';
-
   // ── Fetch ──
   const fetchUsers = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -199,8 +196,8 @@ function ManagerUsersInner() {
       const headers = { Authorization: `Bearer ${token}` };
 
       const [meRes, usersRes] = await Promise.all([
-        axios.get(`${VITE_API_URL}/api/auth/me`, { headers }),
-        axios.get(`${VITE_API_URL}/api/auth`, { headers }),
+        axios.get(`${API_BASE_URL}/api/auth/me`, { headers }),
+        axios.get(`${API_BASE_URL}/api/auth`, { headers }),
       ]);
 
       const currentUser = meRes.data?.user;
@@ -226,7 +223,7 @@ function ManagerUsersInner() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [VITE_API_URL, navigate, toast]);
+  }, [navigate, toast]);
 
   useEffect(() => { fetchUsers(false); }, [fetchUsers]);
 

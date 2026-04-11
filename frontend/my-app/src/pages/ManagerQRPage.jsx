@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
 export default function ManagerQRPage() {
   const [qr, setQr] = useState('');
@@ -23,8 +24,8 @@ export default function ManagerQRPage() {
 
         // Get QR data and user info
         const [qrRes, userRes] = await Promise.all([
-          axios.get('http://localhost:4000/api/auth/generate-qr', { headers }),
-          axios.get('http://localhost:4000/api/auth/me', { headers }),
+          axios.get(`${API_BASE_URL}/api/auth/generate-qr`, { headers }),
+          axios.get(`${API_BASE_URL}/api/auth/me`, { headers }),
         ]);
 
         setQr(qrRes.data.qrData);

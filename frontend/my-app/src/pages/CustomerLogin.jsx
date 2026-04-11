@@ -3,13 +3,13 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import './login.css';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
 export default function CustomerLogin() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -19,7 +19,7 @@ export default function CustomerLogin() {
     setError('');
     
     try {
-      const response = await axios.post(`${VITE_API_URL}/api/auth/login`, form);
+      const response = await axios.post(`${API_BASE_URL}/api/auth/login`, form);
       const { token, user } = response.data;
       
       // Store both token and user data

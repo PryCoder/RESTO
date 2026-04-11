@@ -65,6 +65,22 @@ async function fetchJwtForBotJid(botJid) {
   }
 }
 
+const salesFilePath = path.resolve('./sales.json');
+
+// Helper function to read sales
+function readSales() {
+  if (!fs.existsSync(salesFilePath)) {
+    return [];
+  }
+  const data = fs.readFileSync(salesFilePath, 'utf-8');
+  return JSON.parse(data);
+}
+
+// Helper function to write sales
+function writeSales(data) {
+  fs.writeFileSync(salesFilePath, JSON.stringify(data, null, 2));
+}
+
 async function startSock() {
   const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
   const { version } = await fetchLatestBaileysVersion();
@@ -509,7 +525,7 @@ async function startSock() {
         );
       }
     }
-  ];
+  ]);
 
   // Add more dynamic handlers below
   commandHandlers.push(...[
@@ -845,7 +861,7 @@ async function startSock() {
             });
             return `✅ Order created successfully!\n- Item: ${dish.name}\n- Quantity: ${quantity}\n- Table: ${tableNumber}\n- Total: $${dish.price * quantity}\nOrder ID: ${orderRes.data._id}`;
           } else {
-            return `Item \"${itemName}\" not found in menu. Please check the spelling.`;
+            return `Item "${itemName}" not found in menu. Please check the spelling.`;
           }
         }
         return '📝 To create an order, use: "order 2 Samosa table 4", "order Samosa 2 table 4", or "order Samosa 2"';
@@ -911,7 +927,35 @@ async function startSock() {
   });
 
   // Fallback handler: try to match any feature by keywords and route to closest handler
-  commandHandlers.push({
+  commandHandlers.push(
+    // Add Sale command
+    {
+      match: (text) => /^sale\s+\d+(\.\d+)?$/i.test(text),
+      handler: async (text, userJid) => {
+        const amount = parseFloat(text.split(' ')[1]);
+        const sales = readSales();
+        const newSale = {
+          amount,
+          date: new Date().toISOString(),
+          user: userJid
+        };
+        sales.push(newSale);
+        writeSales(sales);
+        return `✅ Sale of $${amount} recorded.`;
+      }
+    },
+    // Today's Sales command
+    {
+      match: (text) => /^today sales$/i.test(text),
+      handler: async (text, userJid) => {
+        const sales = readSales();
+        const today = new Date().toISOString().split('T')[0];
+        const todaySales = sales.filter(sale => sale.date.startsWith(today));
+        const total = todaySales.reduce((sum, sale) => sum + sale.amount, 0);
+        return `💰 Today's total sales: $${total.toFixed(2)}`;
+      }
+    },
+    {
     match: (text) => true, // always matches last
     handler: async (text, userJid) => {
       // Try to route to a feature by keyword
@@ -932,7 +976,7 @@ async function startSock() {
       // If nothing matches, show help
       return await commandHandlers.find(cmd => /help/.test(cmd.match.toString())).handler(text, userJid);
     }
-  });
+  );
 
   // Add 15 more dynamic, human-friendly command handlers for WhatsApp bot, using available or mock backend APIs. Each handler should reply in a conversational, helpful tone and format. Use real endpoints where possible, otherwise mock the response with a realistic message.
   commandHandlers.push(...[
@@ -1593,4 +1637,4 @@ app.post('/api/whatsapp/selftest', async (req, res) => {
 
 app.listen(5001, () => {
   console.log('WhatsApp API server running on port 5001');
-}); 
+});

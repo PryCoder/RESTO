@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 import {
   Box, Flex, Grid, Text, Button, Input, Select,
   Spinner, useToast, useDisclosure,
@@ -158,9 +159,7 @@ function UserProfileInner() {
   const navigate = useNavigate?.() || (() => {});
   const toast = useToast();
 
-  const VITE_API_URL = (typeof import.meta !== 'undefined' && import.meta.env)
-    ? (import.meta.env.VITE_API_URL || 'http://localhost:4000')
-    : 'http://localhost:4000';
+  const VITE_API_URL = API_BASE_URL;
 
   const [user, setUser]         = useState(null);
   const [loading, setLoading]   = useState(true);

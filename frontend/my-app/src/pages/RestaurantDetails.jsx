@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 import {
   Box,
   Container,
@@ -170,7 +171,7 @@ const RestaurantDetailsPage = () => {
   const mutedColor = useColorModeValue('gray.600', 'gray.400');
 
   
-  const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const VITE_API_URL = API_BASE_URL;
   const token = localStorage.getItem('token');
 
   // Get user from localStorage

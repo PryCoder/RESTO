@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as faceapi from 'face-api.js';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
 export default function FaceAttendanceScanner({ restaurantId, staff = [], onSuccess, onClose }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -105,10 +106,7 @@ export default function FaceAttendanceScanner({ restaurantId, staff = [], onSucc
         return;
       }
 
-      const VITE_API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(
-        'localhost',
-        window.location.hostname
-      );
+      const VITE_API_URL = API_BASE_URL;
       const token = localStorage.getItem('token');
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
