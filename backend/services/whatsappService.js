@@ -300,15 +300,35 @@ async function startWhatsAppBot(onQR, reset = false) {
         // - "sale 250" -> logs a sale amount
         // - "today sales" -> sums today's logged sales
         if (text === 'today sales') {
-          const now = new Date();
-          const sales = readSales();
-          const todays = sales.filter((s) => {
-            const at = new Date(s?.at);
-            return Number.isFinite(at.getTime()) && isSameLocalDate(at, now);
-          });
-          const total = todays.reduce((sum, s) => sum + (Number(s?.amount) || 0), 0);
-          await send({ text: `Today's sales: ₹${total}\nCount: ${todays.length}` });
-          return;
+            // Match website KPI logic: sum today's orders.
+            // Fallback to local file log if auth/token is not available.
+            try {
+              if (!backendJwtToken) throw new Error('Missing backend JWT token');
+
+              const headers = { Authorization: `Bearer ${backendJwtToken}` };
+              const ordersRes = await axios.get(`${BACKEND_URL}/api/orders`, { headers });
+              const orders = Array.isArray(ordersRes.data) ? ordersRes.data : [];
+
+              const now = new Date();
+              const todaysOrders = orders.filter((o) => {
+                const createdAt = new Date(o?.createdAt);
+                return Number.isFinite(createdAt.getTime()) && isSameLocalDate(createdAt, now);
+              });
+              const total = todaysOrders.reduce((sum, o) => sum + (Number(o?.totalAmount ?? o?.total ?? 0) || 0), 0);
+
+              await send({ text: `Today's sales: ₹${total.toLocaleString()}\nOrders: ${todaysOrders.length}` });
+              return;
+            } catch {
+              const now = new Date();
+              const sales = readSales();
+              const todays = sales.filter((s) => {
+                const at = new Date(s?.at);
+                return Number.isFinite(at.getTime()) && isSameLocalDate(at, now);
+              });
+              const total = todays.reduce((sum, s) => sum + (Number(s?.amount) || 0), 0);
+              await send({ text: `Today's sales: ₹${total.toLocaleString()}\nCount: ${todays.length}` });
+              return;
+            }
         }
 
         if (text.startsWith('sale')) {

@@ -7,12 +7,28 @@ import { API_BASE_URL } from '../config/apiBaseUrl';
 
 const SOCKET_URL = API_BASE_URL;
 
-export default function NotificationBell({ restaurantId }) {
+export default function NotificationBell({ restaurantId, inline = false }) {
+  const INR = '\u20B9';
   const [urgentOrders, setUrgentOrders] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [socket, setSocket] = useState(null);
+
+  // Normalize legacy statuses into the canonical backend enum values.
+  const normalizeStatus = (status) => {
+    switch (status) {
+      case 'processing':
+        return 'preparing';
+      case 'ready':
+        return 'served';
+      case 'received':
+      case 'completed':
+        return 'paid';
+      default:
+        return status;
+    }
+  };
 
   // Fetch urgent orders that haven't been received within 10 minutes
   const fetchUrgentOrders = async () => {
@@ -28,11 +44,13 @@ export default function NotificationBell({ restaurantId }) {
         const orderTime = new Date(order.createdAt);
         const currentTime = new Date();
         const timeDiff = (currentTime - orderTime) / (1000 * 60); // in minutes
+
+        const status = normalizeStatus(order.status);
         
         // Check if order is > 10 minutes old and not yet received
-        const isUrgent = timeDiff > 10 && 
-                        ['pending', 'processing', 'preparing', 'ready'].includes(order.status) &&
-                        order.status !== 'received';
+        const isUrgent =
+          timeDiff > 10 &&
+          ['pending', 'preparing', 'served'].includes(status);
         
         return isUrgent;
       });
@@ -72,7 +90,7 @@ export default function NotificationBell({ restaurantId }) {
       await fetchUrgentOrders();
       
       // Show success message
-      alert(`Order ${orderId.slice(-6)} marked as ${newStatus}`);
+      alert(`Order ${orderId.slice(-6)} marked as ${getStatusName(newStatus)}`);
       
     } catch (error) {
       console.error('Error updating order status:', error);
@@ -80,37 +98,30 @@ export default function NotificationBell({ restaurantId }) {
     }
   };
 
-  // Mark order as received
-  const markAsReceived = async (orderId) => {
-    await updateOrderStatus(orderId, 'received');
-  };
-
   // Get status badge color
   const getStatusColor = (status) => {
+    const s = normalizeStatus(status);
     const colors = {
       pending: '#fbbf24',
-      processing: '#8b5cf6',
       preparing: '#f59e0b',
-      ready: '#10b981',
-      received: '#6b7280',
-      completed: '#22c55e',
+      served: '#10b981',
+      paid: '#6b7280',
       cancelled: '#ef4444'
     };
-    return colors[status] || '#6b7280';
+    return colors[s] || '#6b7280';
   };
 
   // Get status display name
   const getStatusName = (status) => {
+    const s = normalizeStatus(status);
     const names = {
       pending: 'Pending',
-      processing: 'Processing',
       preparing: 'Preparing',
-      ready: 'Ready',
-      received: 'Received',
-      completed: 'Completed',
+      served: 'Ready',
+      paid: 'Paid',
       cancelled: 'Cancelled'
     };
-    return names[status] || status;
+    return names[s] || s;
   };
 
   // Get time elapsed
@@ -231,7 +242,19 @@ export default function NotificationBell({ restaurantId }) {
       <div 
         className="notification-bell" 
         onClick={handleOpenModal}
-        style={{ zIndex: 9999 }}
+        style={{
+          zIndex: 9999,
+          ...(inline
+            ? {
+                position: 'relative',
+                top: 'auto',
+                right: 'auto',
+                width: 40,
+                height: 40,
+                boxShadow: 'none',
+              }
+            : null),
+        }}
       >
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -269,14 +292,15 @@ export default function NotificationBell({ restaurantId }) {
                   {urgentOrders.map((order) => {
                     const urgencyLevel = getUrgencyLevel(order.createdAt);
                     const elapsedTime = getTimeElapsed(order.createdAt);
+                    const status = normalizeStatus(order.status);
                     
                     return (
                       <div key={order._id} className={`urgent-order-card ${urgencyLevel}`}>
                         <div className="order-header">
                           <div className="order-info">
                             <span className="order-id">Order #{order._id.slice(-6)}</span>
-                            <span className="status-badge" style={{ backgroundColor: getStatusColor(order.status) }}>
-                              {getStatusName(order.status)}
+                            <span className="status-badge" style={{ backgroundColor: getStatusColor(status) }}>
+                              {getStatusName(status)}
                             </span>
                           </div>
                           <div className="order-time">
@@ -306,7 +330,7 @@ export default function NotificationBell({ restaurantId }) {
                             </ul>
                           </div>
                           <div className="order-total">
-                            <strong>Total:</strong> ₹{order.totalAmount}
+                            <strong>Total:</strong> {INR}{order.totalAmount}
                           </div>
                           {order.customer && (
                             <div className="customer-info">
@@ -316,36 +340,28 @@ export default function NotificationBell({ restaurantId }) {
                         </div>
 
                         <div className="order-actions">
-                          {order.status === 'pending' && (
+                          {status === 'pending' && (
                             <button 
                               className="action-btn processing"
-                              onClick={() => updateOrderStatus(order._id, 'processing')}
-                            >
-                              Start Processing
-                            </button>
-                          )}
-                          {order.status === 'processing' && (
-                            <button 
-                              className="action-btn preparing"
                               onClick={() => updateOrderStatus(order._id, 'preparing')}
                             >
                               Start Preparing
                             </button>
                           )}
-                          {order.status === 'preparing' && (
+                          {status === 'preparing' && (
                             <button 
                               className="action-btn ready"
-                              onClick={() => updateOrderStatus(order._id, 'ready')}
+                              onClick={() => updateOrderStatus(order._id, 'served')}
                             >
                               Mark as Ready
                             </button>
                           )}
-                          {order.status === 'ready' && (
+                          {status === 'served' && (
                             <button 
                               className="action-btn received"
-                              onClick={() => markAsReceived(order._id)}
+                              onClick={() => updateOrderStatus(order._id, 'paid')}
                             >
-                              Mark as Received
+                              Mark as Paid
                             </button>
                           )}
                           <button 

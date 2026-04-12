@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   Box,
   Card,
@@ -16,7 +16,7 @@ import {
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 export default function MonthlySalesGraph({ orders = [] }) {
-  const [monthlyData, setMonthlyData] = useState([]);
+  const INR = '\u20B9';
   const [blue500, blue600, blue50, gray600, gray200, gray900, white] = useToken('colors', [
     'blue.500',
     'blue.600',
@@ -27,36 +27,26 @@ export default function MonthlySalesGraph({ orders = [] }) {
     'white',
   ]);
 
-  useEffect(() => {
-    // Generate monthly sales data for the last 6 months
-    const generateMonthlyData = () => {
-      const data = [];
-      const currentDate = new Date();
-      
-      for (let i = 5; i >= 0; i--) {
-        const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-        const monthName = targetDate.toLocaleDateString('en-US', { month: 'short' });
-        
-        // Calculate sales for this month from orders
-        const monthSales = orders
-          .filter(order => {
-            const orderDate = new Date(order.createdAt);
-            return orderDate.getMonth() === targetDate.getMonth() && 
-                   orderDate.getFullYear() === targetDate.getFullYear();
-          })
-          .reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-        
-        data.push({
-          month: monthName,
-          sales: monthSales,
-          target: Math.floor(Math.random() * 50000) + 20000 // Mock target for demo
-        });
-      }
-      
-      setMonthlyData(data);
-    };
+  const monthlyData = useMemo(() => {
+    const data = [];
+    const currentDate = new Date();
+    const safeOrders = Array.isArray(orders) ? orders : [];
 
-    generateMonthlyData();
+    for (let i = 5; i >= 0; i--) {
+      const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const monthName = targetDate.toLocaleDateString('en-US', { month: 'short' });
+
+      const monthSales = safeOrders
+        .filter((order) => {
+          const orderDate = new Date(order?.createdAt);
+          return orderDate.getMonth() === targetDate.getMonth() && orderDate.getFullYear() === targetDate.getFullYear();
+        })
+        .reduce((sum, order) => sum + (order?.totalAmount || 0), 0);
+
+      data.push({ month: monthName, sales: monthSales });
+    }
+
+    return data;
   }, [orders]);
 
   const totalSales = useMemo(() => monthlyData.reduce((sum, item) => sum + (item.sales || 0), 0), [monthlyData]);
@@ -88,7 +78,7 @@ export default function MonthlySalesGraph({ orders = [] }) {
               Total Sales
             </StatLabel>
             <StatNumber fontSize={{ base: 'lg', md: 'xl' }} color="blue.700">
-              ₹{Math.round(totalSales).toLocaleString('en-IN')}
+              {INR}{Math.round(totalSales).toLocaleString('en-IN')}
             </StatNumber>
           </Stat>
 
@@ -97,7 +87,7 @@ export default function MonthlySalesGraph({ orders = [] }) {
               Average / Month
             </StatLabel>
             <StatNumber fontSize={{ base: 'lg', md: 'xl' }} color="gray.900">
-              ₹{Math.round(avgSales).toLocaleString('en-IN')}
+              {INR}{Math.round(avgSales).toLocaleString('en-IN')}
             </StatNumber>
           </Stat>
 
@@ -132,10 +122,10 @@ export default function MonthlySalesGraph({ orders = [] }) {
                   tick={{ fill: gray600, fontSize: 11 }}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                  tickFormatter={(v) => `${INR}${(v / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
-                  formatter={(v) => `₹${Number(v || 0).toLocaleString('en-IN')}`}
+                  formatter={(v) => `${INR}${Number(v || 0).toLocaleString('en-IN')}`}
                   contentStyle={{
                     background: white,
                     borderRadius: 10,
@@ -153,6 +143,7 @@ export default function MonthlySalesGraph({ orders = [] }) {
                   fill="url(#salesGradient)"
                   dot={{ fill: blue500, strokeWidth: 0, r: 3 }}
                   activeDot={{ r: 5, stroke: blue500, strokeWidth: 2, fill: white }}
+                  isAnimationActive={false}
                 />
               </AreaChart>
             </ResponsiveContainer>

@@ -158,16 +158,44 @@ export const updateOrderStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid Order ID' });
+    }
+
+    const normalizeStatus = (value) => {
+      switch (value) {
+        case 'processing':
+          return 'preparing';
+        case 'ready':
+          return 'served';
+        case 'received':
+        case 'completed':
+          return 'paid';
+        default:
+          return value;
+      }
+    };
+
+    const nextStatus = normalizeStatus(status);
+    const allowedStatuses = Order.schema.path('status')?.enumValues || [];
+
+    if (!nextStatus || !allowedStatuses.includes(nextStatus)) {
+      return res.status(400).json({
+        error: 'Invalid status value',
+        allowed: allowedStatuses,
+      });
+    }
+
     const order = await Order.findById(id);
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    order.status = status;
+    order.status = nextStatus;
     order.updatedAt = new Date();
 
     if (
-      status === 'cancelled' &&
+      nextStatus === 'cancelled' &&
       order.inventoryDeductedAt &&
       !order.inventoryRestoredAt &&
       Array.isArray(order.inventoryDeductions) &&

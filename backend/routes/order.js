@@ -192,12 +192,12 @@ router.get('/urgent', authMiddleware, redisCache({ ttlSeconds: 10, scope: 'user'
     }
     
     // Find orders that are:
-    // 1. Not completed or cancelled
-    // 2. Not yet received
-    // 3. Older than 10 minutes
+    // 1. Not paid or cancelled
+    // 2. Older than 10 minutes
     const urgentOrders = await Order.find({
       restaurant: restaurantId,
-      status: { $nin: ['completed', 'cancelled', 'received'] },
+      // Include legacy states for safety, but prefer canonical ones.
+      status: { $in: ['pending', 'processing', 'preparing', 'ready', 'served'] },
       createdAt: { 
         $lt: new Date(Date.now() - 10 * 60 * 1000) // Older than 10 minutes
       }

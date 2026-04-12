@@ -453,7 +453,7 @@ export default function WaiterDashboard() {
                   fontWeight="700" fontSize="17px" color={T.blue800}
                   letterSpacing="-0.3px" lineHeight="1"
                 >
-                  TableFlow <Text as="span" fontSize="11px" fontWeight="400" color="gray.400">AI</Text>
+                  RestoAI 
                 </Text>
               </Box>
               <Badge

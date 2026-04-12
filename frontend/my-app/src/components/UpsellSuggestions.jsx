@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-
-export default function UpsellSuggestions({ restaurantId, userRole }) {
+export default function UpsellSuggestions({ restaurantId, userRole, orders = [] }) {
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -19,10 +18,17 @@ export default function UpsellSuggestions({ restaurantId, userRole }) {
     { message: "Upsell premium sides with burger orders", category: "upsell", confidence: 0.88, ingredient: "Sides" }
   ];
 
-  // Auto-load upsell suggestions on component mount
+  const ordersKey = Array.isArray(orders) && orders.length
+    ? `${orders.length}-${orders[orders.length - 1]?.createdAt || ''}`
+    : String(Array.isArray(orders) ? orders.length : 0);
+
+  // Auto-load + refresh when new orders arrive (debounced)
   useEffect(() => {
-    fetchUpsellSuggestions();
-  }, []);
+    const t = setTimeout(() => {
+      fetchUpsellSuggestions();
+    }, 450);
+    return () => clearTimeout(t);
+  }, [restaurantId, ordersKey]);
 
   // Pulse animation for loading state
   useEffect(() => {
@@ -45,7 +51,10 @@ export default function UpsellSuggestions({ restaurantId, userRole }) {
       }
       
       const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.get(`${API_URL}/api/ai/upsell`, { headers });
+      const url = restaurantId
+        ? `${API_BASE_URL}/api/ai/upsell?restaurantId=${encodeURIComponent(restaurantId)}`
+        : `${API_BASE_URL}/api/ai/upsell`;
+      const response = await axios.get(url, { headers });
       
       // Handle different response formats
       let suggestionsData = [];
@@ -60,26 +69,64 @@ export default function UpsellSuggestions({ restaurantId, userRole }) {
         suggestionsData = response.data.alerts;
       }
       
-      // Check if the data contains objects with message property
-      if (suggestionsData.length > 0) {
-        if (typeof suggestionsData[0] === 'object' && suggestionsData[0].message) {
-          // Data is array of objects with message property
-          setSuggestions(suggestionsData);
-        } else if (typeof suggestionsData[0] === 'string') {
-          // Data is array of strings - convert to object format
-          const formattedSuggestions = suggestionsData.map((item, index) => ({
-            message: item,
-            category: index === 0 ? 'top' : index === 1 ? 'medium' : 'low',
-            confidence: 0.8 - (index * 0.1),
-            ingredient: 'General'
-          }));
-          setSuggestions(formattedSuggestions);
-        } else {
-          setSuggestions(staticSuggestions);
-        }
-      } else {
+      // Normalize response to the UI's expected shape
+      if (!suggestionsData || suggestionsData.length === 0) {
         setSuggestions(staticSuggestions);
+        setLoading(false);
+        return;
       }
+
+      const first = suggestionsData[0];
+
+      if (typeof first === 'string') {
+        const formatted = suggestionsData.map((item, index) => ({
+          message: item,
+          category: 'upsell',
+          confidence: Math.max(0.55, 0.85 - index * 0.08),
+          ingredient: 'General',
+        }));
+        setSuggestions(formatted);
+        setLoading(false);
+        return;
+      }
+
+      if (typeof first === 'object' && first) {
+        // Common backend shape: [{ base, upsell }, ...]
+        if ('base' in first && 'upsell' in first) {
+          const formatted = suggestionsData
+            .filter((s) => s && (s.base || s.upsell))
+            .map((s, index) => ({
+              message: `${s.base || 'Item'} \u2192 ${s.upsell || 'Add-on'}`,
+              category: 'upsell',
+              confidence: typeof s.confidence === 'number' ? s.confidence : Math.max(0.55, 0.9 - index * 0.1),
+              ingredient: s.ingredient || 'General',
+            }));
+
+          setSuggestions(formatted.length ? formatted : staticSuggestions);
+          setLoading(false);
+          return;
+        }
+
+        // Existing supported shape: [{ message, ... }]
+        if ('message' in first) {
+          setSuggestions(suggestionsData);
+          setLoading(false);
+          return;
+        }
+
+        // Fallback for other object shapes
+        const formatted = suggestionsData.map((s, index) => ({
+          message: s.text || s.title || JSON.stringify(s),
+          category: s.category || 'upsell',
+          confidence: typeof s.confidence === 'number' ? s.confidence : Math.max(0.55, 0.85 - index * 0.08),
+          ingredient: s.ingredient || 'General',
+        }));
+        setSuggestions(formatted);
+        setLoading(false);
+        return;
+      }
+
+      setSuggestions(staticSuggestions);
       
       setLoading(false);
     } catch (err) {

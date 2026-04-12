@@ -41,6 +41,7 @@ import {
   Badge,
   Divider,
   IconButton,
+  Icon,
   Flex,
   Container,
   useToast,
@@ -56,7 +57,9 @@ import {
   Avatar,
   AvatarGroup,
   Center,
-  Spinner
+  Spinner,
+  InputGroup,
+  InputLeftElement
 } from '@chakra-ui/react'
 import { 
   Receipt, 
@@ -68,7 +71,17 @@ import {
   ScanLine,
   CheckCircle,
   ArrowLeft,
-  Smartphone
+  Smartphone,
+  User,
+  Search,
+  TrendingUp,
+  Users,
+  DollarSign,
+  AlertTriangle,
+  ClipboardList,
+  Sparkles,
+  ArrowUpRight,
+  LayoutGrid
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 
@@ -82,7 +95,7 @@ import SmartLeftoverReuse from '../components/SmartLeftoverReuse.jsx';
 import InventoryWasteAlert from '../components/InventoryWasteAlert.jsx';
 import InventoryManagement from './InventoryManagement.jsx';
 import TraceabilitySafety from '../components/TraceabilitySafety.jsx';
-import DynamicPricing from '../components/DynamicPricing.jsx';
+
 import FoodSecurityGrid from '../components/FoodSecurityGrid.jsx';
 import VoiceAssistant from '../components/VoiceAssistant.jsx';
 import './managerdashboard.css';
@@ -107,6 +120,8 @@ export default function ManagerDashboard() {
   const highlightTimeoutRef = useRef(null);
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const [dashboardQuery, setDashboardQuery] = useState('');
+  const [dashboardChip, setDashboardChip] = useState('All');
   const [inventory, setInventory] = useState([]);
   const [managerId, setManagerId] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -184,6 +199,12 @@ const VITE_API_URL = API_BASE_URL;
       fetchRegisteredFaces();
     }
   }, [activePage, restaurantId]);
+
+  useEffect(() => {
+    if (showAddDish || showAddOrder) {
+      if (!dishes.length) fetchDishes();
+    }
+  }, [showAddDish, showAddOrder]);
 
   const saveManagerPin = async () => {
     try {
@@ -263,7 +284,7 @@ const generateRealUPIPayment = (amount, tableNo, orderIds = []) => {
   const restaurant = restaurantName || 'RestoPOS AI';
   
   // Create a clean, professional message for GPay
-  const transactionNote = `Bill Payment - ${restaurant} - Table ${tableNo} - ₹${amount}`;
+  const transactionNote = `Bill Payment - ${restaurant} - Table ${tableNo} - \u20B9${amount}`;
   
   const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
   
@@ -307,7 +328,7 @@ const confirmUPIPayment = async () => {
     fetchOrders();
     
     setPaymentStatus('success');
-    alert(`✅ Payment of ₹${currentPayment.amount} received via UPI!`);
+    alert(`✅ Payment of \u20B9${currentPayment.amount} received via UPI!`);
     
     // Reset after 2 seconds
     setTimeout(() => {
@@ -334,7 +355,7 @@ const openUPIApp = (amount, tableNo) => {
     alert(`If UPI app didn't open automatically:
     
 1. Open your UPI app (GPay, PhonePe, Paytm, etc.)
-2. Send ₹${amount} to: priyanshugupta007007@okaxis
+2. Send \u20B9${amount} to: priyanshugupta007007@okaxis
 3. Add note: "Table ${tableNo} Bill"
 4. Come back here and click "Payment Done"`);
   }, 1000);
@@ -541,43 +562,8 @@ const openUPIApp = (amount, tableNo) => {
       ), 
       color: '#17a2b8' 
     },
-    { 
-      id: 'traceability', 
-      label: 'Traceability & Safety', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/>
-          <line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-      ), 
-      color: '#343a40' 
-    },
-    { 
-      id: 'dynamicpricing', 
-      label: 'Dynamic Pricing', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="12" y1="1" x2="12" y2="23"/>
-          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-        </svg>
-      ), 
-      color: '#ffc107' 
-    },
-    { 
-      id: 'foodsecurity', 
-      label: 'Food Security Grid', 
-      icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M12 1v6m0 6v6"/>
-          <path d="M21 12h-6m-6 0H3"/>
-          <path d="M3.5 3.5l4.5 4.5m0 0l4.5 4.5"/>
-          <path d="M20.5 3.5l-4.5 4.5m0 0l-4.5 4.5"/>
-        </svg>
-      ), 
-      color: '#28a745' 
-    }
+
+   
   ];
 
   // Fetch inventory for voice assistant
@@ -941,13 +927,7 @@ const openUPIApp = (amount, tableNo) => {
           utter.lang = 'en-IN';
           window.speechSynthesis.speak(utter);
         }
-      } else if (cmd.includes('traceability')) {
-        setActivePage('traceability');
-      } else if (cmd.includes('dynamic pricing') || cmd.includes('profit')) {
-        setActivePage('dynamicpricing');
-      } else if (cmd.includes('food security') || cmd.includes('donate')) {
-        setActivePage('foodsecurity');
-      } else if (cmd.includes('orders')) {
+       } else if (cmd.includes('orders')) {
         setActivePage('orders');
       } else if (cmd.includes('kitchen')) {
         setActivePage('kitchen');
@@ -1468,1229 +1448,424 @@ const openUPIApp = (amount, tableNo) => {
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        backgroundColor: '#f8f9fa'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            width: '50px', 
-            height: '50px', 
-            border: '4px solid #e9ecef', 
-            borderTop: '4px solid #007bff', 
-            borderRadius: '50%', 
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto 20px auto'
-          }}></div>
-          <p style={{ color: '#6c757d', fontSize: '18px' }}>Loading Manager Dashboard...</p>
-          <style>{`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          `}</style>
-        </div>
-      </div>
+      <Center minH="100vh" bg="#FAFAF8" flexDir="column" gap={4}>
+        <Spinner thickness="3px" speed="0.8s" color="blackAlpha.800" size="lg" />
+        <Text color="blackAlpha.600" fontWeight={600}>
+          Loading dashboard...
+        </Text>
+      </Center>
     );
   }
 
   const renderPageContent = () => {
     switch (activePage) {
-      case 'dashboard':
-        // Calculate trending dishes based on order frequency
+      case 'dashboard': {
         const getTrendingDishes = () => {
-          const dishCounts = {};
-          
-          // Count occurrences of each dish in orders
-          orders.forEach(order => {
-            order.items.forEach(item => {
-              const dishName = item.name;
-              dishCounts[dishName] = (dishCounts[dishName] || 0) + item.quantity;
+          const dishCounts = new Map();
+
+          (orders || []).forEach((order) => {
+            (order?.items || []).forEach((item) => {
+              const dishName = String(item?.name || 'Unknown');
+              const qty = Number(item?.quantity || 0);
+              dishCounts.set(dishName, (dishCounts.get(dishName) || 0) + qty);
             });
           });
-          
-          // Convert to array and sort by count (descending)
-          const trendingArray = Object.entries(dishCounts)
+
+          return Array.from(dishCounts.entries())
             .map(([name, count]) => ({ name, count }))
             .sort((a, b) => b.count - a.count)
-            .slice(0, 10); // Top 10
-          
-          return trendingArray;
+            .slice(0, 10);
         };
 
         const trendingDishes = getTrendingDishes();
+        const query = dashboardQuery.trim().toLowerCase();
+        const visibleTrending = query
+          ? trendingDishes.filter((d) => d.name.toLowerCase().includes(query))
+          : trendingDishes;
+
+        const now = new Date();
+        const filteredOrders = (orders || []).filter((o) => {
+          if (!o?.createdAt || dashboardChip === 'All') return true;
+          const createdAt = new Date(o.createdAt);
+          if (dashboardChip === 'Today') return createdAt.toDateString() === now.toDateString();
+          if (dashboardChip === 'This Week') {
+            const sevenDaysAgo = new Date(now);
+            sevenDaysAgo.setDate(now.getDate() - 7);
+            return createdAt >= sevenDaysAgo;
+          }
+          if (dashboardChip === 'Alerts') return true;
+          return true;
+        });
+
+        const recentOrders = [...filteredOrders]
+          .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
+          .slice(0, 6);
+
+        const kpis = [
+          {
+            label: "Today's Sales",
+            value: `INR ${Number(todaysSales || 0).toLocaleString('en-IN')}`,
+            icon: DollarSign,
+            hint: 'Gross',
+          },
+          { label: 'Orders', value: String(orders?.length || 0), icon: ClipboardList, hint: 'Total' },
+          {
+            label: 'Occupied Tables',
+            value: String(seatedTables?.length || 0),
+            icon: LayoutGrid,
+            hint: 'Now',
+          },
+          { label: 'Staff', value: String(staff?.length || 0), icon: Users, hint: 'Roster' },
+          {
+            label: 'Waste Alerts',
+            value: String(wasteAlerts?.length || 0),
+            icon: AlertTriangle,
+            hint: 'Open',
+          },
+        ];
+
+        const dashboardCards = [
+          {
+            title: 'Monthly Sales',
+            icon: TrendingUp,
+            content: <MonthlySalesGraph orders={orders} />,
+          },
+          {
+            title: 'Waste Analysis',
+            icon: AlertTriangle,
+            content: <WasteAnalysis restaurantId={restaurantId} userRole="manager" />,
+          },
+          {
+            title: 'Sales & Profit Advisor',
+            icon: DollarSign,
+            content: <SalesProfitAdvisor restaurantId={restaurantId} userRole="manager" orders={orders} />,
+          },
+         
+          {
+            title: 'Upsell Suggestions',
+            icon: ArrowUpRight,
+            content: <UpsellSuggestions restaurantId={restaurantId} userRole="manager" orders={orders} />,
+          },
+          {
+            title: 'Smart Leftover Reuse',
+            icon: Sparkles,
+            content: <SmartLeftoverReuse restaurantId={restaurantId} userRole="manager" />,
+          },
+          {
+            title: 'Inventory Waste Alerts',
+            icon: AlertTriangle,
+            content: <InventoryWasteAlert restaurantId={restaurantId} userRole="manager" />,
+          },
+        ];
 
         return (
-          <div className="manager-dashboard-premium-bg">
-            <style>{`
-              @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=DM+Sans:wght@400;500;700&display=swap');
-              .manager-dashboard-premium-bg {
-                position: relative;
-                min-height: 100vh;
-                padding: 0;
-                background: linear-gradient(120deg, #f8fafc 0%, #e0e7ff 100%);
-                overflow: hidden;
-                z-index: 0;
-                font-family: 'DM Sans', sans-serif;
-              }
-              body {
-                background: linear-gradient(120deg, #f8fafc 0%, #e0e7ff 100%);
-                margin: 0;
-                padding: 0;
-                min-height: 100vh;
-              }
-              html {
-                background: linear-gradient(120deg, #f8fafc 0%, #e0e7ff 100%);
-                min-height: 100vh;
-              }
-              .premium-bg-svg {
-                position: absolute;
-                z-index: 0;
-                pointer-events: none;
-              }
-              .premium-bg-svg.top {
-                top: -120px; left: -120px; width: 420px; height: 320px; opacity: 0.22;
-                filter: blur(2px);
-              }
-              .premium-bg-svg.bottom {
-                bottom: -100px; right: -100px; width: 420px; height: 320px; opacity: 0.18;
-                filter: blur(2px);
-              }
-              .dashboard-header-premium {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 48px 40px 0 40px;
-                position: relative;
-                z-index: 2;
-              }
-              .dashboard-title-premium {
-                font-family: 'Sora', sans-serif;
-                font-size: 2.5rem;
-                font-weight: 700;
-                color: #232946;
-                letter-spacing: 0.01em;
-                margin-bottom: 0.1em;
-                line-height: 1.1;
-              }
-              .dashboard-actions-premium {
-                display: flex;
-                gap: 16px;
-              }
-              .dashboard-action-btn-premium {
-                background: linear-gradient(90deg,#6366f1,#818cf8);
-                color: #fff;
-                border: none;
-                border-radius: 18px 32px 32px 18px;
-                padding: 12px 28px;
-                font-family: 'Sora', sans-serif;
-                font-weight: 600;
-                font-size: 1.08rem;
-                cursor: pointer;
-                box-shadow: 0 2px 18px #6366f122;
-                transition: background 0.18s, box-shadow 0.18s, transform 0.18s;
-              }
-              .dashboard-action-btn-premium:hover {
-                background: linear-gradient(90deg,#818cf8,#6366f1);
-                box-shadow: 0 4px 32px #6366f144;
-                transform: translateY(-2px) scale(1.04);
-              }
-              .dashboard-kpi-row-premium {
-                display: flex;
-                flex-direction: row;
-                flex-wrap: wrap;
-                gap: 20px;
-                margin: 40px 20px 0 20px;
-                z-index: 2;
-                position: relative;
-                justify-content: center;
-                align-items: stretch;
-              }
-              .dashboard-kpi-card-premium {
-                background: rgba(255,255,255,0.82);
-                border-radius: 32px 18px 32px 18px;
-                box-shadow: 0 4px 32px #6366f122, 0 1.5px 8px #818cf822;
-                padding: 24px 20px 20px 24px;
-                display: flex;
-                flex-direction: row;
-                align-items: center;
-                border: 1.5px solid #e0e7ff;
-                min-height: 100px;
-                position: relative;
-                gap: 16px;
-                overflow: hidden;
-                flex: 1;
-                min-width: 200px;
-                max-width: 280px;
-              }
-              .dashboard-kpi-icon-premium {
-                width: 44px; height: 44px;
-                border-radius: 14px;
-                background: linear-gradient(135deg,#818cf8 60%,#fbbf24 100%);
-                display: flex; align-items: center; justify-content: center;
-                font-size: 1.8rem; color: #fff;
-                margin-right: 8px;
-                box-shadow: 0 2px 12px #818cf822;
-                flex-shrink: 0;
-              }
-              .dashboard-kpi-label-premium {
-                font-family: 'DM Sans', sans-serif;
-                font-size: 0.95rem;
-                color: #64748b;
-                margin-bottom: 0.2em;
-                font-weight: 500;
-                line-height: 1.2;
-              }
-              .dashboard-kpi-value-premium {
-                font-family: 'Sora', sans-serif;
-                font-size: 1.9rem;
-                font-weight: 700;
-                color: #232946;
-                letter-spacing: 0.01em;
-                line-height: 1.1;
-              }
-              @media (max-width: 1200px) {
-                .dashboard-kpi-row-premium {
-                  gap: 16px;
-                  margin: 32px 16px 0 16px;
-                }
-                .dashboard-kpi-card-premium {
-                  min-width: 180px;
-                  max-width: 260px;
-                  padding: 20px 16px 16px 20px;
-                }
-                .dashboard-kpi-icon-premium {
-                  width: 40px; height: 40px;
-                  font-size: 1.6rem;
-                }
-                .dashboard-kpi-label-premium {
-                  font-size: 0.9rem;
-                }
-                .dashboard-kpi-value-premium {
-                  font-size: 1.7rem;
-                }
-              }
-              @media (max-width: 900px) {
-                .dashboard-kpi-row-premium {
-                  gap: 12px;
-                  margin: 24px 12px 0 12px;
-                  justify-content: space-between;
-                }
-                .dashboard-kpi-card-premium {
-                  min-width: calc(50% - 6px);
-                  max-width: calc(50% - 6px);
-                  padding: 18px 14px 14px 18px;
-                  min-height: 90px;
-                }
-                .dashboard-kpi-icon-premium {
-                  width: 36px; height: 36px;
-                  font-size: 1.4rem;
-                }
-                .dashboard-kpi-label-premium {
-                  font-size: 0.85rem;
-                }
-                .dashboard-kpi-value-premium {
-                  font-size: 1.5rem;
-                }
-              }
-              @media (max-width: 600px) {
-                .dashboard-kpi-row-premium {
-                  gap: 10px;
-                  margin: 20px 8px 0 8px;
-                  flex-direction: column;
-                  align-items: center;
-                }
-                .dashboard-kpi-card-premium {
-                  min-width: 100%;
-                  max-width: 100%;
-                  padding: 16px 12px 12px 16px;
-                  min-height: 80px;
-                  flex-direction: row;
-                  justify-content: flex-start;
-                }
-                .dashboard-kpi-icon-premium {
-                  width: 32px; height: 32px;
-                  font-size: 1.2rem;
-                }
-                .dashboard-kpi-label-premium {
-                  font-size: 0.8rem;
-                }
-                .dashboard-kpi-value-premium {
-                  font-size: 1.3rem;
-                }
-              }
-              .dashboard-main-grid-premium {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-                gap: 16px;
-                margin: 18px 8px 8px 8px;
-                z-index: 2;
-                position: relative;
-              }
-              .dashboard-waste-trending-container {
-                display: grid;
-                grid-template-columns: 1fr 320px;
-                gap: 16px;
-                margin: 18px 8px 8px 8px;
-                z-index: 2;
-                position: relative;
-              }
-              .dashboard-artistic-card-premium {
-                background: #fff;
-                border-radius: 18px;
-                box-shadow: 0 2px 8px #6366f122;
-                padding: 0 0 18px 0;
-                border: 1.5px solid #e0e7ff;
-                position: relative;
-                z-index: 3;
-                overflow: hidden;
-                display: flex;
-                flex-direction: column;
-                min-height: 180px;
-              }
-              .dashboard-artistic-header-premium {
-                background: linear-gradient(90deg,#6366f1,#fbbf24 90%);
-                color: #fff;
-                font-family: 'Sora', 'DM Sans', sans-serif;
-                font-size: 1.08rem;
-                font-weight: 700;
-                padding: 18px 24px 12px 24px;
-                border-top-left-radius: 18px;
-                border-top-right-radius: 18px;
-                margin-bottom: 0;
-                letter-spacing: 0.01em;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-              }
-              .dashboard-artistic-title-premium {
-                font-family: 'Sora', sans-serif;
-                font-size: 1.02rem;
-                font-weight: 700;
-                color: #232946;
-                margin-bottom: 0.2em;
-                letter-spacing: 0.01em;
-                text-shadow: 0 1px 6px #818cf855;
-                padding: 0 24px;
-                margin-top: 12px;
-              }
-              .dashboard-artistic-card-premium .dashboard-artistic-title-premium {
-                color: #232946;
-                font-size: 1.08rem;
-                font-weight: 700;
-                margin-bottom: 0.2em;
-                margin-top: 0.5em;
-                padding: 0 24px;
-              }
-              .dashboard-artistic-content-premium {
-                padding: 12px 24px 0 24px;
-                flex: 1;
-                display: flex;
-                flex-direction: column;
-                justify-content: flex-start;
-              }
-              .dashboard-artistic-card-premium.dashboard-hero-widget .dashboard-artistic-header-premium {
-                font-size: 1.18rem;
-                padding: 22px 32px 16px 32px;
-              }
-              .dashboard-artistic-card-premium.dashboard-hero-widget .dashboard-artistic-content-premium {
-                padding: 18px 32px 0 32px;
-              }
-              @media (max-width: 900px) {
-                .dashboard-main-grid-premium {
-                  grid-template-columns: 1fr;
-                  gap: 10px;
-                  margin: 8px 2px 2px 2px;
-                }
-                .dashboard-waste-trending-container {
-                  grid-template-columns: 1fr;
-                  gap: 10px;
-                  margin: 8px 2px 2px 2px;
-                }
-                .dashboard-artistic-header-premium {
-                  font-size: 1rem;
-                  padding: 12px 14px 8px 14px;
-                }
-                .dashboard-artistic-title-premium {
-                  font-size: 0.98rem;
-                  padding: 0 14px;
-                }
-                .dashboard-artistic-content-premium {
-                  padding: 8px 14px 0 14px;
-                }
-              }
-              @media (max-width: 600px) {
-                .dashboard-artistic-header-premium {
-                  font-size: 0.95rem;
-                  padding: 8px 8px 6px 8px;
-                }
-                .dashboard-artistic-title-premium {
-                  font-size: 0.92rem;
-                  padding: 0 8px;
-                }
-                .dashboard-artistic-content-premium {
-                  padding: 6px 8px 0 8px;
-                }
-              }
-              .trending-sidebar {
-                position: static;
-                transform: none;
-                width: 100%;
-                background: linear-gradient(120deg, #f8fafc 0%, #e0e7ff 100%);
-                border-radius: 18px;
-                box-shadow: 0 2px 8px #6366f122;
-                border: 1.5px solid #e0e7ff;
-                backdrop-filter: blur(12px);
-                z-index: 3;
-                max-height: none;
-                overflow: hidden;
-                display: flex;
-                flex-direction: column;
-                animation: none;
-              }
-              @keyframes slideInRight {
-                from { transform: translateX(100%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-              }
-              .trending-sidebar-header {
-                background: linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #a78bfa 100%);
-                color: #fff;
-                padding: 18px 24px 12px 24px;
-                border-radius: 18px 18px 0 0;
-                position: relative;
-                overflow: hidden;
-              }
-              .trending-sidebar-header::before {
-                content: '';
-                position: absolute;
-                top: -50%;
-                right: -50%;
-                width: 200%;
-                height: 200%;
-                background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-                animation: shimmer 3s infinite;
-              }
-              @keyframes shimmer {
-                0%, 100% { transform: rotate(0deg); }
-                50% { transform: rotate(180deg); }
-              }
-              .trending-header-content {
-                display: flex;
-                align-items: flex-start;
-                gap: 12px;
-                position: relative;
-                z-index: 2;
-              }
-              .trending-header-icon {
-                width: 40px;
-                height: 40px;
-                background: rgba(255,255,255,0.2);
-                border-radius: 12px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255,255,255,0.3);
-              }
-              .trending-header-text {
-                flex: 1;
-              }
-              .trending-sidebar-title {
-                font-family: 'Sora', sans-serif;
-                font-size: 1.2rem;
-                font-weight: 700;
-                margin: 0 0 4px 0;
-                letter-spacing: 0.01em;
-                text-shadow: 0 2px 8px rgba(0,0,0,0.2);
-              }
-              .trending-sidebar-subtitle {
-                font-size: 0.9rem;
-                opacity: 0.9;
-                margin: 0 0 8px 0;
-                font-weight: 500;
-              }
-              .trending-stats {
-                display: flex;
-                gap: 12px;
-                flex-wrap: wrap;
-              }
-              .trending-stat {
-                display: flex;
-                align-items: center;
-                gap: 4px;
-                font-size: 0.75rem;
-                opacity: 0.8;
-                background: rgba(255,255,255,0.1);
-                padding: 4px 8px;
-                border-radius: 8px;
-                backdrop-filter: blur(5px);
-              }
-              .trending-header-actions {
-                position: absolute;
-                top: 16px;
-                right: 16px;
-                display: flex;
-                gap: 8px;
-                z-index: 3;
-              }
-              .trending-action-btn {
-                width: 32px;
-                height: 32px;
-                background: rgba(255,255,255,0.2);
-                border: none;
-                border-radius: 8px;
-                color: #fff;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                backdrop-filter: blur(10px);
-                transition: all 0.2s;
-              }
-              .trending-action-btn:hover {
-                background: rgba(255,255,255,0.3);
-                transform: scale(1.1);
-              }
-              .trending-sidebar-content {
-                flex: 1;
-                overflow-y: auto;
-                padding: 0;
-                position: relative;
-              }
-              .trending-sidebar-content::-webkit-scrollbar {
-                width: 6px;
-              }
-              .trending-sidebar-content::-webkit-scrollbar-track {
-                background: rgba(224,231,255,0.3);
-                border-radius: 3px;
-              }
-              .trending-sidebar-content::-webkit-scrollbar-thumb {
-                background: linear-gradient(135deg, #6366f1, #818cf8);
-                border-radius: 3px;
-              }
-              .trending-summary {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 12px;
-                padding: 16px 20px;
-                background: rgba(255,255,255,0.5);
-                margin: 16px 16px 0 16px;
-                border-radius: 16px;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(224,231,255,0.5);
-              }
-              .trending-summary-item {
-                text-align: center;
-              }
-              .trending-summary-label {
-                font-size: 0.75rem;
-                color: #64748b;
-                font-weight: 600;
-                margin-bottom: 4px;
-              }
-              .trending-summary-value {
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: #232946;
-                font-family: 'Sora', sans-serif;
-              }
-              .trending-filters {
-                display: flex;
-                gap: 8px;
-                padding: 12px 20px;
-                overflow-x: auto;
-              }
-              .trending-filter-btn {
-                background: rgba(255,255,255,0.6);
-                border: 1px solid rgba(224,231,255,0.8);
-                border-radius: 20px;
-                padding: 6px 16px;
-                font-size: 0.8rem;
-                font-weight: 600;
-                color: #64748b;
-                cursor: pointer;
-                transition: all 0.2s;
-                white-space: nowrap;
-              }
-              .trending-filter-btn.active {
-                background: linear-gradient(135deg, #6366f1, #818cf8);
-                color: #fff;
-                border-color: #6366f1;
-                box-shadow: 0 2px 8px rgba(99,102,241,0.3);
-              }
-              .trending-filter-btn:hover:not(.active) {
-                background: rgba(255,255,255,0.8);
-                transform: translateY(-1px);
-              }
-              .trending-dishes-list {
-                padding: 0 16px 16px 16px;
-              }
-              .trending-dish-item {
-                background: rgba(255,255,255,0.8);
-                border-radius: 16px;
-                padding: 16px;
-                margin-bottom: 12px;
-                border: 1px solid rgba(224,231,255,0.6);
-                backdrop-filter: blur(10px);
-                transition: all 0.3s;
-                position: relative;
-                overflow: hidden;
-              }
-              .trending-dish-item::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 3px;
-                background: linear-gradient(90deg, #6366f1, #818cf8, #a78bfa);
-                opacity: 0;
-                transition: opacity 0.3s;
-              }
-              .trending-dish-item:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 8px 24px rgba(99,102,241,0.15);
-                border-color: rgba(99,102,241,0.3);
-              }
-              .trending-dish-item:hover::before {
-                opacity: 1;
-              }
-              .trending-dish-item.top-3 {
-                background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(224,231,255,0.8));
-                border-color: rgba(251,191,36,0.4);
-                box-shadow: 0 4px 16px rgba(251,191,36,0.2);
-              }
-              .trending-dish-item.top-3::before {
-                background: linear-gradient(90deg, #fbbf24, #f472b6, #a78bfa);
-                opacity: 1;
-              }
-              .trending-dish-rank-section {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                margin-bottom: 12px;
-              }
-              .trending-dish-rank {
-                width: 36px;
-                height: 36px;
-                border-radius: 50%;
-                background: linear-gradient(135deg, #64748b, #94a3b8);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: 700;
-                font-size: 1rem;
-                color: #fff;
-                position: relative;
-                box-shadow: 0 2px 8px rgba(100,116,139,0.3);
-              }
-              .trending-dish-rank.top-3 {
-                background: linear-gradient(135deg, #fbbf24, #f472b6);
-                box-shadow: 0 4px 16px rgba(251,191,36,0.4);
-                animation: pulse 2s infinite;
-              }
-              @keyframes pulse {
-                0%, 100% { transform: scale(1); }
-                50% { transform: scale(1.05); }
-              }
-              .trending-rank-medal {
-                position: absolute;
-                top: -8px;
-                right: -8px;
-                font-size: 1.2rem;
-                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
-              }
-              .trending-trend-indicator {
-                width: 24px;
-                height: 24px;
-                background: rgba(255,255,255,0.8);
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border: 1px solid rgba(224,231,255,0.6);
-              }
-              .trending-dish-info {
-                flex: 1;
-              }
-              .trending-dish-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: flex-start;
-                margin-bottom: 8px;
-              }
-              .trending-dish-name {
-                font-weight: 700;
-                color: #232946;
-                font-size: 1rem;
-                font-family: 'Sora', sans-serif;
-                flex: 1;
-              }
-              .trending-dish-category {
-                font-size: 0.75rem;
-                color: #64748b;
-                background: rgba(224,231,255,0.6);
-                padding: 2px 8px;
-                border-radius: 8px;
-                font-weight: 600;
-              }
-              .trending-dish-stats {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 8px;
-              }
-              .trending-dish-count {
-                display: flex;
-                align-items: center;
-                gap: 4px;
-                font-size: 0.85rem;
-                color: #6366f1;
-                font-weight: 600;
-              }
-              .trending-dish-percentage {
-                font-size: 0.8rem;
-                color: #64748b;
-                font-weight: 500;
-              }
-              .trending-dish-progress {
-                margin-bottom: 12px;
-              }
-              .trending-progress-bar {
-                width: 100%;
-                height: 6px;
-                background: rgba(224,231,255,0.6);
-                border-radius: 3px;
-                overflow: hidden;
-              }
-              .trending-progress-fill {
-                height: 100%;
-                background: linear-gradient(90deg, #6366f1, #818cf8);
-                border-radius: 3px;
-                transition: width 1s ease-out;
-                position: relative;
-              }
-              .trending-progress-fill::after {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-                animation: shimmer-progress 2s infinite;
-              }
-              @keyframes shimmer-progress {
-                0% { transform: translateX(-100%); }
-                100% { transform: translateX(100%); }
-              }
-              .trending-dish-metrics {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 8px;
-                margin-bottom: 12px;
-              }
-              .trending-metric {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                font-size: 0.8rem;
-              }
-              .trending-metric-label {
-                color: #64748b;
-                font-weight: 500;
-              }
-              .trending-metric-value {
-                color: #232946;
-                font-weight: 700;
-              }
-              .trending-dish-actions {
-                display: flex;
-                gap: 8px;
-                justify-content: flex-end;
-              }
-              .trending-dish-action {
-                width: 28px;
-                height: 28px;
-                background: rgba(224,231,255,0.6);
-                border: none;
-                border-radius: 6px;
-                color: #6366f1;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                transition: all 0.2s;
-              }
-              .trending-dish-action:hover {
-                background: rgba(99,102,241,0.1);
-                transform: scale(1.1);
-              }
-              .trending-footer {
-                background: rgba(255,255,255,0.8);
-                border-top: 1px solid rgba(224,231,255,0.6);
-                padding: 16px 20px;
-                backdrop-filter: blur(10px);
-              }
-              .trending-footer-stats {
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 12px;
-              }
-              .trending-footer-stat {
-                text-align: center;
-              }
-              .trending-footer-stat-value {
-                font-size: 1rem;
-                font-weight: 700;
-                color: #232946;
-                font-family: 'Sora', sans-serif;
-              }
-              .trending-footer-stat-label {
-                font-size: 0.75rem;
-                color: #64748b;
-                font-weight: 500;
-              }
-              .trending-footer-btn {
-                width: 100%;
-                background: linear-gradient(135deg, #6366f1, #818cf8);
-                color: #fff;
-                border: none;
-                border-radius: 12px;
-                padding: 10px 16px;
-                font-weight: 600;
-                font-size: 0.9rem;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-                transition: all 0.2s;
-                box-shadow: 0 2px 8px rgba(99,102,241,0.3);
-              }
-              .trending-footer-btn:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 4px 16px rgba(99,102,241,0.4);
-              }
-              .trending-sidebar-empty {
-                text-align: center;
-                padding: 40px 20px;
-                color: #64748b;
-              }
-              .trending-empty-icon {
-                margin-bottom: 16px;
-              }
-              .trending-empty-title {
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: #232946;
-                margin-bottom: 8px;
-                font-family: 'Sora', sans-serif;
-              }
-              .trending-empty-subtitle {
-                font-size: 0.9rem;
-                margin-bottom: 20px;
-                opacity: 0.8;
-              }
-              .trending-empty-tips {
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-              }
-              .trending-tip {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                font-size: 0.8rem;
-                color: #64748b;
-                background: rgba(255,255,255,0.6);
-                padding: 8px 12px;
-                border-radius: 8px;
-                border: 1px solid rgba(224,231,255,0.6);
-              }
-              @media (max-width: 1100px) {
-                .dashboard-main-grid-premium {
-                  grid-template-columns: 1fr;
-                }
-                .dashboard-waste-trending-container {
-                  grid-template-columns: 1fr;
-                  gap: 10px;
-                }
-                .trending-sidebar {
-                  position: static;
-                  transform: none;
-                  width: 100%;
-                  max-width: 480px;
-                  margin: 0 auto 40px auto;
-                  max-height: none;
-                }
-              }
-              @media (max-width: 700px) {
-                .dashboard-header-premium, .dashboard-kpi-row-premium, .dashboard-main-grid-premium, .dashboard-waste-trending-container {
-                  margin-left: 8px;
-                  margin-right: 8px;
-                  padding-left: 0;
-                  padding-right: 0;
-                }
-                .dashboard-header-premium {
-                  flex-direction: column;
-                  align-items: flex-start;
-                  gap: 12px;
-                  padding-top: 24px;
-                }
-                .trending-sidebar {
-                  margin: 0 8px 40px 8px;
-                }
-              }
-              .dashboard-hero-widget {
-                grid-column: 1 / -1; /* This makes the widget span the full width of the grid */
-              }
-            `}</style>
-            {/* Artistic SVG Blobs */}
-            <svg className="premium-bg-svg top" viewBox="0 0 400 320" fill="none"><ellipse cx="200" cy="160" rx="200" ry="160" fill="#818cf8"/><ellipse cx="120" cy="80" rx="80" ry="60" fill="#fbbf24" fillOpacity="0.7"/></svg>
-            <svg className="premium-bg-svg bottom" viewBox="0 0 400 320" fill="none"><ellipse cx="200" cy="160" rx="200" ry="160" fill="#fbbf24"/><ellipse cx="280" cy="240" rx="80" ry="60" fill="#818cf8" fillOpacity="0.7"/></svg>
-            
-            {/* Dashboard Header */}
-            <div className="dashboard-header-premium">
-              <div>
-                <div className="dashboard-title-premium">Manager Dashboard</div>
-                <div style={{fontFamily:'DM Sans,sans-serif',color:'#64748b',fontSize:'1.08rem'}}>Welcome back, manage your restaurant with insights and control.</div>
-              </div>
-              <div className="dashboard-actions-premium">
-             
-                <button className="dashboard-action-btn-premium" onClick={handleViewQR}>View QR</button>
-                <button className="dashboard-action-btn-premium" onClick={handleViewUsers}>Manage Users</button>
-                <button className="dashboard-action-btn-premium" onClick={handleInventoryManagement}>Inventory</button>
-                <button className="dashboard-action-btn-premium" onClick={handleViewProfile}>My Profile</button>
-                <NotificationBell className="relative z-30" restaurantId={restaurantId} />
-              </div>
-            </div>
-            
-            {/* KPI Cards */}
-            <div className="dashboard-kpi-row-premium">
-              <div className="dashboard-kpi-card-premium">
-                <div className="dashboard-kpi-icon-premium">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-                </div>
-                <div>
-                  <div className="dashboard-kpi-label-premium">Total Inventory Items</div>
-                  <div className="dashboard-kpi-value-premium">{Array.isArray(inventory) ? inventory.length : '--'}</div>
-                </div>
-              </div>
-              <div className="dashboard-kpi-card-premium">
-                <div className="dashboard-kpi-icon-premium">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                </div>
-                <div>
-                  <div className="dashboard-kpi-label-premium">Active Staff</div>
-                  <div className="dashboard-kpi-value-premium">{Array.isArray(staff) ? staff.length : '--'}</div>
-                </div>
-              </div>
-              <div className="dashboard-kpi-card-premium">
-                <div className="dashboard-kpi-icon-premium">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="1" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-                </div>
-                <div>
-                  <div className="dashboard-kpi-label-premium">Today's Sales</div>
-                  <div className="dashboard-kpi-value-premium">₹ {todaysSales.toLocaleString()}</div>
-                </div>
-              </div>
-              <div className="dashboard-kpi-card-premium">
-                <div className="dashboard-kpi-icon-premium">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-                </div>
-                <div>
-                  <div className="dashboard-kpi-label-premium">Waste Alerts</div>
-                  <div className="dashboard-kpi-value-premium">{Array.isArray(wasteAlerts) ? wasteAlerts.length : '--'}</div>
-                </div>
-              </div>
-              
-            </div>
-            <div className="dashboard-kpi-card-premium">
-  <div className="dashboard-kpi-icon-premium">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-      <line x1="3" y1="9" x2="21" y2="9"></line>
-      <line x1="9" y1="21" x2="9" y2="9"></line>
-    </svg>
-  </div>
-  <div>
-    <div className="dashboard-kpi-label-premium">Today's Reservations</div>
-    <div className="dashboard-kpi-value-premium">
-      {reservations.filter(res => {
-        const resDate = new Date(res.reservationDate).toDateString();
-        const today = new Date().toDateString();
-        return resDate === today && res.status !== 'cancelled';
-      }).length}
-    </div>
-  </div>
-</div>
-            {/* Main Grid */}
-            <div className="dashboard-main-grid-premium">
-              {/* Sales & Profit Advisor */}
-              <div className="dashboard-artistic-card-premium">
-                <div className="dashboard-artistic-header-premium">
-                  <span>Sales & Profit Advisor</span>
-                </div>
-                <div className="dashboard-artistic-content-premium">
-                  <SalesProfitAdvisor restaurantId={restaurantId} userRole="manager" orders={orders} />
-                </div>
-              </div>
-              
-              {/* Monthly Sales Graph */}
-              <div className="dashboard-artistic-card-premium">
-                <div className="dashboard-artistic-header-premium">
-                  <span>Monthly Sales Graph</span>
-                </div>
-                <div className="dashboard-artistic-content-premium">
-                  <MonthlySalesGraph orders={orders} />
-                </div>
-              </div>
-            </div>
-            
-            {/* Waste Analysis and Trending Container */}
-            <div className="dashboard-waste-trending-container">
-              {/* Waste Analysis */}
-              <div className="dashboard-artistic-card-premium">
-                <div className="dashboard-artistic-header-premium">
-                  <span>Waste Analysis</span>
-                </div>
-                <div className="dashboard-artistic-content-premium">
-                  <WasteAnalysis restaurantId={restaurantId} userRole="manager" />
-                </div>
-              </div>
-              
-              {/* Trending Dishes */}
-              <div className="trending-sidebar">
-                <div className="trending-sidebar-header">
-                  <div className="trending-header-content">
-                    <div className="trending-header-icon">
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                      </svg>
-                    </div>
-                    <div className="trending-header-text">
-                      <h3 className="trending-sidebar-title">🔥 Trending Dishes</h3>
-                      <p className="trending-sidebar-subtitle">Real-time popularity analysis</p>
-                      <div className="trending-stats">
-                        <span className="trending-stat">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <polyline points="12,6 12,12 16,14"/>
-                          </svg>
-                          Updated {new Date().toLocaleTimeString()}
-                        </span>
-                        <span className="trending-stat">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                            <circle cx="9" cy="7" r="4"/>
-                          </svg>
-                          {trendingDishes.length} dishes tracked
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="trending-header-actions">
-                    <button className="trending-action-btn" title="Refresh data">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="23,4 23,10 17,10"/>
-                        <polyline points="1,20 1,14 7,14"/>
-                        <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-                      </svg>
-                    </button>
-                    <button className="trending-action-btn" title="Export data">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7,10 12,15 17,10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="trending-sidebar-content">
-                  {trendingDishes.length === 0 ? (
-                    <div className="trending-sidebar-empty">
-                      <div className="trending-empty-icon">
-                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{opacity: 0.3}}>
-                          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                          <path d="M2 17l10 5 10-5"/>
-                          <path d="M2 12l10 5 10-5"/>
-                        </svg>
-                      </div>
-                      <div className="trending-empty-title">No trending data yet</div>
-                      <div className="trending-empty-subtitle">Start taking orders to see real-time trends</div>
-                      <div className="trending-empty-tips">
-                        <div className="trending-tip">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                            <line x1="12" y1="17" x2="12.01" y2="17"/>
-                          </svg>
-                          Orders are tracked automatically
-                        </div>
-                        <div className="trending-tip">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                            <polyline points="14,2 14,8 20,8"/>
-                          </svg>
-                          Data updates every 5 seconds
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="trending-summary">
-                        <div className="trending-summary-item">
-                          <div className="trending-summary-label">Total Orders</div>
-                          <div className="trending-summary-value">{trendingDishes.reduce((sum, dish) => sum + dish.count, 0)}</div>
-                        </div>
-                        <div className="trending-summary-item">
-                          <div className="trending-summary-label">Top Performer</div>
-                          <div className="trending-summary-value">{trendingDishes[0]?.name || 'N/A'}</div>
-                        </div>
-                        <div className="trending-summary-item">
-                          <div className="trending-summary-label">Avg Orders/Dish</div>
-                          <div className="trending-summary-value">
-                            {(trendingDishes.reduce((sum, dish) => sum + dish.count, 0) / trendingDishes.length).toFixed(1)}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="trending-filters">
-                        <button className="trending-filter-btn active">All Time</button>
-                        <button className="trending-filter-btn">Today</button>
-                        <button className="trending-filter-btn">This Week</button>
-                      </div>
-                      
-                      <div className="trending-dishes-list">
-                        {trendingDishes.map((dish, index) => {
-                          const percentage = (dish.count / trendingDishes[0].count * 100).toFixed(1);
-                          const isTop3 = index < 3;
-                          const trendDirection = index === 0 ? 'up' : index < 3 ? 'stable' : 'down';
-                          
-                          return (
-                            <div key={dish.name} className={`trending-dish-item ${isTop3 ? 'top-3' : ''}`}>
-                              <div className="trending-dish-rank-section">
-                                <div className={`trending-dish-rank ${isTop3 ? 'top-3' : ''}`}>
-                                  {index + 1}
-                                  {isTop3 && (
-                                    <div className="trending-rank-medal">
-                                      {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="trending-trend-indicator">
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    {trendDirection === 'up' ? (
-                                      <polyline points="18,15 12,9 6,15"/>
-                                    ) : trendDirection === 'down' ? (
-                                      <polyline points="6,9 12,15 18,9"/>
-                                    ) : (
-                                      <line x1="6" y1="12" x2="18" y2="12"/>
-                                    )}
-                                  </svg>
-                                </div>
-                              </div>
-                              
-                              <div className="trending-dish-info">
-                                <div className="trending-dish-header">
-                                  <div className="trending-dish-name">{dish.name}</div>
-                                  <div className="trending-dish-category">Main Course</div>
-                                </div>
-                                
-                                <div className="trending-dish-stats">
-                                  <div className="trending-dish-count">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                      <polyline points="14,2 14,8 20,8"/>
-                                    </svg>
-                                    {dish.count} orders
-                                  </div>
-                                  <div className="trending-dish-percentage">
-                                    {percentage}% of top dish
-                                  </div>
-                                </div>
-                                
-                                <div className="trending-dish-progress">
-                                  <div className="trending-progress-bar">
-                                    <div 
-                                      className="trending-progress-fill"
-                                      style={{ width: `${percentage}%` }}
-                                    ></div>
-                                  </div>
-                                </div>
-                                
-                                <div className="trending-dish-metrics">
-                                  <div className="trending-metric">
-                                    <span className="trending-metric-label">Revenue:</span>
-                                    <span className="trending-metric-value">₹{(dish.count * 250).toLocaleString()}</span>
-                                  </div>
-                                  <div className="trending-metric">
-                                    <span className="trending-metric-label">Avg Rating:</span>
-                                    <span className="trending-metric-value">4.{(8 - index).toString().padStart(1, '0')} ⭐</span>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              <div className="trending-dish-actions">
-                                <button className="trending-dish-action" title="View details">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                    <circle cx="12" cy="12" r="3"/>
-                                  </svg>
-                                </button>
-                                <button className="trending-dish-action" title="Edit dish">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            {/* Remaining Cards */}
-            <div className="dashboard-main-grid-premium">
-              <div className="dashboard-artistic-card-premium">
-                <div className="dashboard-artistic-header-premium">
-                  <span>Upsell Suggestions</span>
-                </div>
-                <div className="dashboard-artistic-content-premium">
-                  <UpsellSuggestions restaurantId={restaurantId} userRole="manager" />
-                </div>
-              </div>
-              <div className="dashboard-artistic-card-premium">
-                <div className="dashboard-artistic-header-premium">
-                  <span>Smart Leftover Reuse</span>
-                </div>
-                <div className="dashboard-artistic-content-premium">
-                  <SmartLeftoverReuse restaurantId={restaurantId} userRole="manager" />
-                </div>
-              </div>
-              <div className="dashboard-artistic-card-premium">
-                <div className="dashboard-artistic-header-premium">
-                  <span>Inventory Waste Alerts</span>
-                </div>
-                <div className="dashboard-artistic-content-premium">
-                  <InventoryWasteAlert restaurantId={restaurantId} userRole="manager" />
-                </div>
-              </div>
-            </div>
-          </div>
-        );
+          <Box minH="100vh" bgGradient="linear(to-br, brand.beige, white)" w="full">
+            <Box
+              position="sticky"
+              top="0"
+              zIndex={20}
+              backdropFilter="blur(12px)"
+              bg="brand.beige"
+              bgOpacity={0.88}
+              borderBottom="1px solid"
+              borderColor="blackAlpha.200"
+            >
+              <Container maxW="7xl" py={{ base: 4, md: 5 }}>
+                <Flex align="center" justify="space-between" gap={4} flexWrap="wrap">
+                  <Box>
+                    <Heading size={{ base: 'md', md: 'lg' }} fontWeight={600}>
+                      Manager Dashboard
+                    </Heading>
+                    <Text color="brand.muted" fontSize="sm" fontWeight={600}>
+                      {restaurantName ? (
+                        <>
+                          <Text as="span" color="terracotta.600" fontWeight={800}>
+                            {restaurantName}
+                          </Text>
+                          <Text as="span"> • Overview</Text>
+                        </>
+                      ) : (
+                        'Overview'
+                      )}
+                    </Text>
+                  </Box>
 
-    case 'orders':
+                  <HStack spacing={3} flexWrap="wrap">
+                    {restaurantId ? <NotificationBell restaurantId={restaurantId} inline /> : null}
+                    <Button
+                      variant="softOutline"
+                      leftIcon={<User size={18} />}
+                      onClick={handleViewProfile}
+                      isDisabled={!managerId}
+                    >
+                      Profile
+                    </Button>
+                    <Button variant="softOutline" leftIcon={<Users size={18} />} onClick={() => navigate('/manager/users')}>
+                      Users
+                    </Button>
+                    <Button variant="softOutline" leftIcon={<QrCode size={18} />} onClick={() => navigate('/manager/qr')}>
+                      QR
+                    </Button>
+                    <Button variant="dark" leftIcon={<Plus size={18} />} onClick={() => setShowAddDish(true)}>
+                      Add dish
+                    </Button>
+                    <Button variant="terracotta" leftIcon={<Receipt size={18} />} onClick={() => setShowAddOrder(true)}>
+                      New order
+                    </Button>
+                  </HStack>
+                </Flex>
+              </Container>
+            </Box>
+
+            <Container maxW="7xl" py={{ base: 6, md: 8 }}>
+              <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={5}>
+                {kpis.map((kpi) => (
+                  <Card key={kpi.label}>
+                    <CardBody>
+                      <HStack spacing={4} align="flex-start">
+                        <Center
+                          boxSize="44px"
+                          borderRadius="12px"
+                          bg="blackAlpha.50"
+                          borderWidth="1px"
+                          borderColor="blackAlpha.100"
+                          flexShrink={0}
+                        >
+                          <Icon as={kpi.icon} boxSize="18px" color="terracotta.600" />
+                        </Center>
+                        <Box flex="1">
+                          <Text fontSize="sm" color="brand.muted" fontWeight={700}>
+                            {kpi.label}
+                          </Text>
+                          <HStack spacing={2} align="baseline" mt={1}>
+                            <Text fontSize={{ base: '2xl', md: '3xl' }} fontWeight={800}>
+                              {kpi.value}
+                            </Text>
+                            <Text fontSize="sm" color="brand.muted" fontWeight={600}>
+                              {kpi.hint}
+                            </Text>
+                          </HStack>
+                        </Box>
+                      </HStack>
+                    </CardBody>
+                  </Card>
+                ))}
+              </SimpleGrid>
+
+              <Card mt={6}>
+                <CardBody>
+                  <Flex gap={4} align="center" flexWrap="wrap">
+                    <InputGroup maxW={{ base: 'full', md: '360px' }}>
+                      <InputLeftElement pointerEvents="none">
+                        <Icon as={Search} color="terracotta.600" boxSize="18px" />
+                      </InputLeftElement>
+                      <Input
+                        placeholder="Search dishes, orders, insights..."
+                        value={dashboardQuery}
+                        onChange={(e) => setDashboardQuery(e.target.value)}
+                        pl="42px"
+                      />
+                    </InputGroup>
+
+                    <HStack spacing={2} flexWrap="wrap">
+                      {['All', 'Today', 'This Week', 'Alerts'].map((chip) => {
+                        const isActive = dashboardChip === chip;
+                        return (
+                          <Button
+                            key={chip}
+                            variant={isActive ? 'dark' : 'pill'}
+                            size="sm"
+                            onClick={() => setDashboardChip(chip)}
+                          >
+                            {chip}
+                          </Button>
+                        );
+                      })}
+                    </HStack>
+
+                    <Flex flex="1" />
+
+                    <Button variant="terracotta" leftIcon={<TrendingUp size={18} />}>
+                      View report
+                    </Button>
+                  </Flex>
+                </CardBody>
+              </Card>
+
+              <SimpleGrid mt={6} columns={{ base: 1, lg: 2 }} spacing={5}>
+                <Card>
+                  <CardBody>
+                    <Flex align="center" justify="space-between" gap={3} mb={4} flexWrap="wrap">
+                      <Box>
+                        <Heading size="md">Trending dishes</Heading>
+                        <Text color="brand.muted" fontSize="sm" fontWeight={600}>
+                          Based on order frequency
+                        </Text>
+                      </Box>
+                      <Badge
+                        bg="blackAlpha.50"
+                        color="terracotta.600"
+                        borderRadius="999px"
+                        px={3}
+                        py={1}
+                        borderWidth="1px"
+                        borderColor="blackAlpha.200"
+                      >
+                        Top {visibleTrending.length}
+                      </Badge>
+                    </Flex>
+
+                    <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>
+                      {visibleTrending.length ? (
+                        visibleTrending.map((dish) => (
+                          <Box
+                            key={dish.name}
+                            bg="white"
+                            borderWidth="1px"
+                            borderColor="blackAlpha.100"
+                            borderRadius="14px"
+                            p={3}
+                            transition="all 150ms"
+                            _hover={{ transform: 'translateY(-2px)', boxShadow: 'md' }}
+                          >
+                            <HStack spacing={3} align="center">
+                              <Center
+                                boxSize="36px"
+                                borderRadius="12px"
+                                bg="blackAlpha.50"
+                                borderWidth="1px"
+                                borderColor="blackAlpha.100"
+                                flexShrink={0}
+                              >
+                                <Icon as={Sparkles} boxSize="16px" color="brand.ink" />
+                              </Center>
+                              <Box flex="1" minW={0}>
+                                <Text fontWeight={800} noOfLines={1}>
+                                  {dish.name}
+                                </Text>
+                                <Text fontSize="sm" color="brand.muted" fontWeight={600}>
+                                  {dish.count} ordered
+                                </Text>
+                              </Box>
+                              <Icon as={ArrowUpRight} boxSize="16px" color="blackAlpha.500" />
+                            </HStack>
+                          </Box>
+                        ))
+                      ) : (
+                        <Text color="brand.muted" fontWeight={600}>
+                          No matching dishes.
+                        </Text>
+                      )}
+                    </SimpleGrid>
+                  </CardBody>
+                </Card>
+
+                <Card>
+                  <CardBody>
+                    <Flex align="center" justify="space-between" gap={3} mb={4} flexWrap="wrap">
+                      <Box>
+                        <Heading size="md">Recent orders</Heading>
+                        <Text color="brand.muted" fontSize="sm" fontWeight={600}>
+                          {dashboardChip === 'All' ? 'Latest activity' : `Filtered: ${dashboardChip}`}
+                        </Text>
+                      </Box>
+                      <Badge bg="blackAlpha.50" color="brand.ink" borderRadius="999px" px={3} py={1}>
+                        {recentOrders.length}
+                      </Badge>
+                    </Flex>
+
+                    <VStack align="stretch" spacing={3}>
+                      {recentOrders.length ? (
+                        recentOrders.map((o) => {
+                          const key = o?._id || o?.id || `${o?.createdAt || ''}-${o?.tableNo || o?.table || ''}`;
+                          const itemsPreview = (o?.items || [])
+                            .map((it) => it?.name)
+                            .filter(Boolean)
+                            .slice(0, 3)
+                            .join(', ');
+
+                          return (
+                            <Box
+                              key={key}
+                              bg="white"
+                              borderWidth="1px"
+                              borderColor="blackAlpha.100"
+                              borderRadius="14px"
+                              p={3}
+                              transition="all 150ms"
+                              _hover={{ transform: 'translateY(-2px)', boxShadow: 'md' }}
+                            >
+                              <Flex align="center" gap={3} flexWrap="wrap">
+                                <Badge bg="blackAlpha.50" color="brand.ink" borderRadius="999px" px={3} py={1}>
+                                  Table {o?.tableNo || o?.table || '—'}
+                                </Badge>
+                                <Text fontWeight={800}>INR {Number(o?.totalAmount || 0).toLocaleString('en-IN')}</Text>
+                                <Text color="brand.muted" fontSize="sm" fontWeight={600}>
+                                  {o?.createdAt ? new Date(o.createdAt).toLocaleString() : '—'}
+                                </Text>
+                                <Flex flex="1" />
+                                <Badge bg="blackAlpha.100" color="blackAlpha.800" borderRadius="999px" px={3} py={1}>
+                                  {String(o?.status || 'placed')}
+                                </Badge>
+                              </Flex>
+                              <Text mt={1} color="brand.muted" fontSize="sm" fontWeight={600} noOfLines={1}>
+                                {itemsPreview || '—'}
+                              </Text>
+                            </Box>
+                          );
+                        })
+                      ) : (
+                        <Text color="brand.muted" fontWeight={600}>
+                          No orders yet.
+                        </Text>
+                      )}
+                    </VStack>
+                  </CardBody>
+                </Card>
+              </SimpleGrid>
+
+              <Box mt={8}>
+                <Heading size="md">Workspace</Heading>
+                <Text color="brand.muted" fontSize="sm" fontWeight={600} mt={1} mb={4}>
+                  Tools and insights in a card-based layout
+                </Text>
+
+                <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={5}>
+                  {dashboardCards.map((c) => (
+                    <Card key={c.title}>
+                      <CardBody>
+                        <HStack spacing={3} mb={4}>
+                          <Center
+                            boxSize="36px"
+                            borderRadius="12px"
+                            bg="blackAlpha.50"
+                            borderWidth="1px"
+                            borderColor="blackAlpha.100"
+                            flexShrink={0}
+                          >
+                            <Icon as={c.icon} boxSize="16px" color="brand.ink" />
+                          </Center>
+                          <Box>
+                            <Text fontSize="xs" color="brand.muted" fontWeight={800} letterSpacing="0.08em">
+                              DASHBOARD
+                            </Text>
+                            <Heading size="sm" fontWeight={700}>
+                              {c.title}
+                            </Heading>
+                          </Box>
+                        </HStack>
+                        <Box>{c.content}</Box>
+                      </CardBody>
+                    </Card>
+                  ))}
+                </SimpleGrid>
+              </Box>
+            </Container>
+          </Box>
+        );
+      }
+
+      case 'orders':
   return (
     <Box 
       minH="100vh" 
@@ -2816,7 +1991,7 @@ const openUPIApp = (amount, tableNo) => {
                     color="yellow.300"
                     textShadow="0 2px 8px rgba(0,0,0,0.3)"
                   >
-                    ₹ {dish.price}
+                    {'\u20B9'} {dish.price}
                   </Text>
                 </Box>
               </Box>
@@ -2824,159 +1999,6 @@ const openUPIApp = (amount, tableNo) => {
           ))}
         </SimpleGrid>
       </Container>
-
-      {/* Add Dish Modal */}
-      <Modal 
-        isOpen={showAddDish} 
-        onClose={() => setShowAddDish(false)}
-        size="md"
-        motionPreset="scale"
-      >
-        <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(10px)" />
-        <ModalContent
-          bg="whiteAlpha.100"
-          backdropFilter="blur(20px)"
-          border="1px solid"
-          borderColor="whiteAlpha.200"
-          borderRadius="3xl"
-          boxShadow="2xl"
-        >
-          <ModalHeader color="white" fontSize="2xl" fontWeight="bold">
-            🍽️ Add New Dish
-          </ModalHeader>
-          <ModalCloseButton color="white" />
-          
-          <ModalBody>
-            <form onSubmit={handleAddDish}>
-              <VStack spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel color="whiteAlpha.800">Dish Name</FormLabel>
-                  <Input
-                    value={addDishForm.name}
-                    onChange={(e) => setAddDishForm({ ...addDishForm, name: e.target.value })}
-                    bg="whiteAlpha.200"
-                    border="1px solid"
-                    borderColor="whiteAlpha.300"
-                    color="white"
-                    _placeholder={{ color: 'whiteAlpha.500' }}
-                    _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                  />
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel color="whiteAlpha.800">Description</FormLabel>
-                  <Textarea
-                    value={addDishForm.description}
-                    onChange={(e) => setAddDishForm({ ...addDishForm, description: e.target.value })}
-                    bg="whiteAlpha.200"
-                    border="1px solid"
-                    borderColor="whiteAlpha.300"
-                    color="white"
-                    rows={3}
-                    _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                  />
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel color="whiteAlpha.800">Ingredients (comma-separated)</FormLabel>
-                  <Input
-                    value={addDishForm.ingredients}
-                    onChange={(e) => setAddDishForm({ ...addDishForm, ingredients: e.target.value })}
-                    bg="whiteAlpha.200"
-                    border="1px solid"
-                    borderColor="whiteAlpha.300"
-                    color="white"
-                    _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel color="whiteAlpha.800">Dietary Info</FormLabel>
-                  <Input
-                    value={addDishForm.dietary}
-                    onChange={(e) => setAddDishForm({ ...addDishForm, dietary: e.target.value })}
-                    bg="whiteAlpha.200"
-                    border="1px solid"
-                    borderColor="whiteAlpha.300"
-                    color="white"
-                    _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                  />
-                </FormControl>
-
-                <HStack spacing={4} w="full">
-                  <FormControl isRequired>
-                    <FormLabel color="whiteAlpha.800">Price (₹)</FormLabel>
-                    <NumberInput min={0} precision={2}>
-                      <NumberInputField
-                        value={addDishForm.price}
-                        onChange={(e) => setAddDishForm({ ...addDishForm, price: e.target.value })}
-                        bg="whiteAlpha.200"
-                        border="1px solid"
-                        borderColor="whiteAlpha.300"
-                        color="white"
-                        _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                      />
-                    </NumberInput>
-                  </FormControl>
-
-                  <FormControl isRequired>
-                    <FormLabel color="whiteAlpha.800">Category</FormLabel>
-                    <Input
-                      value={addDishForm.category}
-                      onChange={(e) => setAddDishForm({ ...addDishForm, category: e.target.value })}
-                      bg="whiteAlpha.200"
-                      border="1px solid"
-                      borderColor="whiteAlpha.300"
-                      color="white"
-                      _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                    />
-                  </FormControl>
-                </HStack>
-
-                <FormControl>
-                  <FormLabel color="whiteAlpha.800">Image URL</FormLabel>
-                  <Input
-                    value={addDishForm.image}
-                    onChange={(e) => setAddDishForm({ ...addDishForm, image: e.target.value })}
-                    bg="whiteAlpha.200"
-                    border="1px solid"
-                    borderColor="whiteAlpha.300"
-                    color="white"
-                    _focus={{ borderColor: 'pink.400', boxShadow: '0 0 0 1px #d53f8c' }}
-                  />
-                </FormControl>
-
-                {dishError && (
-                  <Text color="red.400" fontSize="sm">
-                    {dishError}
-                  </Text>
-                )}
-              </VStack>
-            </form>
-          </ModalBody>
-
-          <ModalFooter>
-            <Button 
-              variant="ghost" 
-              mr={3} 
-              onClick={() => setShowAddDish(false)}
-              color="white"
-              _hover={{ bg: 'whiteAlpha.200' }}
-            >
-              Cancel
-            </Button>
-            <Button
-              bg="pink.500"
-              color="white"
-              _hover={{ bg: 'pink.600' }}
-              isLoading={dishLoading}
-              onClick={handleAddDish}
-            >
-              Add Dish
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
 
       {/* Bill Drawer */}
       <Drawer
@@ -3032,7 +2054,7 @@ const openUPIApp = (amount, tableNo) => {
                   borderRadius="xl"
                 >
                   <Text fontSize="3xl" fontWeight="bold" textAlign="center">
-                    ₹ {currentPayment.amount}
+                    {'\u20B9'} {currentPayment.amount}
                   </Text>
                   <Text textAlign="center" fontSize="sm" opacity={0.9}>
                     Table {currentPayment.tableNo} • {restaurantName}
@@ -3245,8 +2267,8 @@ const openUPIApp = (amount, tableNo) => {
                                     )}
                                   </Td>
                                   <Td isNumeric>{item.quantity}</Td>
-                                  <Td isNumeric>₹ {item.price}</Td>
-                                  <Td isNumeric fontWeight="bold">₹ {item.price * item.quantity}</Td>
+                                  <Td isNumeric>{'\u20B9'} {item.price}</Td>
+                                  <Td isNumeric fontWeight="bold">{'\u20B9'} {item.price * item.quantity}</Td>
                                 </Tr>
                               ))}
                             </Tbody>
@@ -3255,7 +2277,7 @@ const openUPIApp = (amount, tableNo) => {
                           <Divider my={3} />
                           
                           <Text fontSize="xl" fontWeight="bold" textAlign="right" color="orange.400">
-                            Total: ₹ {total}
+                            Total: {'\u20B9'} {total}
                           </Text>
 
                           <Button
@@ -3270,13 +2292,13 @@ const openUPIApp = (amount, tableNo) => {
                                 for (const id of orderIds) {
                                   await handlePayment(id)
                                 }
-                                alert(`✅ Payment of ₹${total} received via ${paymentMethod.toUpperCase()}!`)
+                                alert(`✅ Payment of \u20B9${total} received via ${paymentMethod.toUpperCase()}!`)
                               }
                             }}
                           >
-                            {paymentMethod === 'upi' ? `Pay ₹${total} via UPI` :
-                             paymentMethod === 'card' ? `Process Card Payment - ₹${total}` :
-                             `Confirm Cash Payment - ₹${total}`}
+                            {paymentMethod === 'upi' ? `Pay \u20B9${total} via UPI` :
+                             paymentMethod === 'card' ? `Process Card Payment - \u20B9${total}` :
+                             `Confirm Cash Payment - \u20B9${total}`}
                           </Button>
                         </Box>
                       )
@@ -3319,7 +2341,7 @@ const openUPIApp = (amount, tableNo) => {
                     {galleryModalDish.description}
                   </Text>
                   <Text color="orange.400" fontWeight="bold" fontSize="lg" mt={1}>
-                    ₹ {galleryModalDish.price}
+                    {'\u20B9'} {galleryModalDish.price}
                   </Text>
                 </Box>
 
@@ -3629,7 +2651,7 @@ const openUPIApp = (amount, tableNo) => {
                       <td>#{order._id.slice(-5)}</td>
                       <td>{order.table}</td>
                       <td>{order.items.map(i => `${i.name} x${i.quantity}`).join(', ')}</td>
-                      <td>₹ {order.totalAmount}</td>
+                      <td>{'\u20B9'} {order.totalAmount}</td>
                       <td>{new Date(order.createdAt).toLocaleDateString()}</td>
                     </tr>
                   ))}
@@ -3696,13 +2718,7 @@ const openUPIApp = (amount, tableNo) => {
           </div>
         );
 
-      case 'traceability':
-        return <TraceabilitySafety restaurantId={restaurantId} />;
-      case 'dynamicpricing':
-        return <DynamicPricing restaurantId={restaurantId} />;
-      case 'foodsecurity':
-        return <FoodSecurityGrid restaurantId={restaurantId} />;
-
+     
       case 'orderstatus':
         return (
           <div className="orderstatus-artistic-bg">
@@ -3729,11 +2745,11 @@ const openUPIApp = (amount, tableNo) => {
                                 <span className="orderstatus-artistic-item-name">{item.name}</span>
                                 <span className="orderstatus-artistic-item-qty">x{item.quantity}</span>
                                 {item.modifications && item.modifications.length > 0 && <span className="orderstatus-artistic-item-mods">{item.modifications.join(', ')}</span>}
-                                <span className="orderstatus-artistic-item-price">₹ {item.price * item.quantity}</span>
+                                <span className="orderstatus-artistic-item-price">{'\u20B9'} {item.price * item.quantity}</span>
                               </li>
                             ))}
                           </ul>
-                          <div className="orderstatus-artistic-total">Total: ₹ {order.totalAmount}</div>
+                          <div className="orderstatus-artistic-total">Total: {'\u20B9'} {order.totalAmount}</div>
                         </li>
                       ))}
                     </ul>
@@ -4200,6 +3216,159 @@ const openUPIApp = (amount, tableNo) => {
         </div>
       </div>
       {/* Voice Assistant Floating Button */}
+      {/* Urgent orders notification bell (fixed) */}
+      {restaurantId ? <NotificationBell restaurantId={restaurantId} /> : null}
+
+      {/* Global Add Dish Modal */}
+      <Modal isOpen={showAddDish} onClose={() => setShowAddDish(false)} size="lg" motionPreset="scale">
+        <ModalOverlay bg="blackAlpha.400" backdropFilter="blur(6px)" />
+        <ModalContent borderRadius="16px" borderWidth="1px" borderColor="blackAlpha.200">
+          <ModalHeader fontWeight={700}>Add dish</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <FormControl isRequired>
+                <FormLabel>Dish name</FormLabel>
+                <Input value={addDishForm.name} onChange={(e) => setAddDishForm({ ...addDishForm, name: e.target.value })} />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Description</FormLabel>
+                <Textarea value={addDishForm.description} onChange={(e) => setAddDishForm({ ...addDishForm, description: e.target.value })} rows={3} />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Ingredients (comma-separated)</FormLabel>
+                <Input value={addDishForm.ingredients} onChange={(e) => setAddDishForm({ ...addDishForm, ingredients: e.target.value })} />
+              </FormControl>
+
+              <HStack spacing={4} align="start">
+                <FormControl isRequired>
+                  <FormLabel>Price</FormLabel>
+                  <NumberInput min={0} precision={2}>
+                    <NumberInputField value={addDishForm.price} onChange={(e) => setAddDishForm({ ...addDishForm, price: e.target.value })} />
+                  </NumberInput>
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel>Category</FormLabel>
+                  <Input value={addDishForm.category} onChange={(e) => setAddDishForm({ ...addDishForm, category: e.target.value })} />
+                </FormControl>
+              </HStack>
+
+              <FormControl>
+                <FormLabel>Dietary info (comma-separated)</FormLabel>
+                <Input value={addDishForm.dietary} onChange={(e) => setAddDishForm({ ...addDishForm, dietary: e.target.value })} />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Image URL</FormLabel>
+                <Input value={addDishForm.image} onChange={(e) => setAddDishForm({ ...addDishForm, image: e.target.value })} />
+              </FormControl>
+
+              {dishError ? (
+                <Text color="red.500" fontSize="sm">
+                  {dishError}
+                </Text>
+              ) : null}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="softOutline" mr={3} onClick={() => setShowAddDish(false)}>
+              Cancel
+            </Button>
+            <Button variant="terracotta" isLoading={dishLoading} onClick={handleAddDish}>
+              Add dish
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Global New Order Modal */}
+      <Modal isOpen={showAddOrder} onClose={() => setShowAddOrder(false)} size="xl" motionPreset="scale">
+        <ModalOverlay bg="blackAlpha.400" backdropFilter="blur(6px)" />
+        <ModalContent borderRadius="16px" borderWidth="1px" borderColor="blackAlpha.200">
+          <ModalHeader fontWeight={700}>New order</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <FormControl isRequired>
+                <FormLabel>Table</FormLabel>
+                <Input value={addOrderForm.table} onChange={(e) => setAddOrderForm({ ...addOrderForm, table: e.target.value })} />
+              </FormControl>
+
+              <HStack justify="space-between">
+                <Text fontWeight={700}>Items</Text>
+                <Button variant="softOutline" size="sm" onClick={handleAddOrderItem}>
+                  Add item
+                </Button>
+              </HStack>
+
+              <VStack spacing={3} align="stretch">
+                {orderItems.map((item, idx) => (
+                  <Card key={idx} borderWidth="1px" borderColor="blackAlpha.200" borderRadius="14px">
+                    <CardBody>
+                      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3}>
+                        <FormControl isRequired>
+                          <FormLabel>Dish</FormLabel>
+                          <Select
+                            placeholder={dishLoading ? 'Loading dishes…' : 'Select dish'}
+                            value={item.dishId}
+                            onChange={(e) => handleOrderItemChange(idx, 'dishId', e.target.value)}
+                          >
+                            {dishes.map((d) => (
+                              <option key={d._id} value={d._id}>
+                                {d.name}
+                              </option>
+                            ))}
+                          </Select>
+                        </FormControl>
+
+                        <FormControl isRequired>
+                          <FormLabel>Qty</FormLabel>
+                          <NumberInput min={1} value={item.quantity} onChange={(v) => handleOrderItemChange(idx, 'quantity', Number(v))}>
+                            <NumberInputField />
+                          </NumberInput>
+                        </FormControl>
+
+                        <FormControl>
+                          <FormLabel>Modifications</FormLabel>
+                          <Input
+                            placeholder="e.g., less spicy, no onion"
+                            value={item.modifications}
+                            onChange={(e) => handleOrderItemChange(idx, 'modifications', e.target.value)}
+                          />
+                        </FormControl>
+                      </SimpleGrid>
+
+                      <HStack justify="flex-end" mt={3}>
+                        <Button variant="softOutline" size="sm" onClick={() => handleRemoveOrderItem(idx)}>
+                          Remove
+                        </Button>
+                      </HStack>
+                    </CardBody>
+                  </Card>
+                ))}
+              </VStack>
+
+              {orderError ? (
+                <Text color="red.500" fontSize="sm">
+                  {orderError}
+                </Text>
+              ) : null}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="softOutline" mr={3} onClick={() => setShowAddOrder(false)}>
+              Cancel
+            </Button>
+            <Button variant="dark" isLoading={orderLoading} onClick={handleAddOrder}>
+              Create order
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
       <VoiceAssistant onCommand={handleVoiceCommand} />
       <style>{`
         @media (max-width: 900px) {

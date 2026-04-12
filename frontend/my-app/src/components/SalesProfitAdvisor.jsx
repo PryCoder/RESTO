@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 import {
   Badge,
   Box,
@@ -33,9 +34,10 @@ import {
   useToken,
 } from '@chakra-ui/react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const API_URL = API_BASE_URL;
 
 export default function SalesProfitAdvisor({ restaurantId, userRole, orders = [] }) {
+  const INR = '\u20B9';
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -156,15 +158,12 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
 
   const chartData = getChartData();
 
+  // Always keep numbers dynamic from live orders
   useEffect(() => {
-    if (restaurantId || orders.length > 0) {
-      fetchProfitAnalysis();
-    } else {
-      const calculatedAnalysis = calculateProfitFromOrders();
-      setAnalysis(calculatedAnalysis);
-      setLoading(false);
-    }
-  }, [restaurantId, orders.length, timeRange]);
+    const calculatedAnalysis = calculateProfitFromOrders();
+    setAnalysis(calculatedAnalysis);
+    setLoading(false);
+  }, [orders, timeRange]);
 
   useEffect(() => {
     if (!realTimeData) return;
@@ -217,8 +216,8 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
     const tips = generateDynamicTips(currentSalesData, profitMargin, orders);
 
     return {
-      profit: `₹${Math.max(0, profit).toLocaleString('en-IN')}`,
-      totalSales: `₹${totalRevenue.toLocaleString('en-IN')}`,
+      profit: `${INR}${Math.max(0, profit).toLocaleString('en-IN')}`,
+      totalSales: `${INR}${totalRevenue.toLocaleString('en-IN')}`,
       tip: tips,
       profitMargin: Math.round(profitMargin),
       comparison: currentSalesData.comparison
@@ -246,7 +245,7 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
     }
 
     if (avgOrderValue < 500) {
-      tips.push(`Low average order value (₹${Math.round(avgOrderValue)}) - train staff on upselling techniques`);
+      tips.push(`Low average order value (${INR}${Math.round(avgOrderValue)}) - train staff on upselling techniques`);
     }
 
     const currentHour = new Date().getHours();
@@ -346,8 +345,8 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
       const salesText = analysis.totalSales || '0';
       const profitText = analysis.profit || '0';
       
-      const sales = parseInt(salesText.toString().replace(/[₹,]/g, '')) || 0;
-      const profit = parseInt(profitText.toString().replace(/[₹,]/g, '')) || 0;
+      const sales = parseInt(salesText.toString().replace(/[^\d-]/g, ''), 10) || 0;
+      const profit = parseInt(profitText.toString().replace(/[^\d-]/g, ''), 10) || 0;
       
       if (sales === 0) return 0;
       return Math.round((profit / sales) * 100);
@@ -365,9 +364,9 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
 
   const formatCurrency = (amount) => {
     if (typeof amount === 'number') {
-      return `₹${amount.toLocaleString('en-IN')}`;
+      return `${INR}${amount.toLocaleString('en-IN')}`;
     }
-    return amount || '₹0';
+    return amount || `${INR}0`;
   };
 
   if (error && !analysis) {
@@ -412,7 +411,7 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
               id="profit-live"
               colorScheme="blue"
               isChecked={realTimeData}
-              onChange={() => setRealTimeData(!realTimeData)}
+              onChange={() => setRealTimeData((v) => !v)}
             />
           </FormControl>
 
@@ -467,10 +466,10 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
                 tick={{ fill: gray600, fontWeight: 600, fontSize: 10 }}
                 axisLine={false}
                 tickLine={false}
-                tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v) => `${INR}${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
-                formatter={(value) => [`₹${Number(value || 0).toLocaleString('en-IN')}`, 'Sales']}
+                formatter={(value) => [`${INR}${Number(value || 0).toLocaleString('en-IN')}`, 'Sales']}
                 contentStyle={{
                   background: white,
                   borderRadius: 10,
@@ -480,7 +479,7 @@ export default function SalesProfitAdvisor({ restaurantId, userRole, orders = []
                   color: gray900,
                 }}
               />
-              <Bar dataKey="Sales" radius={[6, 6, 0, 0]} fill={blue500} />
+              <Bar dataKey="Sales" radius={[6, 6, 0, 0]} fill={blue500} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </CardBody>

@@ -148,10 +148,11 @@ const checkForUrgentOrders = async () => {
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
     
     // Find orders that are:
-    // 1. Not completed, cancelled, or received
+    // 1. Not paid or cancelled
     // 2. Created more than 10 minutes ago
     const urgentOrders = await Order.find({
-      status: { $nin: ['completed', 'cancelled', 'received'] },
+      // Include legacy states for safety, but prefer canonical ones.
+      status: { $in: ['pending', 'processing', 'preparing', 'ready', 'served'] },
       createdAt: { $lt: tenMinutesAgo }
     }).populate('restaurant', 'name _id');
     

@@ -377,8 +377,20 @@ const LoginForm = () => {
 
       if (response.ok) {
         localStorage.setItem('token', data.token);
+        try {
+          localStorage.setItem('user', JSON.stringify(data.user));
+        } catch {
+          // ignore
+        }
         if (data.user.role === 'manager') {
-          navigate(`/dashboard/manager/${data.user.restaurant || 'new'}`);
+          const restaurantId =
+            (data.user.restaurant && typeof data.user.restaurant === 'object'
+              ? (data.user.restaurant._id || data.user.restaurant.id)
+              : data.user.restaurant) ||
+            data.user.restaurantId ||
+            'new';
+
+          navigate(`/dashboard/manager/${restaurantId}`);
         } else if (data.user.role === 'vendor') {
           navigate('/dashboard/vendor');
         } else if (data.user.role === 'kitchen') {
